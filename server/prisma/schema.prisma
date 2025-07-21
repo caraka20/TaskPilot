@@ -1,0 +1,160 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          Int    @id @default(autoincrement())
+  email       String @unique
+  password    String
+  role        Role   @default(USER) // enum: USER | OWNER
+  namaLengkap String
+
+  // Statistik kerja
+  totalJamKerja Float @default(0.0) // dalam jam
+  totalGaji     Float @default(0.0) // akumulasi gaji
+
+  // Relasi
+  jamKerja    JamKerja[]
+  tugas       Task[]
+  riwayatGaji Gaji[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Enum untuk role pengguna
+enum Role {
+  USER
+  OWNER
+}
+
+model Customer {
+  id           Int     @id @default(autoincrement())
+  namaCustomer String
+  noWa         String
+  nim          String  @unique
+  password     String
+  jurusan      String
+  jenis        JenisUT
+
+  totalBayar Float @default(0.0)
+  sudahBayar Float @default(0.0)
+  sisaBayar  Float @default(0.0)
+
+  tugas Task[]
+  karil KarilDetail? @relation("CustomerToKaril") // harus sama
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum JenisUT {
+  TUTON
+  KARIL
+  TK
+}
+
+model KarilDetail {
+  id         Int      @id @default(autoincrement())
+  customerId Int      @unique
+  customer   Customer @relation("CustomerToKaril", fields: [customerId], references: [id])
+
+  judul String
+
+  tugas1 Boolean @default(false)
+  tugas2 Boolean @default(false)
+  tugas3 Boolean @default(false)
+  tugas4 Boolean @default(false)
+
+  keterangan String? // catatan umum (misalnya revisi dari dosen)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Task {
+  id         Int  @id @default(autoincrement())
+  customerId Int
+  userId     Int?
+
+  jenisTugas JenisTugas
+  sesi       Int? // nullable, untuk diskusi/absen sesi 1–8
+  deskripsi  String
+
+  status         StatusTugas @default(BELUM)
+  waktuSelesai   DateTime?
+  lastProgressAt DateTime?
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  user     User?    @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum JenisTugas {
+  DISKUSI
+  TUGAS
+  ABSEN
+}
+
+enum StatusTugas {
+  BELUM
+  SEDANG
+  SELESAI
+}
+
+model JamKerja {
+  id         Int         @id @default(autoincrement())
+  userId     Int
+  tanggal    DateTime    @default(now())
+  jamMulai   DateTime
+  jamSelesai DateTime?
+  totalJam   Float       @default(0.0) // satuan jam (misal 1.5 jam)
+  status     StatusKerja @default(AKTIF)
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum StatusKerja {
+  AKTIF
+  JEDA
+  SELESAI
+}
+
+model Gaji {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  tanggalBayar DateTime @default(now())
+  jumlahBayar  Float
+  catatan      String?
+
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Konfigurasi {
+  id             Int   @id @default(1)
+  batasJedaMenit Int   @default(5) // misal 5 menit
+  gajiPerJam     Float @default(14285.71) // 100.000 / 7 jam
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
