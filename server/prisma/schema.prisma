@@ -15,17 +15,14 @@ datasource db {
 }
 
 model User {
-  id          Int    @id @default(autoincrement())
-  email       String @unique
+  username    String @id @db.VarChar(100)
   password    String
-  role        Role   @default(USER) // enum: USER | OWNER
-  namaLengkap String
+  role        Role   @default(USER)
+  namaLengkap String @db.VarChar(100)
 
-  // Statistik kerja
-  totalJamKerja Float @default(0.0) // dalam jam
-  totalGaji     Float @default(0.0) // akumulasi gaji
+  totalJamKerja Float @default(0.0)
+  totalGaji     Float @default(0.0)
 
-  // Relasi
   jamKerja    JamKerja[]
   tugas       Task[]
   riwayatGaji Gaji[]
@@ -85,20 +82,18 @@ model KarilDetail {
 }
 
 model Task {
-  id         Int  @id @default(autoincrement())
-  customerId Int
-  userId     Int?
-
-  jenisTugas JenisTugas
-  sesi       Int? // nullable, untuk diskusi/absen sesi 1–8
-  deskripsi  String
-
+  id             Int         @id @default(autoincrement())
+  customerId     Int
+  username       String?
+  jenisTugas     JenisTugas
+  sesi           Int?
+  deskripsi      String
   status         StatusTugas @default(BELUM)
   waktuSelesai   DateTime?
   lastProgressAt DateTime?
 
   customer Customer @relation(fields: [customerId], references: [id])
-  user     User?    @relation(fields: [userId], references: [id])
+  user     User?    @relation(fields: [username], references: [username])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -118,14 +113,14 @@ enum StatusTugas {
 
 model JamKerja {
   id         Int         @id @default(autoincrement())
-  userId     Int
+  username   String // foreign key
   tanggal    DateTime    @default(now())
   jamMulai   DateTime
   jamSelesai DateTime?
-  totalJam   Float       @default(0.0) // satuan jam (misal 1.5 jam)
+  totalJam   Float       @default(0.0)
   status     StatusKerja @default(AKTIF)
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [username], references: [username])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -139,12 +134,12 @@ enum StatusKerja {
 
 model Gaji {
   id           Int      @id @default(autoincrement())
-  userId       Int
+  username     String // foreign key
   tanggalBayar DateTime @default(now())
   jumlahBayar  Float
   catatan      String?
 
-  user User @relation(fields: [userId], references: [id])
+  user User @relation(fields: [username], references: [username])
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
