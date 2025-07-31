@@ -1,4 +1,5 @@
 import { prismaClient } from "../../config/database"; 
+import { User } from "../../generated/prisma";
 import { RegisterRequest } from "./user.model";
 
 export class UserRepository {
@@ -16,16 +17,17 @@ export class UserRepository {
     return prismaClient.user.findMany()
   }
 
-  // static async update(username: string, data: Partial<{ password: string; namaLengkap: string; role: string }>) {
-  //   return prismaClient.user.update({
-  //     where: { username },
-  //     data
-  //   })
-  // }
+  static async login(username : string, token : string) {
+    return prismaClient.user.update({
+      where: { username },
+      data : {token}
+    })
+  }
 
-  static async delete(username: string) {
-    return prismaClient.user.delete({
-      where: { username }
+  static async logout(user : User) {
+    return prismaClient.user.update({
+      where: { username : user.username },
+      data : {token : null}
     })
   }
 

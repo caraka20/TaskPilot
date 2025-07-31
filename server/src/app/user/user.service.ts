@@ -4,6 +4,7 @@ import bcrypt from "bcrypt"
 import { ERROR_CODE } from '../../utils/error-codes'
 import { AppError } from '../../middleware/app-error'
 import { generateToken } from '../../utils/jwt'
+import { UserRequest } from '../../types/user-request'
 
 
 export class UserService {
@@ -27,6 +28,7 @@ export class UserService {
       if (!isPasswordValid) throw AppError.fromCode(ERROR_CODE.UNAUTHORIZED)
 
       const token = generateToken({username: user.username })
+      await UserRepository.login(user.username, token)
       return toLoginResponse(user, token)
     }
 
@@ -44,6 +46,11 @@ export class UserService {
 
       const response = toUserDetailResponse(user)
       return response
+    }
+
+    static async logout(user : UserRequest) {
+      const result = await UserRepository.logout(user.user!)
+      
     }
     
 }

@@ -1,10 +1,11 @@
 import { Request, Response, NextFunction } from 'express'
-import { LoginRequest, RegisterRequest, UserDetailRequest } from './user.model'
+import { LoginRequest, RegisterRequest } from './user.model'
 import { Validation } from '../../middleware/validation'
 import { UserValidation } from './user.validation'
 import { UserService } from './user.service'
 import { ResponseHandler } from '../../utils/response-handler'
 import { SUCCESS_MESSAGES } from '../../utils/success-messages'
+import { UserRequest } from '../../types/user-request'
 
 export class UserController {
   static async register(req: Request, res: Response, next: NextFunction) {
@@ -44,6 +45,19 @@ export class UserController {
       const result = await UserService.getUserDetail(params)
 
       return ResponseHandler.success(res, result, SUCCESS_MESSAGES.FETCHED.USER)
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  static async logout(req: UserRequest, res: Response, next: NextFunction) {
+    try {
+      console.log(req.user);
+      
+      const result = await UserService.logout(req)
+      // console.log(result);
+      
+      return ResponseHandler.success(res, result, SUCCESS_MESSAGES.LOGOUT.USER)
     } catch (err) {
       next(err)
     }

@@ -21,7 +21,7 @@ describe('POST /api/users/register', () => {
         namaLengkap : "caraka"
       })
     
-    // console.log(response.body)
+    console.log(response.body)
     expect(response.status).toBe(200)
     expect(response.body.status).toBe('success')
     expect(response.body.data.username).toBe("raka20")
@@ -202,3 +202,21 @@ describe('GET /api/users/:username', () => {
   })
 })
 
+describe ('DELETE /api/users/logout', () => {
+  beforeEach(async () => {
+    await UserTest.create()
+  })
+
+  afterEach(async () => {
+    await UserTest.delete()
+  })
+
+  it("should be able logout", async () => {
+    const response = await supertest(app)
+      .post("/api/users/logout")
+      .set('Authorization', `Bearer token`)
+
+      console.log(response.error);
+      
+  } )
+})

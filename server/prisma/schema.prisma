@@ -15,10 +15,11 @@ datasource db {
 }
 
 model User {
-  username    String @id @db.VarChar(100)
+  username    String  @id @db.VarChar(100)
   password    String
-  role        Role   @default(USER)
-  namaLengkap String @db.VarChar(100)
+  role        Role    @default(USER)
+  namaLengkap String  @db.VarChar(100)
+  token       String? @db.Text
 
   totalJamKerja Float @default(0.0)
   totalGaji     Float @default(0.0)
