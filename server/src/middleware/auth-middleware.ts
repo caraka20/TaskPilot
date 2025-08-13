@@ -5,10 +5,9 @@ import { ERROR_CODE } from '../utils/error-codes'
 import { UserRequest } from '../types/user-request'
 import { prismaClient } from '../config/database' 
 
-
-export async function authMiddleware(req: UserRequest, res: Response, next: NextFunction) {
+export const authMiddleware = async ( req: UserRequest, res: Response, next: NextFunction
+) => {
   const authHeader = req.headers.authorization
-
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     throw AppError.fromCode(ERROR_CODE.UNAUTHORIZED)
   }
@@ -28,7 +27,6 @@ export async function authMiddleware(req: UserRequest, res: Response, next: Next
     throw AppError.fromCode(ERROR_CODE.UNAUTHORIZED)
   }
 
-  ;(req as UserRequest).user = user
+  req.user = user
   next()
 }
-

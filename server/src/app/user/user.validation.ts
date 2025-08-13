@@ -1,5 +1,5 @@
 import { z, ZodType } from 'zod'
-import { UserDetailRequest, LoginRequest, RegisterRequest } from './user.model'
+import { UserDetailRequest, LoginRequest, RegisterRequest, SetJedaOtomatisRequest } from './user.model'
 
 export class UserValidation {
     static readonly CREATE : ZodType<RegisterRequest> = z.object({
@@ -16,7 +16,10 @@ export class UserValidation {
     static readonly DETAIL_USER: ZodType<UserDetailRequest> = z.object({
       username: z.string().min(6).max(20)
     })
-
+    
+    static readonly SET_JEDA_OTOMATIS: ZodType<SetJedaOtomatisRequest> = z.object({
+      aktif: z.boolean()
+    })
 }
 
 

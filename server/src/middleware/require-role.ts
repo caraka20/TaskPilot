@@ -10,7 +10,7 @@ export function requireRole(...allowedRoles: string[]) {
     if (!role || !allowedRoles.includes(role)) {
       throw AppError.fromCode(ERROR_CODE.FORBIDDEN)
     }
-
+    
     next()
   }
 }

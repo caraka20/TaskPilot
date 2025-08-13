@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
-import { LoginRequest, RegisterRequest } from './user.model'
+import { LoginRequest, RegisterRequest, SetJedaOtomatisRequest } from './user.model'
 import { Validation } from '../../middleware/validation'
 import { UserValidation } from './user.validation'
 import { UserService } from './user.service'
@@ -10,9 +10,8 @@ import { UserRequest } from '../../types/user-request'
 export class UserController {
   static async register(req: Request, res: Response, next: NextFunction) {
     try {
-      const request: RegisterRequest = req.body as RegisterRequest
-      const createRequest = Validation.validate<RegisterRequest>(UserValidation.CREATE, request)
-      const response = await UserService.register(createRequest)
+      const request: RegisterRequest = await Validation.validate<RegisterRequest>(UserValidation.CREATE, req.body)
+      const response = await UserService.register(request)
       return ResponseHandler.success(res, response, SUCCESS_MESSAGES.CREATED.USER)
     } catch (err) {
       next(err)
@@ -21,16 +20,15 @@ export class UserController {
 
   static async login(req: Request, res: Response, next: NextFunction) {
     try {
-      const request: LoginRequest = req.body as LoginRequest
-      const loginRequest = Validation.validate<LoginRequest>(UserValidation.LOGIN, request)
-      const response = await UserService.login(loginRequest)
+      const request: LoginRequest = await Validation.validate<LoginRequest>(UserValidation.LOGIN, req.body)
+      const response = await UserService.login(request)
       return ResponseHandler.success(res, response, SUCCESS_MESSAGES.LOGIN.USER)
     } catch (err) {
       next(err)
     }
   }
 
-  static async getAllUsers(req: Request, res: Response, next: NextFunction) {
+  static async getAllUsers(_req: Request, res: Response, next: NextFunction) {
     try {
       const users = await UserService.getAllUsers()
       return ResponseHandler.success(res, users)
@@ -41,10 +39,26 @@ export class UserController {
 
   static async getUserDetail(req: Request, res: Response, next: NextFunction) {
     try {
-      const params = UserValidation.DETAIL_USER.parse(req.params)
+      const params = await Validation.validate(UserValidation.DETAIL_USER, req.params as Record<string, any>)
       const result = await UserService.getUserDetail(params)
 
-      return ResponseHandler.success(res, result, SUCCESS_MESSAGES.FETCHED.USER)
+      // Back-compat untuk test lama: selalu sediakan 'tugas' sebagai array.
+      // - Jika service sudah mengembalikan 'tugas', pakai apa adanya.
+      // - Jika ada 'tutonItems', jadikan alias ke 'tugas'.
+      // - Jika keduanya tidak ada, set tugas=[]
+      const tugas =
+        Array.isArray((result as any)?.tugas)
+          ? (result as any).tugas
+          : Array.isArray((result as any)?.tutonItems)
+            ? (result as any).tutonItems
+            : []
+
+      const normalized = {
+        ...result,
+        tugas,
+      }
+
+      return ResponseHandler.success(res, normalized, SUCCESS_MESSAGES.FETCHED.USER)
     } catch (err) {
       next(err)
     }
@@ -52,15 +66,21 @@ export class UserController {
 
   static async logout(req: UserRequest, res: Response, next: NextFunction) {
     try {
-      console.log(req.user);
-      
       const result = await UserService.logout(req)
-      // console.log(result);
-      
       return ResponseHandler.success(res, result, SUCCESS_MESSAGES.LOGOUT.USER)
     } catch (err) {
       next(err)
     }
   }
 
+  static async setJedaOtomatisUser(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { username } = req.params
+      const payload = await Validation.validate<SetJedaOtomatisRequest>(UserValidation.SET_JEDA_OTOMATIS, req.body)
+      const result = await UserService.setJedaOtomatis(username, payload)
+      return ResponseHandler.success(res, result, SUCCESS_MESSAGES.UPDATED.JEDA_OTOMATIS)
+    } catch (err) {
+      next(err)
+    }
+  }
 }

@@ -4,7 +4,10 @@ import { GajiValidation } from './gaji.validation'
 import { ResponseHandler } from '../../utils/response-handler' 
 import { SUCCESS_MESSAGES } from '../../utils/success-messages'
 import { Validation } from '../../middleware/validation'
-import { CreateGajiRequest } from './gaji.model'
+import { CreateGajiRequest, GajiResponse, GetMyGajiInput, Paginated, UpdateGajiRequest } from './gaji.model'
+import { UserRequest } from '../../types/user-request'
+import { AppError } from '../../middleware/app-error'
+import { ERROR_CODE } from '../../utils/error-codes'
 
 export class GajiController {
 
@@ -18,14 +21,47 @@ export class GajiController {
     }
   }
 
-  // Ambil semua data gaji
   static async getAllGaji(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await GajiService.getAllGaji()
-      return ResponseHandler.success(res, result)
+      const result = await GajiService.getAllGaji(req.query)
+      return ResponseHandler.success(res, result, SUCCESS_MESSAGES.FETCHED.GAJI)
     } catch (err) {
-        next(err)
+      next(err)
     }
   }
 
+  static async deleteGaji(req: Request, res: Response, next: NextFunction) {
+    try {
+      const id = parseInt(req.params.id)
+      await GajiService.deleteById(id)
+      return ResponseHandler.success(res, null, SUCCESS_MESSAGES.DELETED.GAJI)
+    } catch (err) {
+      next(err)
+    }
+  }
+
+    static async updateGaji(req: UserRequest, res: Response, next: NextFunction) {
+        try {
+            const id = Number(req.params.id)
+            const requestUpdate = await Validation.validate<UpdateGajiRequest>(GajiValidation.UPDATE,req.body)
+            const updated = await GajiService.updateById(id, requestUpdate)
+
+            return ResponseHandler.success(res, updated, SUCCESS_MESSAGES.UPDATED.GAJI)
+        } catch (err) {
+            next(err)
+        }
+    }
+
+  static async getMyGaji(req: UserRequest, res: Response, next: NextFunction) {
+    try {
+      const username = req.user?.username!
+      const parsed = GajiValidation.GET_MY.parse(req.query) as GetMyGajiInput
+
+      const data = await GajiService.getMyGaji(username, parsed)
+
+      return res.status(200).json({ status: 'success', data })
+    } catch (err) {
+      next(err)
+    }
+  }
 }

@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -21,83 +15,29 @@ model User {
   namaLengkap String  @db.VarChar(100)
   token       String? @db.Text
 
-  totalJamKerja Float @default(0.0)
-  totalGaji     Float @default(0.0)
+  totalJamKerja Float   @default(0.0)
+  totalGaji     Float   @default(0.0)
+  jedaOtomatis  Boolean @default(true)
+
+  konfigurasiOverride KonfigurasiOverride?
 
   jamKerja    JamKerja[]
-  tugas       Task[]
-  riwayatGaji Gaji[]
+  tutonItems  TutonItem[]
+  riwayatGaji Salary[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-// Enum untuk role pengguna
 enum Role {
   USER
   OWNER
-}
-
-model Customer {
-  id           Int     @id @default(autoincrement())
-  namaCustomer String
-  noWa         String
-  nim          String  @unique
-  password     String
-  jurusan      String
-  jenis        JenisUT
-
-  totalBayar Float @default(0.0)
-  sudahBayar Float @default(0.0)
-  sisaBayar  Float @default(0.0)
-
-  tugas Task[]
-  karil KarilDetail? @relation("CustomerToKaril") // harus sama
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 enum JenisUT {
   TUTON
   KARIL
   TK
-}
-
-model KarilDetail {
-  id         Int      @id @default(autoincrement())
-  customerId Int      @unique
-  customer   Customer @relation("CustomerToKaril", fields: [customerId], references: [id])
-
-  judul String
-
-  tugas1 Boolean @default(false)
-  tugas2 Boolean @default(false)
-  tugas3 Boolean @default(false)
-  tugas4 Boolean @default(false)
-
-  keterangan String? // catatan umum (misalnya revisi dari dosen)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Task {
-  id             Int         @id @default(autoincrement())
-  customerId     Int
-  username       String?
-  jenisTugas     JenisTugas
-  sesi           Int?
-  deskripsi      String
-  status         StatusTugas @default(BELUM)
-  waktuSelesai   DateTime?
-  lastProgressAt DateTime?
-
-  customer Customer @relation(fields: [customerId], references: [id])
-  user     User?    @relation(fields: [username], references: [username])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 }
 
 enum JenisTugas {
@@ -108,23 +48,119 @@ enum JenisTugas {
 
 enum StatusTugas {
   BELUM
-  SEDANG
   SELESAI
+}
+
+model Customer {
+  id           Int     @id @default(autoincrement())
+  namaCustomer String
+  noWa         String
+  nim          String  @unique @db.VarChar(191)
+  password     String
+  jurusan      String
+  jenis        JenisUT
+
+  totalBayar Float @default(0.0)
+  sudahBayar Float @default(0.0)
+  sisaBayar  Float @default(0.0)
+
+  tutonCourses TutonCourse[]
+  karil        KarilDetail?  @relation("CustomerToKaril")
+
+  payments CustomerPayment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CustomerPayment {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  amount       Float
+  tanggalBayar DateTime @default(now())
+  catatan      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+model KarilDetail {
+  id         Int      @id @default(autoincrement())
+  customerId Int      @unique
+  customer   Customer @relation("CustomerToKaril", fields: [customerId], references: [id])
+
+  judul  String
+  tugas1 Boolean @default(false)
+  tugas2 Boolean @default(false)
+  tugas3 Boolean @default(false)
+  tugas4 Boolean @default(false)
+
+  keterangan String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model TutonCourse {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  matkul         String @db.VarChar(191)
+  totalItems     Int    @default(19)
+  completedItems Int    @default(0)
+
+  items TutonItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([customerId, matkul])
+  @@index([matkul])
+}
+
+model TutonItem {
+  id       Int         @id @default(autoincrement())
+  courseId Int
+  course   TutonCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  jenis  JenisTugas
+  sesi   Int
+  status StatusTugas @default(BELUM)
+
+  nilai Float?
+
+  username String? @db.VarChar(100)
+  user     User?   @relation(fields: [username], references: [username], onDelete: SetNull)
+
+  deskripsi String?
+  selesaiAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseId, jenis, sesi])
+  @@index([username])
 }
 
 model JamKerja {
   id         Int         @id @default(autoincrement())
-  username   String // foreign key
+  username   String      @db.VarChar(100)
   tanggal    DateTime    @default(now())
   jamMulai   DateTime
   jamSelesai DateTime?
   totalJam   Float       @default(0.0)
   status     StatusKerja @default(AKTIF)
 
-  user User @relation(fields: [username], references: [username])
+  user User @relation(fields: [username], references: [username], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([username])
 }
 
 enum StatusKerja {
@@ -133,24 +169,38 @@ enum StatusKerja {
   SELESAI
 }
 
-model Gaji {
+model Salary {
   id           Int      @id @default(autoincrement())
-  username     String // foreign key
+  username     String   @db.VarChar(100)
   tanggalBayar DateTime @default(now())
   jumlahBayar  Float
   catatan      String?
 
-  user User @relation(fields: [username], references: [username])
+  user User @relation(fields: [username], references: [username], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([username])
+}
+
+model Konfigurasi {
+  id                Int     @id @default(1)
+  batasJedaMenit    Int     @default(5)
+  jedaOtomatisAktif Boolean @default(true)
+  gajiPerJam        Float   @default(14285.71)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-model Konfigurasi {
-  id             Int   @id @default(1)
-  batasJedaMenit Int   @default(5) // misal 5 menit
-  gajiPerJam     Float @default(14285.71) // 100.000 / 7 jam
+model KonfigurasiOverride {
+  username String @id @db.VarChar(100)
+  user     User   @relation(fields: [username], references: [username], onDelete: Cascade)
 
-  createdAt DateTime @default(now())
+  gajiPerJam        Float?
+  batasJedaMenit    Int?
+  jedaOtomatisAktif Boolean?
+
   updatedAt DateTime @updatedAt
 }

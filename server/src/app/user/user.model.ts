@@ -1,5 +1,12 @@
-
-import { User, JamKerja, Task, Gaji, Customer } from '../../generated/prisma'
+import {
+  User,
+  JamKerja,
+  Salary,
+  Customer,
+  TutonItem,
+  TutonCourse,
+  Prisma,
+} from "../../generated/prisma"
 
 // RESPON
 export interface UserResponse {
@@ -14,23 +21,6 @@ export interface UserResponse {
 export interface LoginResponse {
   token: string
   user: UserResponse
-}
-
-
-// REQUEST
-export interface RegisterRequest {
-  username: string
-  password: string
-  namaLengkap: string
-}
-
-export interface LoginRequest {
-  username: string
-  password: string
-}
-
-export interface UserDetailRequest {
-  username: string
 }
 
 export interface UserDetailResponse {
@@ -55,10 +45,30 @@ export interface UserDetailResponse {
       jurusan: string
     }
   }>
-  riwayatGaji: Gaji[]
+  riwayatGaji: Salary[]
 }
 
-// FUNCTION
+// REQUEST
+export interface RegisterRequest {
+  username: string
+  password: string
+  namaLengkap: string
+}
+
+export interface LoginRequest {
+  username: string
+  password: string
+}
+
+export interface UserDetailRequest {
+  username: string
+}
+
+export interface SetJedaOtomatisRequest {
+  aktif: boolean
+}
+
+// FUNCTION (mappers)
 export function toUserResponse(user: User): UserResponse {
   return {
     username: user.username,
@@ -71,16 +81,61 @@ export function toUserResponse(user: User): UserResponse {
 
 export function toLoginResponse(user: User, token: string): LoginResponse {
   return {
-    token: token,
+    token,
     user: toUserResponse(user),
   }
 }
 
-export function toUserDetailResponse(user: User & {
-  jamKerja: JamKerja[]
-  tugas: (Task & { customer: Customer })[]
-  riwayatGaji: Gaji[]
-}): UserDetailResponse {
+export type UserDetailEntity = Prisma.UserGetPayload<{
+  include: {
+    jamKerja: true
+    riwayatGaji: true
+    tutonItems: {
+      select: {
+        id: true
+        deskripsi: true
+        jenis: true
+        sesi: true
+        status: true
+        selesaiAt: true
+        course: {
+          select: {
+            customer: {
+              select: {
+                id: true
+                namaCustomer: true
+                nim: true
+                jurusan: true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}>
+// ======================================================================
+
+export function toUserDetailResponse(
+  user: UserDetailEntity
+): UserDetailResponse {
+  const tugas = (user.tutonItems ?? []).map((item) => {
+    const customer = item.course?.customer
+    return {
+      id: item.id,
+      deskripsi: item.deskripsi || `${String(item.jenis)} sesi ${item.sesi}`,
+      jenisTugas: String(item.jenis),
+      status: String(item.status),
+      waktuSelesai: item.selesaiAt ?? null,
+      customer: {
+        id: customer?.id ?? 0,
+        namaCustomer: customer?.namaCustomer ?? "",
+        nim: customer?.nim ?? "",
+        jurusan: customer?.jurusan ?? "",
+      },
+    }
+  })
+
   return {
     username: user.username,
     namaLengkap: user.namaLengkap,
@@ -89,20 +144,8 @@ export function toUserDetailResponse(user: User & {
     totalGaji: user.totalGaji,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
-    jamKerja: user.jamKerja,
-    riwayatGaji: user.riwayatGaji,
-    tugas: user.tugas.map((tugas) => ({
-      id: tugas.id,
-      deskripsi: tugas.deskripsi,
-      jenisTugas: tugas.jenisTugas,
-      status: tugas.status,
-      waktuSelesai: tugas.waktuSelesai,
-      customer: {
-        id: tugas.customer.id,
-        namaCustomer: tugas.customer.namaCustomer,
-        nim: tugas.customer.nim,
-        jurusan: tugas.customer.jurusan
-      }
-    }))
+    jamKerja: user.jamKerja ?? [],
+    riwayatGaji: user.riwayatGaji ?? [],
+    tugas, // back-compat untuk test lama
   }
 }

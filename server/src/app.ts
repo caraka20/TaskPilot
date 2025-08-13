@@ -1,20 +1,17 @@
 import express from 'express'
-import morgan from 'morgan'
-import helmet from 'helmet'
 import cors from 'cors'
-import { publicRouter } from './routes/public-api' 
+import { route } from './routes/public-api'
 import { errorHandler } from './middleware/error-handler'
 
 const app = express()
-app.use(express.json())
+
 app.use(cors())
+app.use(express.json())
 
-app.use(publicRouter)
+// Routing
+app.use(route)
+
+// Error handler
 app.use(errorHandler)
-// app.use(express.urlencoded({ extended: true }))
-// app.use(helmet())
-// app.use(morgan('dev'))
-
-
 
 export default app
