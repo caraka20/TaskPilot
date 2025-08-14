@@ -1,3 +1,4 @@
+// src/app/karil/karil.repository.ts
 import { prismaClient } from "../../config/database"
 import { KarilDetail } from "../../generated/prisma"
 
@@ -13,7 +14,11 @@ export type UpsertKarilDetailInput = {
 
 export class KarilRepository {
   static findCustomerById(id: number) {
-    return prismaClient.customer.findUnique({ where: { id } })
+    // include relasi karil agar bisa diketahui create/update
+    return prismaClient.customer.findUnique({
+      where: { id },
+      include: { karil: true },
+    })
   }
 
   static findByCustomerId(customerId: number) {
@@ -28,7 +33,6 @@ export class KarilRepository {
       create: {
         customerId,
         judul,
-        // default false di schema; kalau ada di payload, pakai nilainya
         ...(typeof tugas1 === "boolean" ? { tugas1 } : {}),
         ...(typeof tugas2 === "boolean" ? { tugas2 } : {}),
         ...(typeof tugas3 === "boolean" ? { tugas3 } : {}),

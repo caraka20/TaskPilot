@@ -19,13 +19,11 @@ import { UserRequest } from '../../types/user-request'
 
 export class UserService {
   static async register(request: RegisterRequest): Promise<UserResponse> {
-    // Cek username unik
     const existing = await UserRepository.findByUsername(request.username)
     if (existing) {
       throw AppError.fromCode(ERROR_CODE.USER_ALREADY_EXISTS)
     }
 
-    // Hash password untuk akun USER (ini beda dengan Customer yang plaintext)
     const hashPassword = await bcrypt.hash(request.password, 10)
     request.password = hashPassword
 
@@ -51,12 +49,21 @@ export class UserService {
     return users.map(toUserResponse)
   }
 
-static async getUserDetail(request: UserDetailRequest): Promise<UserDetailResponse> {
-  const user = await UserRepository.getUserDetail(request.username)
-  if (!user) throw AppError.fromCode(ERROR_CODE.USER_NOT_FOUND)
+  static async getUserDetail(request: UserDetailRequest): Promise<UserDetailResponse> {
+    const user = await UserRepository.getUserDetail(request.username)
+    if (!user) throw AppError.fromCode(ERROR_CODE.USER_NOT_FOUND)
 
-  return toUserDetailResponse(user)
-}
+    // mapping lama
+    const base = toUserDetailResponse(user)
+
+    // ⬇️ sisipkan override jika ada di konfigurasiOverride
+    const ov = await UserRepository.getOverride(request.username)
+    const withOverride = ov
+      ? { ...base, jedaOtomatis: ov.jedaOtomatisAktif } // FE baca field opsional ini
+      : base
+
+    return withOverride as UserDetailResponse
+  }
 
   static async logout(userReq: UserRequest): Promise<{ loggedOut: true }> {
     await UserRepository.logout(userReq.user!)
@@ -67,6 +74,8 @@ static async getUserDetail(request: UserDetailRequest): Promise<UserDetailRespon
     const user = await UserRepository.findByUsername(username)
     if (!user) throw AppError.fromCode(ERROR_CODE.USER_NOT_FOUND)
 
-    return UserRepository.updateJedaOtomatis(username, payload.aktif)
+    // simpan jeda (di override) sambil melengkapi field lain dari current/global
+    return UserRepository.upsertOverrideJeda(username, payload.aktif)
   }
+
 }

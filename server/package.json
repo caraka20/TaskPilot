@@ -2,24 +2,21 @@
   "name": "server",
   "version": "1.0.0",
   "main": "index.js",
-  "prisma": {
-    "schema": "prisma/schema.prisma"
-  },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "prisma": "prisma",
     "test:watch": "jest --watch",
-    "seed": "ts-node prisma/seedOwner.ts",
     "start": "node dist/server.js",
-    "test": "cross-env NODE_ENV=test jest --detectOpenHandles"
+    "test": "cross-env NODE_ENV=test jest --detectOpenHandles",
+    "seed": "TS_NODE_TRANSPILE_ONLY=1 ts-node prisma/seed.ts"
+
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@prisma/client": "^6.12.0",
+    "@prisma/client": "^6.14.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
@@ -43,7 +40,7 @@
     "@types/node-cron": "^3.0.11",
     "@types/supertest": "^6.0.3",
     "jest": "^30.0.5",
-    "prisma": "^6.12.0",
+    "prisma": "^6.14.0",
     "supertest": "^7.1.4",
     "ts-jest": "^29.4.0",
     "ts-node-dev": "^2.0.0",

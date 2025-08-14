@@ -227,12 +227,17 @@ describe('GET /api/konfigurasi/effective', () => {
 
 describe('PUT /api/konfigurasi/override/:username', () => {
   beforeEach(async () => {
-    await KonfigurasiTest.create()
-    await UserTest.create()            // username: 'raka20'
+    // await KonfigurasiTest.delete?.()        // bersihin kalau ada sisa
+    await KonfigurasiTest.create()          // siapkan konfigurasi global
+    await UserTest.delete()                 // bersihin user
+    await UserTest.create()                 // default user: username 'raka20', role USER
   })
 
   afterEach(async () => {
-    await KonfigurasiTest.deleteAllOverrides?.() // jika ada helper ini
+    // beberapa repo pakai table terpisah untuk overrides; kalau helper tersedia, gunakan
+    if (KonfigurasiTest.deleteAllOverrides) {
+      await KonfigurasiTest.deleteAllOverrides()
+    }
     await KonfigurasiTest.delete()
     await UserTest.delete()
   })
@@ -240,97 +245,113 @@ describe('PUT /api/konfigurasi/override/:username', () => {
   it('should allow OWNER to create override for a user', async () => {
     const token = await UserTest.loginOwner()
 
-    const response = await supertest(app)
+    const res = await supertest(app)
       .put('/api/konfigurasi/override/raka20')
       .set('Authorization', `Bearer ${token}`)
-      .send({
-        batasJedaMenit: 10,
-      })
+      .send({ batasJedaMenit: 10 })
 
-    expect(response.status).toBe(200)
-    expect(response.body.status).toBe('success')
-    expect(response.body.data).toHaveProperty('username', 'raka20')
-    expect(response.body.data.overrides).toEqual({ batasJedaMenit: 10 })
+    expect(res.status).toBe(200)
+    expect(res.body.status).toBe('success')
+
+    const data = res.body.data
+    // bentuk data disesuaikan dengan kontrak controller kamu
+    // contoh: { username: 'raka20', overrides: { batasJedaMenit: 10 } }
+    expect(data).toHaveProperty('username', 'raka20')
+    expect(data).toHaveProperty('overrides')
+    expect(data.overrides).toMatchObject({ batasJedaMenit: 10 })
   })
 
-  it('should update existing override (idempotent)', async () => {
+  it('should update existing override (idempotent/merge-by-fields)', async () => {
     const token = await UserTest.loginOwner()
 
+    // pertama set satu field
     await supertest(app)
       .put('/api/konfigurasi/override/raka20')
       .set('Authorization', `Bearer ${token}`)
       .send({ batasJedaMenit: 10 })
       .expect(200)
 
-    const response = await supertest(app)
+    // kemudian update field lain, perilaku: merge (bukan replace total) sesuai desain "tadi"
+    const res = await supertest(app)
       .put('/api/konfigurasi/override/raka20')
       .set('Authorization', `Bearer ${token}`)
       .send({ jedaOtomatisAktif: false })
 
-    expect(response.status).toBe(200)
-    expect(response.body.status).toBe('success')
-    // sekarang override berisi dua field (tergantung desain: kita simpan hanya field dikirim setiap kali)
-    expect(response.body.data.overrides).toMatchObject({ jedaOtomatisAktif: false })
+    expect(res.status).toBe(200)
+    expect(res.body.status).toBe('success')
+
+    const data = res.body.data
+    expect(data).toHaveProperty('username', 'raka20')
+    // minimal field yang baru harus ada
+    expect(data.overrides).toMatchObject({ jedaOtomatisAktif: false })
+    // jika service melakukan merge, maka field lama masih ada; kalau desainmu replace, hapus assertion di bawah
+    // expect(data.overrides).toMatchObject({ batasJedaMenit: 10 })
   })
 
   it('should return 400 for empty body', async () => {
     const token = await UserTest.loginOwner()
 
-    const response = await supertest(app)
+    const res = await supertest(app)
       .put('/api/konfigurasi/override/raka20')
       .set('Authorization', `Bearer ${token}`)
       .send({})
 
-    expect(response.status).toBe(400)
-    expect(response.body.status).toBe('error')
+    expect(res.status).toBe(400)
+    expect(res.body.status).toBe('error')
+    // opsional: periksa kode error standar kamu
+    // expect(res.body.error.code).toBe('BAD_REQUEST')
   })
 
   it('should return 400 for invalid payload', async () => {
     const token = await UserTest.loginOwner()
 
-    const response = await supertest(app)
+    const res = await supertest(app)
       .put('/api/konfigurasi/override/raka20')
       .set('Authorization', `Bearer ${token}`)
       .send({
-        batasJedaMenit: -5,          // invalid
-        gajiPerJam: 'dua puluh ribu' // invalid
+        batasJedaMenit: -5,          // invalid (min 0)
+        gajiPerJam: 'dua puluh ribu' // invalid (harus number)
       })
 
-    expect(response.status).toBe(400)
-    expect(response.body.status).toBe('error')
+    expect(res.status).toBe(400)
+    expect(res.body.status).toBe('error')
+    // expect(res.body.error.code).toBe('BAD_REQUEST')
   })
 
   it('should return 404 when target user not found', async () => {
     const token = await UserTest.loginOwner()
 
-    const response = await supertest(app)
+    const res = await supertest(app)
       .put('/api/konfigurasi/override/ghostuser')
       .set('Authorization', `Bearer ${token}`)
       .send({ batasJedaMenit: 10 })
 
-    expect(response.status).toBe(404)
-    expect(response.body.status).toBe('error')
+    expect(res.status).toBe(404)
+    expect(res.body.status).toBe('error')
+    // expect(res.body.error.code).toBe('NOT_FOUND')
   })
 
   it('should reject if requester is not OWNER', async () => {
-    const token = await UserTest.login()
+    const tokenUser = await UserTest.login() // login sebagai USER biasa
 
-    const response = await supertest(app)
+    const res = await supertest(app)
       .put('/api/konfigurasi/override/raka20')
-      .set('Authorization', `Bearer ${token}`)
+      .set('Authorization', `Bearer ${tokenUser}`)
       .send({ batasJedaMenit: 10 })
 
-    expect(response.status).toBe(403)
-    expect(response.body.status).toBe('error')
+    expect(res.status).toBe(403)
+    expect(res.body.status).toBe('error')
+    // expect(res.body.error.code).toBe('FORBIDDEN')
   })
 
   it('should reject if no token is provided', async () => {
-    const response = await supertest(app)
+    const res = await supertest(app)
       .put('/api/konfigurasi/override/raka20')
       .send({ batasJedaMenit: 10 })
 
-    expect(response.status).toBe(401)
-    expect(response.body.status).toBe('error')
+    expect(res.status).toBe(401)
+    expect(res.body.status).toBe('error')
+    // expect(res.body.error.code).toBe('UNAUTHORIZED')
   })
 })
 

@@ -1,8 +1,8 @@
+// src/app/karil/karil.controller.ts
 import { type Request, type Response, type NextFunction } from "express"
 import { ResponseHandler } from "../../utils/response-handler"
 import { KarilBodyValidation, KarilParamValidation } from "./karil.validation"
 import { KarilService } from "./karil.service"
-
 
 export class KarilController {
   static async upsert(req: Request, res: Response, next: NextFunction) {

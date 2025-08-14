@@ -43,9 +43,6 @@ export class UserController {
       const result = await UserService.getUserDetail(params)
 
       // Back-compat untuk test lama: selalu sediakan 'tugas' sebagai array.
-      // - Jika service sudah mengembalikan 'tugas', pakai apa adanya.
-      // - Jika ada 'tutonItems', jadikan alias ke 'tugas'.
-      // - Jika keduanya tidak ada, set tugas=[]
       const tugas =
         Array.isArray((result as any)?.tugas)
           ? (result as any).tugas

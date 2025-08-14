@@ -1,6 +1,21 @@
 import supertest from "supertest"
 import { CustomerTest, KarilTest, UserTest } from "./test-util"
 import app from '../src/app'
+import { JenisUT } from "../src/generated/prisma"
+
+// NEW: helper agar tahan terhadap variasi payload error
+function getErrorMessage(body: any): string {
+  return String(
+    body?.errors ??        // bentuk yang kamu pakai sekarang
+    body?.error?.message ??// bentuk alternatif umum
+    body?.message ??       // fallback
+    ''
+  )
+}
+
+function getErrorCode(body: any): string | undefined {
+  return body?.error?.code ?? body?.code
+}
 
 describe("PUT /api/customers/:id/karil", () => {
   let ownerToken: string
@@ -21,7 +36,7 @@ describe("PUT /api/customers/:id/karil", () => {
   })
 
   it("should create new KarilDetail when not exists (OWNER)", async () => {
-    const c = await CustomerTest.create()
+    const c = await CustomerTest.create({ jenis: JenisUT.KARIL })
 
     const res = await supertest(app)
       .put(`/api/customers/${c.id}/karil`)
@@ -50,7 +65,7 @@ describe("PUT /api/customers/:id/karil", () => {
   })
 
   it("should update existing KarilDetail for the customer (OWNER)", async () => {
-    const c = await CustomerTest.create()
+    const c = await CustomerTest.create({ jenis: JenisUT.KARIL })
     await KarilTest.create(c.id, { judul: "Lama", tugas1: false })
 
     const res = await supertest(app)
@@ -82,8 +97,6 @@ describe("PUT /api/customers/:id/karil", () => {
       .set("Authorization", `Bearer ${ownerToken}`)
       .send({ judul: "Xxxxxx" })
 
-      console.log(res.body);
-      
     expect(res.status).toBe(404)
     expect(res.body.status).toBe("error")
   })
@@ -99,12 +112,11 @@ describe("PUT /api/customers/:id/karil", () => {
   })
 
   it("should return 400 when body is invalid (missing judul)", async () => {
-    const c = await CustomerTest.create()
+    const c = await CustomerTest.create({ jenis: JenisUT.KARIL })
     const res = await supertest(app)
       .put(`/api/customers/${c.id}/karil`)
       .set("Authorization", `Bearer ${ownerToken}`)
       .send({
-        // judul kosong → invalid
         tugas1: true,
       })
 
@@ -113,7 +125,7 @@ describe("PUT /api/customers/:id/karil", () => {
   })
 
   it("should return 401 when no token provided", async () => {
-    const c = await CustomerTest.create()
+    const c = await CustomerTest.create({ jenis: JenisUT.KARIL })
     const res = await supertest(app)
       .put(`/api/customers/${c.id}/karil`)
       .send({ judul: "NoAuth" })
@@ -123,7 +135,7 @@ describe("PUT /api/customers/:id/karil", () => {
   })
 
   it("should return 403 for USER (OWNER only route)", async () => {
-    const c = await CustomerTest.create()
+    const c = await CustomerTest.create({ jenis: JenisUT.KARIL })
     const res = await supertest(app)
       .put(`/api/customers/${c.id}/karil`)
       .set("Authorization", `Bearer ${userToken}`)
@@ -131,5 +143,22 @@ describe("PUT /api/customers/:id/karil", () => {
 
     expect(res.status).toBe(403)
     expect(res.body.status).toBe("error")
+  })
+
+  // ✅ Perbaikan: pakai helper getErrorMessage & getErrorCode
+  it("should return 400 when customer jenis is not KARIL", async () => {
+    const c = await CustomerTest.create({ jenis: JenisUT.TUTON }) // bukan KARIL
+
+    const res = await supertest(app)
+      .put(`/api/customers/${c.id}/karil`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({ judul: "Harusnya gagal" })
+
+    expect(res.status).toBe(400)
+    expect(res.body.status).toBe("error")
+    expect(getErrorCode(res.body)).toBe("BAD_REQUEST")
+
+    const msg = getErrorMessage(res.body)
+    expect(msg).toMatch(/bukan peserta KARIL/i)
   })
 })

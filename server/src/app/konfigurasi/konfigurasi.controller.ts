@@ -8,7 +8,7 @@ import { type UserRequest } from '../../types/user-request'
 import {
   type UpdateKonfigurasiRequest,
   type GetEffectiveKonfigurasiRequest,
-  PutOverrideKonfigurasiRequest,
+  type PutOverrideKonfigurasiRequest,
 } from './konfigurasi.model'
 import { AppError } from '../../middleware/app-error'
 import { ERROR_CODE } from '../../utils/error-codes'
@@ -27,12 +27,10 @@ export class KonfigurasiController {
   // PATCH /api/konfigurasi  (OWNER)
   static async update(req: Request, res: Response, next: NextFunction) {
     try {
-      // ✅ validasi gaya kamu (class + Validation.validate)
       const payload = Validation.validate<UpdateKonfigurasiRequest>(
         KonfigurasiValidation.UPDATE_GLOBAL,
         req.body
       )
-
       const result = await KonfigurasiService.update(payload)
       return ResponseHandler.success(res, result, 'Konfigurasi berhasil diperbarui')
     } catch (error) {
@@ -43,7 +41,6 @@ export class KonfigurasiController {
   // GET /api/konfigurasi/effective?username=...  (OWNER; USER hanya diri sendiri)
   static async getEffective(req: UserRequest, res: Response, next: NextFunction) {
     try {
-      // ✅ validasi query
       const { username } = Validation.validate<GetEffectiveKonfigurasiRequest>(
         KonfigurasiValidation.GET_EFFECTIVE,
         req.query
@@ -66,6 +63,7 @@ export class KonfigurasiController {
     }
   }
 
+  // PUT /api/konfigurasi/override/:username  (OWNER)
   static async putOverride(req: UserRequest, res: Response, next: NextFunction) {
     try {
       const { username } = Validation.validate<{ username: string }>(
@@ -85,6 +83,7 @@ export class KonfigurasiController {
     }
   }
 
+  // DELETE /api/konfigurasi/override/:username  (OWNER)
   static async deleteOverride(req: Request, res: Response, next: NextFunction) {
     try {
       const params = Validation.validate(KonfigurasiValidation.DELETE_OVERRIDE, req.params)

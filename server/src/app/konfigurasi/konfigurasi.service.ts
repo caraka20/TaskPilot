@@ -15,7 +15,7 @@ export class KonfigurasiService {
     await KonfigurasiRepository.initIfMissing()
     const cfg = await KonfigurasiRepository.getRaw()
     if (!cfg) {
-      // practically tidak terjadi karena baris di atas
+      // practically tidak terjadi karena initIfMissing
       throw AppError.fromCode(ERROR_CODE.NOT_FOUND, "Konfigurasi global tidak ditemukan")
     }
     return toKonfigurasiResponse(cfg)
@@ -44,7 +44,12 @@ export class KonfigurasiService {
     return mergeEffective(globalCfg, overrideCfg, username)
   }
 
-  /** PUT override */
+  /**
+   * PUT override (MERGE STRATEGY)
+   * - Field yang dikirim di payload akan dipakai.
+   * - Field yang TIDAK dikirim akan diisi dari override lama (jika ada).
+   * - Jika override belum ada, fallback ke nilai global (agar tidak NULL).
+   */
   static async putOverride(
     username: string,
     payload: PutOverrideKonfigurasiRequest
@@ -56,8 +61,33 @@ export class KonfigurasiService {
     const exists = await KonfigurasiRepository.userExists(username)
     if (!exists) throw AppError.fromCode(ERROR_CODE.NOT_FOUND, "User tidak ditemukan")
 
-    const row = await KonfigurasiRepository.upsertOverride(username, payload)
+    // Ambil sumber untuk merge
+    await KonfigurasiRepository.initIfMissing()
+    const [globalCfg, currentOv] = await Promise.all([
+      KonfigurasiRepository.getGlobal(),
+      KonfigurasiRepository.getOverrideByUsername(username),
+    ])
 
+    // Gabungkan supaya tidak ada kolom NULL
+    const merged: PutOverrideKonfigurasiRequest = {
+      gajiPerJam:
+        payload.gajiPerJam ??
+        currentOv?.gajiPerJam ??
+        globalCfg?.gajiPerJam,
+      batasJedaMenit:
+        payload.batasJedaMenit ??
+        currentOv?.batasJedaMenit ??
+        globalCfg?.batasJedaMenit,
+      jedaOtomatisAktif:
+        payload.jedaOtomatisAktif ??
+        currentOv?.jedaOtomatisAktif ??
+        globalCfg?.jedaOtomatisAktif,
+    }
+
+    // Simpan hasil merge
+    const row = await KonfigurasiRepository.upsertOverride(username, merged)
+
+    // Bentuk response konsisten
     const overrides: OverrideResponse["overrides"] = {}
     if (row.gajiPerJam != null) overrides.gajiPerJam = row.gajiPerJam
     if (row.batasJedaMenit != null) overrides.batasJedaMenit = row.batasJedaMenit
