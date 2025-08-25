@@ -1,4 +1,4 @@
-// src/pages/users/UserDetail.tsx
+// client/src/pages/users/UserDetail.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -11,16 +11,33 @@ import {
   Button,
   Tooltip,
 } from "@heroui/react";
-import { useApi } from "../../hooks/useApi";
-import { getUserDetail, setJedaOtomatis, type UserDetail } from "../../services/users.service";
-import { useAuthStore } from "../../store/auth.store";
-import {
-  getKonfigurasi,
-  deleteOverrideKonfigurasi,
-  type Konfigurasi,
-} from "../../services/konfigurasi.service";
 import { ArrowLeft, ShieldCheck, User as UserIcon, Pause, Play, Undo2 } from "lucide-react";
-import BackButton from "../../components/common/BackButton";
+
+import { useApi } from "../../hooks/useApi";
+import { useAuthStore } from "../../store/auth.store";
+
+import { getUserDetail, setJedaOtomatis, type UserDetail } from "../../services/users.service";
+import { getKonfigurasi, deleteOverrideKonfigurasi, type Konfigurasi } from "../../services/konfigurasi.service";
+
+import WorkStatusChip from "../../components/jam-kerja/WorkStatusChip";
+// import GajiPerJamCard from "../../components/jam-kerja/GajiPerJamCard";
+import JamControlsComp from "../../components/jam-kerja/JamControls";
+const JamControls = JamControlsComp as any;
+
+// ---------- helper aman untuk ambil status ----------
+type WorkStatus = "AKTIF" | "JEDA" | "SELESAI" | "OFF";
+function resolveWorkStatus(d: UserDetail | null): WorkStatus {
+  // beberapa API mungkin menaruh langsung: data.status
+  const direct = (d as any)?.status;
+  if (typeof direct === "string") return direct as WorkStatus;
+
+  // fallback: dari entri jamKerja terbaru (tipenya mungkin JamKerjaBrief tanpa 'status')
+  const latest = (d as any)?.jamKerja?.[0];
+  const st = latest?.status;
+  if (typeof st === "string") return st as WorkStatus;
+
+  return "OFF";
+}
 
 export default function UserDetailPage() {
   const { username = "" } = useParams();
@@ -34,7 +51,6 @@ export default function UserDetailPage() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // ─── Load detail user + global config (OWNER) ────────────────────────────────
   async function load() {
     setLoading(true);
     setErr(null);
@@ -54,16 +70,15 @@ export default function UserDetailPage() {
   }
 
   useEffect(() => {
-    if (username) load();
+    if (username) void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username, role]);
 
-  // ─── Actions ────────────────────────────────────────────────────────────────
   async function onToggleJeda(next: boolean) {
     if (!data) return;
     setSaving(true);
     try {
-      const res = await setJedaOtomatis(api, data.username, next); // -> { username, jedaOtomatis }
+      const res = await setJedaOtomatis(api, data.username, next);
       setData((s) => (s ? { ...s, jedaOtomatis: res.jedaOtomatis } : s));
     } catch (e) {
       alert(e instanceof Error ? e.message : "Gagal menyimpan");
@@ -77,7 +92,6 @@ export default function UserDetailPage() {
     setSaving(true);
     try {
       await deleteOverrideKonfigurasi(api, data.username);
-      // kembalikan ke default global dengan cara menghapus override (set undefined)
       setData((s) => (s ? { ...s, jedaOtomatis: undefined } : s));
     } catch (e) {
       alert(e instanceof Error ? e.message : "Gagal menghapus override");
@@ -86,22 +100,21 @@ export default function UserDetailPage() {
     }
   }
 
-  // ─── Formatters ─────────────────────────────────────────────────────────────
   const fmtHours = (n: number) => (Math.round(n * 10) / 10).toFixed(1);
   const fmtRupiah = (n: number) =>
     `Rp. ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(n)}`;
 
-  // nilai toggle yang ditampilkan:
-  // 1) pakai override user jika ada, 2) kalau tidak ada, ikut global
   const resolvedJeda = useMemo(() => {
     if (!data) return false;
     if (data.jedaOtomatis !== undefined) return !!data.jedaOtomatis;
     return !!globalCfg?.jedaOtomatisAktif;
   }, [data, globalCfg]);
 
-  // tampilkan switch jika OWNER, atau payload punya field jedaOtomatis
   const canSeeJeda = role === "OWNER" || data?.jedaOtomatis !== undefined;
   const hasOverride = data?.jedaOtomatis !== undefined;
+
+  // ✅ sekarang aman & tidak bentrok tipe
+  const currentStatus = useMemo<WorkStatus>(() => resolveWorkStatus(data), [data]);
 
   const stats = useMemo(
     () => ({
@@ -114,10 +127,17 @@ export default function UserDetailPage() {
     [data]
   );
 
-  // ─── UI ─────────────────────────────────────────────────────────────────────
   return (
     <div className="p-4 space-y-5">
-      <BackButton to="/users" className="mb-1" />
+      <Button
+        as={Link}
+        to="/users"
+        variant="flat"
+        startContent={<ArrowLeft className="h-4 w-4" />}
+        className="mb-1"
+      >
+        Kembali
+      </Button>
 
       {loading ? (
         <div className="py-16 grid place-items-center">
@@ -174,6 +194,8 @@ export default function UserDetailPage() {
                     {data.role}
                   </Chip>
 
+                  <WorkStatusChip status={currentStatus as any} />
+
                   {canSeeJeda && (
                     <Chip
                       size="sm"
@@ -211,7 +233,7 @@ export default function UserDetailPage() {
                   <Switch
                     isDisabled={role !== "OWNER" || saving}
                     isSelected={resolvedJeda}
-                    onValueChange={onToggleJeda}
+                    onValueChange={(v) => void onToggleJeda(v)}
                     color="primary"
                   >
                     <span className="inline-flex items-center gap-1">
@@ -227,7 +249,7 @@ export default function UserDetailPage() {
                       size="sm"
                       variant="flat"
                       startContent={<Undo2 className="h-4 w-4" />}
-                      onPress={onUseGlobalDefault}
+                      onPress={() => void onUseGlobalDefault()}
                       isLoading={saving}
                     >
                       Gunakan Default Global
@@ -238,20 +260,39 @@ export default function UserDetailPage() {
             )}
           </div>
 
+          {/* <GajiPerJamCard username={data.username} className="mt-2" /> */}
+
+          {/* Kendali Jam Kerja */}
+          <Card shadow="sm" className="border border-default-100">
+            <CardBody className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm text-foreground-500">Kendali Jam Kerja</div>
+                <Chip size="sm" variant="flat" className="font-mono">{data.username}</Chip>
+              </div>
+              <JamControls
+                username={data.username}
+                onChanged={() => void load()}
+              />
+            </CardBody>
+          </Card>
+
           {/* Summary cards */}
           <div className="grid gap-4 sm:grid-cols-3">
             <Card shadow="sm" className="border border-default-100">
               <CardBody className="p-4">
                 <p className="text-sm text-foreground-500">Total Jam Kerja</p>
                 <p className="text-2xl font-extrabold tracking-tight tabular-nums">
-                  {stats.jam} <span className="text-sm font-medium text-foreground-500">jam</span>
+                  {data ? fmtHours(data.totalJamKerja) : "0.0"}
+                  <span className="text-sm font-medium text-foreground-500"> jam</span>
                 </p>
               </CardBody>
             </Card>
             <Card shadow="sm" className="border border-default-100">
               <CardBody className="p-4">
                 <p className="text-sm text-foreground-500">Total Gaji</p>
-                <p className="text-2xl font-extrabold tracking-tight tabular-nums">{stats.gaji}</p>
+                <p className="text-2xl font-extrabold tracking-tight tabular-nums">
+                  {data ? fmtRupiah(data.totalGaji) : "Rp. 0"}
+                </p>
               </CardBody>
             </Card>
             <Card shadow="sm" className="border border-default-100">
@@ -260,15 +301,21 @@ export default function UserDetailPage() {
                 <div className="mt-1 grid grid-cols-3 gap-3 text-center">
                   <div>
                     <p className="text-xs text-foreground-500">Jam Kerja</p>
-                    <p className="text-lg font-semibold tabular-nums">{stats.nJamKerja}</p>
+                    <p className="text-lg font-semibold tabular-nums">
+                      {data && Array.isArray(data.jamKerja) ? data.jamKerja.length : 0}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-foreground-500">Tugas</p>
-                    <p className="text-lg font-semibold tabular-nums">{stats.nTugas}</p>
+                    <p className="text-lg font-semibold tabular-nums">
+                      {data && Array.isArray(data.tugas) ? data.tugas.length : 0}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-foreground-500">Riwayat Gaji</p>
-                    <p className="text-lg font-semibold tabular-nums">{stats.nGaji}</p>
+                    <p className="text-lg font-semibold tabular-nums">
+                      {data && Array.isArray(data.riwayatGaji) ? data.riwayatGaji.length : 0}
+                    </p>
                   </div>
                 </div>
               </CardBody>
@@ -299,11 +346,15 @@ export default function UserDetailPage() {
                 </div>
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-12 sm:col-span-3 text-foreground-500">Total Jam Kerja</div>
-                  <div className="col-span-12 sm:col-span-9 tabular-nums">{fmtHours(data.totalJamKerja)} jam</div>
+                  <div className="col-span-12 sm:col-span-9 tabular-nums">
+                    {data ? fmtHours(data.totalJamKerja) : "0.0"} jam
+                  </div>
                 </div>
                 <div className="grid grid-cols-12 gap-2">
                   <div className="col-span-12 sm:col-span-3 text-foreground-500">Total Gaji</div>
-                  <div className="col-span-12 sm:col-span-9 font-semibold tabular-nums">{fmtRupiah(data.totalGaji)}</div>
+                  <div className="col-span-12 sm:col-span-9 font-semibold tabular-nums">
+                    {data ? fmtRupiah(data.totalGaji) : "Rp. 0"}
+                  </div>
                 </div>
               </div>
             </CardBody>

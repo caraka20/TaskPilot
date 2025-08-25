@@ -31,15 +31,35 @@ route.get('/api/gaji', authMiddleware, requireRole(Role.OWNER), GajiController.g
 route.patch('/api/gaji/:id', authMiddleware, requireRole(Role.OWNER), GajiController.updateGaji)
 route.delete('/api/gaji/:id', authMiddleware, requireRole(Role.OWNER), GajiController.deleteGaji)
 route.get('/api/gaji/me', authMiddleware, requireRole(Role.USER), GajiController.getMyGaji)
+route.get('/api/gaji/me/summary', authMiddleware,requireRole(Role.USER), GajiController.getMySummary)
+
+// ✅ NEW: Ringkasan gaji untuk OWNER
+route.get('/api/gaji/summary', authMiddleware, requireRole(Role.OWNER), GajiController.getSummary)
+
 
 // JAM KERJA
-route.post('/api/jam-kerja/start', authMiddleware, requireRole(Role.USER), JamKerjaController.start)
-route.patch('/api/jam-kerja/:id/end', authMiddleware, requireRole(Role.USER), JamKerjaController.end)
+route.post('/api/jam-kerja/start', authMiddleware, requireRole(Role.USER, Role.OWNER), JamKerjaController.start)
+route.patch('/api/jam-kerja/:id/end', authMiddleware, requireRole(Role.USER, Role.OWNER), JamKerjaController.end)
 route.get('/api/jam-kerja', authMiddleware, requireRole(Role.OWNER, Role.USER), JamKerjaController.getHistory)
 route.get('/api/jam-kerja/rekap', authMiddleware, requireRole(Role.OWNER, Role.USER), JamKerjaController.rekap)
 route.get('/api/jam-kerja/aktif', authMiddleware, requireRole(Role.OWNER, Role.USER), JamKerjaController.getActive)
 route.post('/api/jam-kerja/:id/pause',  authMiddleware, requireRole(Role.USER), JamKerjaController.pause)
 route.post('/api/jam-kerja/:id/resume', authMiddleware, requireRole(Role.USER), JamKerjaController.resume)
+// ⬇️ ADD: OWNER summary semua user (opsional filter username)
+route.get(
+  "/api/jam-kerja/summary",
+  authMiddleware,
+  requireRole(Role.OWNER, Role.USER),
+  JamKerjaController.ownerSummary
+);
+
+// (opsional) ringkasan per-user, bisa untuk OWNER atau USER dirinya sendiri
+route.get(
+  "/api/jam-kerja/user-summary",
+  authMiddleware,
+  requireRole(Role.OWNER, Role.USER),
+  JamKerjaController.userSummary
+);
 
 
 // KONFIGURASI

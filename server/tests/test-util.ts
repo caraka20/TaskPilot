@@ -128,6 +128,25 @@ export class GajiTest {
   static async deleteByUsers(usernames: string[]) {
     await prismaClient.salary.deleteMany({ where: { username: { in: usernames } } })
   }
+
+    static async  snapshotGlobalCfg() {
+      const row = await prismaClient.konfigurasi.findUnique({ where: { id: 1 } })
+      return row
+    }
+    
+    static async  setGlobalGajiPerJam(value: number) {
+      await prismaClient.konfigurasi.upsert({
+        where: { id: 1 },
+        update: { gajiPerJam: value },
+        create: {
+          id: 1,
+          gajiPerJam: value,
+          batasJedaMenit: 10,
+          jedaOtomatisAktif: true,
+        },
+      })
+    }
+
 }
 
 export class JamKerjaTest {

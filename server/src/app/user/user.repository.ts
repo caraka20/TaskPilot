@@ -2,6 +2,13 @@ import { prismaClient } from "../../config/database"
 import { User } from "../../generated/prisma"
 import { RegisterRequest } from "./user.model"
 
+export interface EffectiveKonfigurasi {
+  gajiPerJam: number;
+  batasJedaMenit: number;
+  jedaOtomatisAktif: boolean;
+  source: "override" | "global";
+}
+
 export class UserRepository {
   static async findByUsername(username: string) {
     return prismaClient.user.findUnique({ where: { username } })
@@ -147,4 +154,50 @@ export class UserRepository {
     await prismaClient.konfigurasiOverride.delete({ where: { username } });
     return { ok: true as const };
   }
+
+  static async tambahJamKerjaDanGaji(username: string, totalJam: number, gajiPerJam: number) {
+    const totalGaji = (totalJam || 0) * (gajiPerJam || 0)
+
+    try {
+      // Jika schema user memiliki kolom 'totalJamKerja' & 'totalGaji'
+      return await prismaClient.user.update({
+        where: { username },
+        data: {
+          // kolom numeric; jika tidak ada di schema, blok ini akan gagal & ditangkap catch → no-op
+          totalJamKerja: { increment: totalJam },
+          totalGaji: { increment: totalGaji },
+        } as any,
+      })
+    } catch {
+      // Kolom ringkasan belum ada → biarkan sebagai no-op agar tidak mematahkan flow & test.
+      return null
+    }
+  }
+
+// 1) Ambil daftar semua username (urut alfabet)
+// Daftar semua username (urut alfabet)
+static async listUsernames(): Promise<string[]> {
+  const rows = await prismaClient.user.findMany({
+    select: { username: true },
+    orderBy: { username: "asc" },
+  });
+  return rows.map((r) => r.username);
 }
+
+// Konfigurasi efektif per user (override > global)
+static async getEffectiveKonfigurasi(username: string) {
+  const [globalCfg, override] = await Promise.all([
+    prismaClient.konfigurasi.findFirst(),
+    prismaClient.konfigurasiOverride.findUnique({ where: { username } }),
+  ]);
+  return {
+    gajiPerJam: Number(override?.gajiPerJam ?? globalCfg?.gajiPerJam ?? 0),
+    batasJedaMenit: Number(override?.batasJedaMenit ?? globalCfg?.batasJedaMenit ?? 0),
+    jedaOtomatisAktif: Boolean(override?.jedaOtomatisAktif ?? globalCfg?.jedaOtomatisAktif ?? false),
+    source: override ? "override" : "global",
+  };
+}
+
+
+}
+

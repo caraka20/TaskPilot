@@ -146,14 +146,40 @@ model TutonItem {
   @@index([username])
 }
 
+/**
+ * ========================
+ * JAM KERJA (segmen tunggal)
+ * ========================
+ */
 model JamKerja {
-  id         Int         @id @default(autoincrement())
-  username   String      @db.VarChar(100)
-  tanggal    DateTime    @default(now())
+  id       Int    @id @default(autoincrement())
+  username String @db.VarChar(100)
+
+  /**
+   * tanggal untuk pengelompokan (isi start-of-day WIB/locale)
+   */
+  tanggal DateTime @default(now())
+
+  /**
+   * segmen berjalan
+   */
   jamMulai   DateTime
   jamSelesai DateTime?
-  totalJam   Float       @default(0.0)
-  status     StatusKerja @default(AKTIF)
+
+  /**
+   * total durasi segmen ini (jam desimal) – boleh jadi derived, tetap dipertahankan
+   */
+  totalJam Float @default(0.0)
+
+  /**
+   * status terakhir segmen
+   */
+  status StatusKerja @default(AKTIF)
+
+  /**
+   * flag segmen masih terbuka (AKTIF) atau sudah ditutup (JEDA/SELESAI)
+   */
+  isOpen Boolean @default(true)
 
   user User @relation(fields: [username], references: [username], onDelete: Cascade)
 
@@ -161,6 +187,8 @@ model JamKerja {
   updatedAt DateTime @updatedAt
 
   @@index([username])
+  @@index([username, isOpen])
+  @@index([tanggal])
 }
 
 enum StatusKerja {

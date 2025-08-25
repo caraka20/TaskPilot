@@ -1,6 +1,5 @@
-import { Salary, User, Prisma } from '../../generated/prisma'
+import { Prisma } from '../../generated/prisma'
 
-// REQUEST
 export interface CreateGajiRequest {
   username: string
   jumlahBayar: number
@@ -12,54 +11,13 @@ export interface UpdateGajiRequest {
   catatan?: string | null
 }
 
-// RESPONSE
 export interface GajiResponse {
   id: number
   username: string
   jumlahBayar: number
-  catatan?: string | null
   tanggalBayar: Date
+  catatan?: string | null
   namaLengkap?: string
-}
-
-// GENERIC PAGINATION
-export interface Paginated<T> {
-  items: T[]
-  pagination: { page: number; limit: number; total: number; totalPages: number }
-}
-
-// MAPPING FUNCTION
-export function toGajiResponse(gaji: Salary & { user?: User | null }): GajiResponse {
-  return {
-    id: gaji.id,
-    username: gaji.username,
-    jumlahBayar: gaji.jumlahBayar,
-    catatan: gaji.catatan,
-    tanggalBayar: gaji.tanggalBayar,
-    namaLengkap: gaji.user?.namaLengkap || undefined,
-  }
-}
-
-export class GajiModel {
-  static buildWhere(query: any): Prisma.SalaryWhereInput {
-    const where: Prisma.SalaryWhereInput = {}
-
-    if (query.username) {
-      where.username = query.username
-    }
-
-    if (query['tanggalBayar.gte'] || query['tanggalBayar.lte']) {
-      where.tanggalBayar = {}
-      if (query['tanggalBayar.gte']) {
-        where.tanggalBayar.gte = new Date(query['tanggalBayar.gte'])
-      }
-      if (query['tanggalBayar.lte']) {
-        where.tanggalBayar.lte = new Date(query['tanggalBayar.lte'])
-      }
-    }
-
-    return where
-  }
 }
 
 export interface Paginated<T> {
@@ -74,4 +32,40 @@ export type GetMyGajiInput = {
   sort: 'asc' | 'desc'
   'tanggalBayar.gte'?: string
   'tanggalBayar.lte'?: string
+}
+
+export interface GajiMeSummary {
+  username: string
+  totalJam: number
+  gajiPerJam: number
+  upahKeseluruhan: number
+  totalDiterima: number
+  belumDibayar: number
+}
+
+export function toGajiResponse(row: any): GajiResponse {
+  return {
+    id: row.id,
+    username: row.username,
+    jumlahBayar: row.jumlahBayar,
+    tanggalBayar: row.tanggalBayar ?? row.createdAt,
+    catatan: row.catatan ?? null,
+    namaLengkap: row.user?.namaLengkap ?? row.namaLengkap ?? undefined,
+  }
+}
+
+export class GajiModel {
+  static buildWhere(query: any): Prisma.SalaryWhereInput {
+    const where: Prisma.SalaryWhereInput = {}
+
+    if (query.username) where.username = query.username
+
+    if (query['tanggalBayar.gte'] || query['tanggalBayar.lte']) {
+      where.tanggalBayar = {}
+      if (query['tanggalBayar.gte']) where.tanggalBayar.gte = new Date(query['tanggalBayar.gte'])
+      if (query['tanggalBayar.lte']) where.tanggalBayar.lte = new Date(query['tanggalBayar.lte'])
+    }
+
+    return where
+  }
 }

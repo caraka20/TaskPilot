@@ -1,346 +1,728 @@
+// tests/gaji.test.ts
 import supertest from 'supertest'
 import app from '../src/app'
 import { prismaClient } from '../src/config/database'
-import { GajiTest, UserTest } from './test-util' 
+import { GajiTest, JamKerjaTest, UserTest } from './test-util'
 import { SUCCESS_MESSAGES } from '../src/utils/success-messages'
-import { ERROR_CODE, ERROR_DEFINITIONS } from '../src/utils/error-codes'
+import { ERROR_DEFINITIONS } from '../src/utils/error-codes'
+import { StatusKerja } from '../src/generated/prisma'
 
-    describe('POST /api/gaji', () => {
-    let ownerToken: string
+/* util kecil untuk set / restore konfigurasi global gajiPerJam */
+async function setGlobalRate(rate: number) {
+  await prismaClient.konfigurasi.upsert({
+    where: { id: 1 },
+    update: { gajiPerJam: rate },
+    create: { id: 1, gajiPerJam: rate },
+  })
+}
 
-    beforeEach(async () => {
-        await UserTest.create()           // buat user 'raka20' (USER)
-        ownerToken = await UserTest.loginOwner()
+describe('POST /api/gaji', () => {
+  let ownerToken: string
+  const USERNAME = 'raka20'
+  const RATE = 10_000 // Rp10.000 per jam
+
+  beforeEach(async () => {
+    await UserTest.create()           // buat user 'raka20' (USER)
+    ownerToken = await UserTest.loginOwner()
+    // bersih-bersih salary & jam
+    await prismaClient.salary.deleteMany({ where: { username: USERNAME } })
+    await prismaClient.jamKerja.deleteMany({ where: { username: USERNAME } })
+    // set rate global deterministik
+    await setGlobalRate(RATE)
+  })
+
+  afterEach(async () => {
+    await prismaClient.salary.deleteMany({ where: { username: USERNAME } })
+    await prismaClient.jamKerja.deleteMany({ where: { username: USERNAME } })
+    await UserTest.delete()
+  })
+
+  it('should reject create gaji when role is USER (forbidden)', async () => {
+    const userToken = await UserTest.login()
+    const res = await supertest(app)
+      .post('/api/gaji')
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ username: USERNAME, jumlahBayar: 100_000, catatan: 'siang' })
+
+    expect(res.status).toBe(403)
+    expect(res.body.status).toBe('error')
+  })
+
+  it('should return 401 if no token provided', async () => {
+    const res = await supertest(app)
+      .post('/api/gaji')
+      .send({ username: USERNAME, jumlahBayar: 100_000, catatan: 'tanpa token' })
+
+    expect(res.status).toBe(401)
+    expect(res.body.status).toBe('error')
+  })
+
+  it('should error when jumlahBayar <= 0', async () => {
+    const res1 = await supertest(app)
+      .post('/api/gaji')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ username: USERNAME, jumlahBayar: 0, catatan: 'nol' })
+    expect(res1.status).toBe(400)
+    expect(res1.body.status).toBe('error')
+
+    const res2 = await supertest(app)
+      .post('/api/gaji')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ username: USERNAME, jumlahBayar: -5_000, catatan: 'negatif' })
+    expect(res2.status).toBe(400)
+    expect(res2.body.status).toBe('error')
+  })
+
+  it('should error when jumlahBayar exceeds remaining salary', async () => {
+    // upahKeseluruhan = totalJam (SELESAI) × RATE
+    // Seed: totalJam = 3 jam → upah = 30.000
+    await prismaClient.jamKerja.create({
+      data: {
+        username: USERNAME,
+        jamMulai: new Date(Date.now() - 3.5 * 3600_000),
+        jamSelesai: new Date(Date.now() - 0.5 * 3600_000),
+        totalJam: 3,
+        status: StatusKerja.SELESAI,
+        tanggal: new Date(),
+      },
+    })
+    // Sudah dibayar = 15.000 → sisa = 15.000
+    await prismaClient.salary.create({
+      data: { username: USERNAME, jumlahBayar: 15_000, catatan: 'awal', tanggalBayar: new Date() },
     })
 
-    afterEach(async () => {
-        await GajiTest.delete()
-        await UserTest.delete()
+    // Coba bayar 16.000 (melebihi sisa 15.000) → 400
+    const res = await supertest(app)
+      .post('/api/gaji')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ username: USERNAME, jumlahBayar: 16_000, catatan: 'melebihi' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.status).toBe('error')
+    expect(String(res.body.message || '')).toMatch(/melebihi sisa/i)
+  })
+
+  it('should succeed when jumlahBayar equals remaining salary', async () => {
+    // totalJam = 3 jam → upah = 30.000
+    await prismaClient.jamKerja.create({
+      data: {
+        username: USERNAME,
+        jamMulai: new Date(Date.now() - 3 * 3600_000),
+        jamSelesai: new Date(),
+        totalJam: 3,
+        status: StatusKerja.SELESAI,
+        tanggal: new Date(),
+      },
+    })
+    // sudah dibayar 15.000 → sisa 15.000
+    await prismaClient.salary.create({
+      data: { username: USERNAME, jumlahBayar: 15_000, catatan: 'awal', tanggalBayar: new Date() },
     })
 
-    it('should be able to create gaji', async () => {
-        const response = await supertest(app)
-        .post('/api/gaji')
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send({
-            username: 'raka20',
-            jumlahBayar: 100000,
-            catatan: 'shift pagi',
-        })
+    const res = await supertest(app)
+      .post('/api/gaji')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ username: USERNAME, jumlahBayar: 15_000, catatan: 'pas sisa' })
 
-        expect(response.status).toBe(200) // atau 201 kalau controller-mu pakai Created
-        expect(response.body.status).toBe('success')
-        expect(response.body.data.id).toBeDefined()
+    expect(res.status).toBe(200) // 201 jika controller pakai Created
+    expect(res.body.status).toBe('success')
+    expect(res.body.data).toHaveProperty('id')
+    expect(Number(res.body.data.jumlahBayar)).toBe(15_000)
+  })
+
+  it('should create gaji without catatan (optional field)', async () => {
+    // Pastikan sisa cukup besar: totalJam = 3 jam → upah 30.000, belum ada pembayaran
+    await prismaClient.jamKerja.create({
+      data: {
+        username: USERNAME,
+        jamMulai: new Date(Date.now() - 3 * 3600_000),
+        jamSelesai: new Date(),
+        totalJam: 3,
+        status: StatusKerja.SELESAI,
+        tanggal: new Date(),
+      },
     })
 
-    it('should error to create gaji when username not found', async () => {
-        const response = await supertest(app)
-        .post('/api/gaji')
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send({
-            username: 'tidakadauser',
-            jumlahBayar: 50000,
-            catatan: 'tidak valid',
-        })
+    const res = await supertest(app)
+      .post('/api/gaji')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ username: USERNAME, jumlahBayar: 12_345 }) // tanpa catatan
 
-        expect(response.status).toBe(404)
-        expect(response.body.status).toBe('error')
-        // sesuaikan jika error handler mengembalikan code/message berbeda
-        expect(response.body.message).toBe('User not found')
+    expect(res.status).toBe(200)
+    expect(res.body.status).toBe('success')
+    expect(res.body.data).toHaveProperty('id')
+  })
+})
+
+describe('DELETE /api/gaji/:id', () => {
+  let gajiId: number
+
+  beforeEach(async () => {
+    await UserTest.create()
+    const gaji = await GajiTest.create()
+    gajiId = gaji.id
+  })
+
+  afterEach(async () => {
+    await GajiTest.delete()
+    await UserTest.delete()
+  })
+
+  it('should be able to delete gaji by id as OWNER', async () => {
+    const token = await UserTest.loginOwner()
+    const response = await supertest(app)
+      .delete(`/api/gaji/${gajiId}`)
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(response.status).toBe(200)
+    expect(response.body.status).toBe('success')
+    expect(response.body.message).toBe(SUCCESS_MESSAGES.DELETED.GAJI)
+  })
+
+  it('should return an error if the gaji with the given id does not exist', async () => {
+    const token = await UserTest.loginOwner()
+    const response = await supertest(app)
+      .delete('/api/gaji/999999')
+      .set('Authorization', `Bearer ${token}`)
+
+    expect(response.status).toBe(404)
+    expect(response.body.status).toBe('error')
+    expect(response.body.message).toBe(ERROR_DEFINITIONS.NOT_FOUND.message)
+  })
+
+  it('should prevent USER role from deleting gaji', async () => {
+    const tokenUser = await UserTest.login()
+    const response = await supertest(app)
+      .delete(`/api/gaji/${gajiId}`)
+      .set('Authorization', `Bearer ${tokenUser}`)
+
+    expect(response.status).toBe(403)
+    expect(response.body.status).toBe('error')
+  })
+
+  it('should reject the request if no token is provided', async () => {
+    const response = await supertest(app).delete(`/api/gaji/${gajiId}`)
+    expect(response.status).toBe(401)
+    expect(response.body.status).toBe('error')
+  })
+})
+
+describe('PATCH /api/gaji/:id', () => {
+  let gajiId: number
+
+  beforeEach(async () => {
+    await UserTest.create()
+    const gaji = await GajiTest.create() // default: username 'raka20'
+    gajiId = gaji.id
+  })
+
+  afterEach(async () => {
+    await GajiTest.delete()
+    await UserTest.delete()
+  })
+
+it('should allow OWNER to update jumlahBayar', async () => {
+  const token = await UserTest.loginOwner()
+
+  // Ambil baris target utk tahu username
+  const target = await prismaClient.salary.findUnique({ where: { id: gajiId } })
+  const username = target?.username ?? 'raka20'
+
+  // Pastikan sisa mencukupi:
+  // - totalGaji besar
+  // - tidak ada salary lain selain baris target
+  await prismaClient.user.update({
+    where: { username },
+    data: { totalGaji: 1_000_000 },
+  })
+  await prismaClient.salary.deleteMany({
+    where: { username, NOT: { id: gajiId } },
+  })
+
+  // Sekarang update ke 300_000 -> harus OK
+  const response = await supertest(app)
+    .patch(`/api/gaji/${gajiId}`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ jumlahBayar: 300_000 })
+
+  expect(response.status).toBe(200)
+  expect(response.body.status).toBe('success')
+  expect(response.body.data.jumlahBayar).toBe(300_000)
+})
+
+  it('should allow OWNER to update catatan only', async () => {
+    const token = await UserTest.loginOwner()
+    const response = await supertest(app)
+      .patch(`/api/gaji/${gajiId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ catatan: 'Update catatan revisi' })
+
+    expect(response.status).toBe(200)
+    expect(response.body.data.catatan).toBe('Update catatan revisi')
+  })
+
+  it('should return error if no field is provided (empty body)', async () => {
+    const token = await UserTest.loginOwner()
+    const response = await supertest(app)
+      .patch(`/api/gaji/${gajiId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({})
+
+    expect(response.status).toBe(400)
+    expect(response.body.status).toBe('error')
+    expect(response.body.message).toMatch('Validation failed')
+  })
+
+  it('should return validation error if jumlahBayar is invalid', async () => {
+    const token = await UserTest.loginOwner()
+    const response = await supertest(app)
+      .patch(`/api/gaji/${gajiId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ jumlahBayar: 0 })
+
+    expect(response.status).toBe(400)
+    expect(response.body.status).toBe('error')
+    expect(response.body.message).toMatch('Validation failed')
+  })
+
+  it('should return not found if gaji does not exist', async () => {
+    const token = await UserTest.loginOwner()
+    const response = await supertest(app)
+      .patch(`/api/gaji/999999`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ jumlahBayar: 100_000 })
+
+    expect(response.status).toBe(404)
+    expect(response.body.status).toBe('error')
+    expect(response.body.message).toMatch(ERROR_DEFINITIONS.NOT_FOUND.message)
+  })
+
+  it('should prevent USER from updating gaji', async () => {
+    const token = await UserTest.login()
+    const response = await supertest(app)
+      .patch(`/api/gaji/${gajiId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ jumlahBayar: 100_000 })
+
+    expect(response.status).toBe(403)
+    expect(response.body.status).toBe('error')
+  })
+
+  it('should return unauthorized if no token is provided', async () => {
+    const response = await supertest(app)
+      .patch(`/api/gaji/${gajiId}`)
+      .send({ jumlahBayar: 200_000 })
+
+    expect(response.status).toBe(401)
+    expect(response.body.status).toBe('error')
+  })
+
+  // 🔴 BARU: validasi "tidak boleh melebihi sisa" saat UPDATE
+  it('should error when updated jumlahBayar exceeds remaining salary (exclude current row)', async () => {
+    const token = await UserTest.loginOwner()
+
+    // Ambil baris target & user-nya
+    const target = await prismaClient.salary.findUnique({ where: { id: gajiId } })
+    const username = target?.username ?? 'raka20'
+
+    // Skema sisa (tanpa menghitung baris target):
+    //   totalGaji(user) = 180_000
+    //   ada salary lain (s2) = 150_000
+    //   => remaining = 180_000 - 150_000 = 30_000
+    await prismaClient.user.update({
+      where: { username },
+      data: { totalGaji: 180_000 },
+    })
+    await prismaClient.salary.create({
+      data: { username, jumlahBayar: 150_000, catatan: 'seed-s2' },
+    })
+    // pastikan nilai awal target ada (bebas)
+    await prismaClient.salary.update({
+      where: { id: gajiId },
+      data: { jumlahBayar: 40_000, catatan: 'seed-s1 (target)' },
     })
 
-    it('should error to create gaji when username is invalid', async () => {
-        const response = await supertest(app)
-        .post('/api/gaji')
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send({
-            username: '', // invalid oleh Zod
-            jumlahBayar: 50000,
-            catatan: 'kosong username',
-        })
+    // Coba set ke 35_000 → harus 400 karena remaining cuma 30_000
+    const res = await supertest(app)
+      .patch(`/api/gaji/${gajiId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ jumlahBayar: 35_000 })
 
-        expect(response.status).toBe(400)
-        expect(response.body.status).toBe('error')
-        expect(response.body.message).toBe('Validation failed')
+    expect(res.status).toBe(400)
+    expect(res.body.status).toBe('error')
+    // service mengirim message / errors; cek salah satu mengandung "melebihi sisa"
+    const msg = String(res.body.errors ?? res.body.message ?? '')
+    expect(msg).toMatch(/melebihi sisa/i)
+  })
+
+  // 🟢 BARU: boleh kalau tepat sama dengan sisa
+  it('should succeed when updated jumlahBayar equals remaining salary', async () => {
+    const token = await UserTest.loginOwner()
+
+    const target = await prismaClient.salary.findUnique({ where: { id: gajiId } })
+    const username = target?.username ?? 'raka20'
+
+    // Setup sama: remaining = 30_000
+    await prismaClient.user.update({
+      where: { username },
+      data: { totalGaji: 180_000 },
     })
+    await prismaClient.salary.deleteMany({ where: { username } }) // biar bersih & deterministik
+    const s2 = await prismaClient.salary.create({
+      data: { username, jumlahBayar: 150_000, catatan: 'seed-s2' },
+    })
+    const s1 = await prismaClient.salary.create({
+      data: { username, jumlahBayar: 40_000, catatan: 'seed-s1 (target)' },
+    })
+    // gunakan id baru yang barusan dibuat supaya pasti konsisten
+    gajiId = s1.id
+
+    // Update tepat ke 30_000 → OK
+    const res = await supertest(app)
+      .patch(`/api/gaji/${gajiId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ jumlahBayar: 30_000 })
+
+    expect(res.status).toBe(200)
+    expect(res.body.status).toBe('success')
+    expect(Number(res.body.data.jumlahBayar)).toBe(30_000)
+  })
+})
+
+describe('GET /api/gaji/me', () => {
+  const username = 'raka20'
+  const otherUsername = 'otheruser'
+
+  let userToken: string
+  let ownerToken: string
+  let todayStr = ''
+  let yestStr = ''
+
+  beforeEach(async () => {
+    await UserTest.create()
+    userToken = await UserTest.login()
+    ownerToken = await UserTest.loginOwner()
+
+    await GajiTest.ensureUser(otherUsername)
+
+    const { yesterday, today } = await GajiTest.seedYesterdayToday(username)
+
+    const yY = yesterday.getUTCFullYear()
+    const yM = String(yesterday.getUTCMonth() + 1).padStart(2, '0')
+    const yD = String(yesterday.getUTCDate()).padStart(2, '0')
+    yestStr = `${yY}-${yM}-${yD}`
+
+    const tY = today.getUTCFullYear()
+    const tM = String(today.getUTCMonth() + 1).padStart(2, '0')
+    const tD = String(today.getUTCDate()).padStart(2, '0')
+    todayStr = `${tY}-${tM}-${tD}`
+
+    await GajiTest.createManyForUser(otherUsername, [{ jumlahBayar: 9999, catatan: 'X' }])
+  })
+
+  afterEach(async () => {
+    await GajiTest.deleteByUsers([username, otherUsername])
+    await GajiTest.deleteUser(otherUsername)
+    await UserTest.delete()
+  })
+
+  it('should allow USER to view own salary history', async () => {
+    const res = await supertest(app)
+      .get('/api/gaji/me')
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(200)
+
+    expect(res.body.status).toBe('success')
+    const items = res.body.data.items as Array<any>
+    expect(Array.isArray(items)).toBe(true)
+    expect(items.some(x => x.username !== username)).toBe(false)
+    expect(res.body.data.pagination.total).toBeGreaterThanOrEqual(2)
+  })
+
+  it('should support pagination', async () => {
+    const res = await supertest(app)
+      .get('/api/gaji/me?limit=1&page=1&sort=desc')
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(200)
+
+    expect(res.body.status).toBe('success')
+    expect(res.body.data.items.length).toBe(1)
+    expect(res.body.data.pagination.page).toBe(1)
+    expect(res.body.data.pagination.limit).toBe(1)
+  })
+
+  it('should filter by date range (tanggalBayar.gte)', async () => {
+    const res = await supertest(app)
+      .get(`/api/gaji/me?tanggalBayar.gte=${todayStr}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(200)
+
+    expect(res.body.status).toBe('success')
+    const items: Array<any> = res.body.data.items
+    expect(items.length).toBeGreaterThanOrEqual(1)
+    for (const it of items) {
+      expect(new Date(it.tanggalBayar).toISOString().slice(0, 10) >= todayStr).toBe(true)
+      expect(it.username).toBe(username)
+    }
+  })
+
+  it('should filter by date range (tanggalBayar.lte)', async () => {
+    const res = await supertest(app)
+      .get(`/api/gaji/me?tanggalBayar.lte=${yestStr}`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(200)
+
+    expect(res.body.status).toBe('success')
+    const items: Array<any> = res.body.data.items
+    expect(items.length).toBeGreaterThanOrEqual(1)
+    for (const it of items) {
+      expect(new Date(it.tanggalBayar).toISOString().slice(0, 10) <= yestStr).toBe(true)
+      expect(it.username).toBe(username)
+    }
+  })
+
+  it('should return 403 when OWNER tries to access', async () => {
+    const res = await supertest(app)
+      .get('/api/gaji/me')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(403)
+
+    expect(res.body.status).toBe('error')
+  })
+
+  it('should return 401 when no token is provided', async () => {
+    const res = await supertest(app).get('/api/gaji/me').expect(401)
+    expect(res.body.status).toBe('error')
+  })
+})
+
+describe('GET /api/gaji/summary', () => {
+  let ownerToken: string
+  let userToken: string
+
+  beforeEach(async () => {
+    await UserTest.create()
+    ownerToken = await UserTest.loginOwner()
+    userToken = await UserTest.login()
+
+    await JamKerjaTest.createMany() // seed selesai
+    await GajiTest.createManyForUser('raka20', [
+      { jumlahBayar: 10_000, catatan: 'seed-1' },
+      { jumlahBayar: 20_000, catatan: 'seed-2' },
+    ])
+  })
+
+  afterEach(async () => {
+    await prismaClient.salary.deleteMany()
+    await prismaClient.jamKerja.deleteMany()
+    await UserTest.delete()
+  })
+
+  it('should return TOTAL (all-time) summary for OWNER', async () => {
+    const res = await supertest(app)
+      .get('/api/gaji/summary?period=total')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200)
+
+    expect(res.body.status).toBe('success')
+    const data = res.body.data
+    expect(data).toHaveProperty('period', 'total')
+    expect(typeof data.totalGaji).toBe('number')
+    expect(typeof data.totalDibayar).toBe('number')
+    expect(typeof data.belumDibayar).toBe('number')
+    expect(data.belumDibayar).toBeCloseTo(Math.max(0, data.totalGaji - data.totalDibayar), 6)
+  })
+
+  it('should support period=minggu (this week)', async () => {
+    const res = await supertest(app)
+      .get('/api/gaji/summary?period=minggu')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200)
+
+    expect(res.body.status).toBe('success')
+    const d = res.body.data
+    expect(d.period).toBe('minggu')
+  })
+
+  it('should support period=bulan (this month)', async () => {
+    const res = await supertest(app)
+      .get('/api/gaji/summary?period=bulan')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200)
+
+    expect(res.body.status).toBe('success')
+    const d = res.body.data
+    expect(d.period).toBe('bulan')
+  })
+
+  it('should accept legacy scope=all and map to period=total', async () => {
+    const res = await supertest(app)
+      .get('/api/gaji/summary?scope=all')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(200)
+
+    expect(res.body.status).toBe('success')
+    expect(res.body.data.period).toBe('total')
+  })
+
+  it('should return 403 when USER tries to access', async () => {
+    const res = await supertest(app)
+      .get('/api/gaji/summary?period=total')
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(403)
+
+    expect(res.body.status).toBe('error')
+  })
+
+  it('should return 401 when no token provided', async () => {
+    const res = await supertest(app).get('/api/gaji/summary?period=total').expect(401)
+    expect(res.body.status).toBe('error')
+  })
+})
+
+describe('GET /api/gaji/me/summary', () => {
+  const username = 'raka20'
+  const otherUsername = 'otheruser'
+
+  let userToken = ''
+  let ownerToken = ''
+
+  // snapshot konfigurasi sebelum test agar bisa di-restore
+  let cfgBefore: { gajiPerJam: number; batasJedaMenit: number; jedaOtomatisAktif: boolean } | null = null
+
+  beforeEach(async () => {
+    await UserTest.create()
+    userToken = await UserTest.login()
+    ownerToken = await UserTest.loginOwner()
+
+    await GajiTest.ensureUser(otherUsername)
+
+    // snapshot & kunci rate global
+    const cfg = await prismaClient.konfigurasi.findUnique({ where: { id: 1 } })
+    cfgBefore = cfg
+      ? {
+          gajiPerJam: cfg.gajiPerJam,
+          batasJedaMenit: cfg.batasJedaMenit,
+          jedaOtomatisAktif: cfg.jedaOtomatisAktif,
+        }
+      : null
+    await setGlobalRate(10_000)
+
+    // Seed jamKerja SELESAI utk user utama: 1.25 + 2.5 = 3.75 jam
+    await prismaClient.jamKerja.createMany({
+      data: [
+        {
+          username,
+          jamMulai: new Date(Date.now() - 4 * 3600_000),
+          jamSelesai: new Date(Date.now() - 2.75 * 3600_000),
+          totalJam: 1.25,
+          status: StatusKerja.SELESAI,
+          tanggal: new Date(),
+        },
+        {
+          username,
+          jamMulai: new Date(Date.now() - 2.5 * 3600_000),
+          jamSelesai: new Date(),
+          totalJam: 2.5,
+          status: StatusKerja.SELESAI,
+          tanggal: new Date(),
+        },
+      ],
     })
 
-    describe('DELETE /api/gaji/:id', () => {
-    let gajiId: number
-
-    beforeEach(async () => {
-        await UserTest.create()
-        const gaji = await GajiTest.create()
-        gajiId = gaji.id
+    // Seed salary user utama: total 15.000
+    await prismaClient.salary.createMany({
+      data: [
+        { username, jumlahBayar: 10_000, catatan: 'A', tanggalBayar: new Date() },
+        { username, jumlahBayar: 5_000, catatan: 'B', tanggalBayar: new Date() },
+      ],
     })
 
-    afterEach(async () => {
-        await GajiTest.delete()
-        await UserTest.delete()
+    // Data user lain (isolasi)
+    await prismaClient.jamKerja.create({
+      data: {
+        username: otherUsername,
+        jamMulai: new Date(Date.now() - 3600_000),
+        jamSelesai: new Date(),
+        totalJam: 3,
+        status: StatusKerja.SELESAI,
+        tanggal: new Date(),
+      },
     })
-
-    it('should be able to delete gaji by id as OWNER', async () => {
-        const token = await UserTest.loginOwner()
-        const response = await supertest(app)
-        .delete(`/api/gaji/${gajiId}`)
-        .set('Authorization', `Bearer ${token}`)
-
-        expect(response.status).toBe(200)
-        expect(response.body.status).toBe('success')
-        expect(response.body.message).toBe(SUCCESS_MESSAGES.DELETED.GAJI)
+    await prismaClient.salary.create({
+      data: { username: otherUsername, jumlahBayar: 99_999, catatan: 'X', tanggalBayar: new Date() },
     })
+  })
 
-    it('should return an error if the gaji with the given id does not exist', async () => {
-        const token = await UserTest.loginOwner()
-        const response = await supertest(app)
-        .delete('/api/gaji/999999') // asumsi ID ini tidak ada
-        .set('Authorization', `Bearer ${token}`)
+  afterEach(async () => {
+    await prismaClient.salary.deleteMany({ where: { username: { in: [username, otherUsername] } } })
+    await prismaClient.jamKerja.deleteMany({ where: { username: { in: [username, otherUsername] } } })
+    await GajiTest.deleteUser(otherUsername)
+    await UserTest.delete()
 
-        expect(response.status).toBe(404)
-        expect(response.body.status).toBe('error')
-        expect(response.body.message).toBe(ERROR_DEFINITIONS.NOT_FOUND.message)
-    })
+    if (cfgBefore) {
+      await prismaClient.konfigurasi.upsert({
+        where: { id: 1 },
+        update: {
+          gajiPerJam: cfgBefore.gajiPerJam,
+          batasJedaMenit: cfgBefore.batasJedaMenit,
+          jedaOtomatisAktif: cfgBefore.jedaOtomatisAktif,
+        },
+        create: {
+          id: 1,
+          gajiPerJam: cfgBefore.gajiPerJam,
+          batasJedaMenit: cfgBefore.batasJedaMenit,
+          jedaOtomatisAktif: cfgBefore.jedaOtomatisAktif,
+        },
+      })
+    }
+  })
 
-    it('should prevent USER role from deleting gaji', async () => {
-        const tokenUser = await UserTest.login()
-        const response = await supertest(app)
-        .delete(`/api/gaji/${gajiId}`)
-        .set('Authorization', `Bearer ${tokenUser}`)
+  it('should return correct summary for the logged-in USER', async () => {
+    const res = await supertest(app)
+      .get('/api/gaji/me/summary')
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(200)
 
-        expect(response.status).toBe(403)
-        expect(response.body.status).toBe('error')
-    })
+    expect(res.body.status).toBe('success')
+    const s = res.body.data as {
+      username: string
+      totalJam: number
+      gajiPerJam: number
+      upahKeseluruhan: number
+      totalDiterima: number
+      belumDibayar: number
+    }
 
-    it('should reject the request if no token is provided', async () => {
-        const response = await supertest(app)
-        .delete(`/api/gaji/${gajiId}`)
+    // totalJam = 3.75, gajiPerJam = 10_000 → upahKeseluruhan = 37_500
+    // totalDiterima = 15_000 → belumDibayar = 22_500
+    expect(s.username).toBe(username)
+    expect(Number(s.totalJam)).toBeCloseTo(3.75, 2)
+    expect(s.gajiPerJam).toBe(10_000)
+    expect(Number(s.upahKeseluruhan)).toBeCloseTo(37_500, 2)
+    expect(Number(s.totalDiterima)).toBeCloseTo(15_000, 2)
+    expect(Number(s.belumDibayar)).toBeCloseTo(22_500, 2)
+  })
 
-        expect(response.status).toBe(401)
-        expect(response.body.status).toBe('error')
-    })
-    })
+  it('should not include other user data in the summary', async () => {
+    const res = await supertest(app)
+      .get('/api/gaji/me/summary')
+      .set('Authorization', `Bearer ${userToken}`)
+      .expect(200)
 
-    describe('PATCH /api/gaji/:id', () => {
-    let gajiId: number
+    const s = res.body.data
+    expect(Number(s.totalJam)).not.toBeCloseTo(3, 2)
+    expect(Number(s.totalDiterima)).not.toBeCloseTo(99_999, 2)
+  })
 
-    beforeEach(async () => {
-        await UserTest.create()
-        const gaji = await GajiTest.create()
-        gajiId = gaji.id
-    })
+  it('should return 403 when OWNER calls the endpoint', async () => {
+    await supertest(app)
+      .get('/api/gaji/me/summary')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .expect(403)
+  })
 
-    afterEach(async () => {
-        await GajiTest.delete()
-        await UserTest.delete()
-    })
-
-    it('should allow OWNER to update jumlahBayar', async () => {
-        const token = await UserTest.loginOwner()
-        const response = await supertest(app)
-        .patch(`/api/gaji/${gajiId}`)
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-            jumlahBayar: 300000
-        })
-
-        expect(response.status).toBe(200)
-        expect(response.body.status).toBe('success')
-        expect(response.body.data.jumlahBayar).toBe(300000)
-    })
-
-    it('should allow OWNER to update catatan only', async () => {
-        const token = await UserTest.loginOwner()
-        const response = await supertest(app)
-        .patch(`/api/gaji/${gajiId}`)
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-            catatan: 'Update catatan revisi'
-        })
-
-        expect(response.status).toBe(200)
-        expect(response.body.data.catatan).toBe('Update catatan revisi')
-    })
-
-    it('should return error if no field is provided (empty body)', async () => {
-        const token = await UserTest.loginOwner()
-        const response = await supertest(app)
-        .patch(`/api/gaji/${gajiId}`)
-        .set('Authorization', `Bearer ${token}`)
-        .send({})
-        // console.log(response.body);
-        
-        expect(response.status).toBe(400)
-        expect(response.body.status).toBe('error')
-        expect(response.body.message).toMatch("Validation failed")
-    })
-
-    it('should return validation error if jumlahBayar is invalid', async () => {
-        const token = await UserTest.loginOwner()
-        const response = await supertest(app)
-        .patch(`/api/gaji/${gajiId}`)
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-            jumlahBayar: 0
-        })
-
-        expect(response.status).toBe(400)
-        expect(response.body.status).toBe('error')
-        expect(response.body.message).toMatch("Validation failed")
-    })
-
-    it('should return not found if gaji does not exist', async () => {
-        const token = await UserTest.loginOwner()
-        const response = await supertest(app)
-        .patch(`/api/gaji/999999`)
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-            jumlahBayar: 100000
-        })
-
-        expect(response.status).toBe(404)
-        expect(response.body.status).toBe('error')
-        expect(response.body.message).toMatch(ERROR_DEFINITIONS.NOT_FOUND.message)
-    })
-
-    it('should prevent USER from updating gaji', async () => {
-        const token = await UserTest.login()
-        const response = await supertest(app)
-        .patch(`/api/gaji/${gajiId}`)
-        .set('Authorization', `Bearer ${token}`)
-        .send({
-            jumlahBayar: 100000
-        })
-
-        expect(response.status).toBe(403)
-        expect(response.body.status).toBe('error')
-    })
-
-    it('should return unauthorized if no token is provided', async () => {
-        const response = await supertest(app)
-        .patch(`/api/gaji/${gajiId}`)
-        .send({
-            jumlahBayar: 200000
-        })
-
-        expect(response.status).toBe(401)
-        expect(response.body.status).toBe('error')
-    })
-    })
-
-    describe('GET /api/gaji/me', () => {
-        const username = 'raka20'
-        const otherUsername = 'otheruser'
-
-        let userToken: string
-        let ownerToken: string
-        let todayStr = ''
-        let yestStr = ''
-
-        beforeEach(async () => {
-            // siapkan user default + owner
-            await UserTest.create()              // buat user 'raka20' (USER)
-            userToken = await UserTest.login()        // USER token
-            ownerToken = await UserTest.loginOwner()  // OWNER token
-
-            // pastikan otheruser ada sebelum seed salary (hindari FK violation)
-            await GajiTest.ensureUser(otherUsername)
-
-            // seed salary utk user aktif
-            const { yesterday, today } = await GajiTest.seedYesterdayToday(username)
-
-            // simpan YYYY-MM-DD utk filter asserts
-            const yY = yesterday.getUTCFullYear()
-            const yM = String(yesterday.getUTCMonth() + 1).padStart(2, '0')
-            const yD = String(yesterday.getUTCDate()).padStart(2, '0')
-            yestStr = `${yY}-${yM}-${yD}`
-
-            const tY = today.getUTCFullYear()
-            const tM = String(today.getUTCMonth() + 1).padStart(2, '0')
-            const tD = String(today.getUTCDate()).padStart(2, '0')
-            todayStr = `${tY}-${tM}-${tD}`
-
-            // seed salary untuk user lain (verifikasi isolasi data)
-            await GajiTest.createManyForUser(otherUsername, [
-            { jumlahBayar: 9999, catatan: 'X' },
-            ])
-        })
-
-        afterEach(async () => {
-            // hapus salary dulu baru user agar tidak terkunci FK
-            await GajiTest.deleteByUsers([username, otherUsername])
-            await GajiTest.deleteUser(otherUsername)
-            await UserTest.delete() // hapus user 'raka20'
-        })
-
-        it('should allow USER to view own salary history', async () => {
-            const res = await supertest(app)
-            .get('/api/gaji/me')
-            .set('Authorization', `Bearer ${userToken}`)
-            .expect(200)
-
-            expect(res.body.status).toBe('success')
-            const items = res.body.data.items as Array<any>
-            expect(Array.isArray(items)).toBe(true)
-            expect(items.some(x => x.username !== username)).toBe(false)
-            expect(res.body.data.pagination.total).toBeGreaterThanOrEqual(2)
-        })
-
-        it('should support pagination', async () => {
-            const res = await supertest(app)
-            .get('/api/gaji/me?limit=1&page=1&sort=desc')
-            .set('Authorization', `Bearer ${userToken}`)
-            .expect(200)
-
-            expect(res.body.status).toBe('success')
-            expect(res.body.data.items.length).toBe(1)
-            expect(res.body.data.pagination.page).toBe(1)
-            expect(res.body.data.pagination.limit).toBe(1)
-        })
-
-        it('should filter by date range (tanggalBayar.gte)', async () => {
-            const res = await supertest(app)
-            .get(`/api/gaji/me?tanggalBayar.gte=${todayStr}`)
-            .set('Authorization', `Bearer ${userToken}`)
-            .expect(200)
-
-            expect(res.body.status).toBe('success')
-            const items: Array<any> = res.body.data.items
-            expect(items.length).toBeGreaterThanOrEqual(1)
-            for (const it of items) {
-            expect(new Date(it.tanggalBayar).toISOString().slice(0, 10) >= todayStr).toBe(true)
-            expect(it.username).toBe(username)
-            }
-        })
-
-        it('should filter by date range (tanggalBayar.lte)', async () => {
-            const res = await supertest(app)
-            .get(`/api/gaji/me?tanggalBayar.lte=${yestStr}`)
-            .set('Authorization', `Bearer ${userToken}`)
-            .expect(200)
-
-            expect(res.body.status).toBe('success')
-            const items: Array<any> = res.body.data.items
-            expect(items.length).toBeGreaterThanOrEqual(1)
-            for (const it of items) {
-            expect(new Date(it.tanggalBayar).toISOString().slice(0, 10) <= yestStr).toBe(true)
-            expect(it.username).toBe(username)
-            }
-        })
-
-        it('should return 403 when OWNER tries to access', async () => {
-            const res = await supertest(app)
-            .get('/api/gaji/me')
-            .set('Authorization', `Bearer ${ownerToken}`)
-            .expect(403)
-
-            expect(res.body.status).toBe('error')
-        })
-
-        it('should return 401 when no token is provided', async () => {
-            const res = await supertest(app)
-            .get('/api/gaji/me')
-            .expect(401)
-
-            expect(res.body.status).toBe('error')
-        })
-    })
+  it('should return 401 when no token provided', async () => {
+    await supertest(app).get('/api/gaji/me/summary').expect(401)
+  })
+})
