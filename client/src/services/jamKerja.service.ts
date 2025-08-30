@@ -15,8 +15,8 @@ export type JamKerjaRow = {
 
 export type RekapResp = {
   username: string;
-  totalJam: number; // jam
-  periode: "minggu" | "bulan"; // disesuaikan BE
+  totalJam: number;
+  periode: "minggu" | "bulan";
 };
 
 export type ApiSuccess<T = unknown> = { status: "success"; message?: string; data: T };
@@ -27,17 +27,15 @@ export type ApiResponse<T = unknown> = ApiSuccess<T> | ApiError;
  * Helper: unwrap response yang mungkin dibalut ResponseHandler
  * ============================================================ */
 function unwrap<T>(res: any): T {
-  if (res && typeof res === "object") {
-    // { status: "success" | "error", data, message? }
-    if ("status" in res && "data" in res && (res.status === "success" || res.status === "failed" || res.status === "error")) {
-      if (res.status !== "success") {
-        const msg = (res as ApiError).message || "Gagal";
-        throw new Error(msg);
-      }
-      return (res as ApiSuccess<T>).data as T;
+  if (res && typeof res === "object" && "status" in res) {
+    const s = (res as { status?: string }).status;
+    if (s === "success") return (res as ApiSuccess<T>).data as T;
+    if (s === "error" || s === "failed") {
+      const msg = (res as ApiError).message || "Gagal";
+      throw new Error(msg);
     }
   }
-  // Kalau BE mengembalikan data langsung (tanpa balutan)
+  // fallback: data langsung
   return res as T;
 }
 
@@ -61,7 +59,7 @@ export async function getRekapJam(
   return unwrap<RekapResp>(raw);
 }
 
-/** Rekap "aktif" agregat (opsional, untuk kompat yang masih pakai) */
+/** Rekap "aktif" agregat (opsional) */
 export async function getAktifRekap(
   api: AxiosInstance,
   username: string,
@@ -72,35 +70,53 @@ export async function getAktifRekap(
 }
 
 /* =========================
-   Mutations (disesuaikan controller)
+   Mutations (SELF)
    ========================= */
 
-/** Start: controller ambil username dari token (req.user), JANGAN kirim body. */
+/** Start (SELF): controller baca username dari token */
 type StartData = { id: number; username: string; jamMulai: string; status: "AKTIF" };
 export async function startJamKerja(api: AxiosInstance) {
   const { data } = await api.post<ApiResponse<StartData>>("/api/jam-kerja/start");
-  return data; // biarkan komponen yang handle success/failed toast
+  return data; // biarkan caller yang cek status untuk toast lama
 }
 
-/** Pause: POST /:id/pause TANPA body */
+/** Versi strict (unwrap & throw) — non-breaking add-on */
+export async function startJamKerjaStrict(api: AxiosInstance) {
+  const { data } = await api.post<ApiResponse<StartData>>("/api/jam-kerja/start");
+  return unwrap<StartData>(data);
+}
+
+/** Pause: POST /:id/pause */
 type PauseData = { id: number; status: "JEDA"; jamMulai?: string; jamSelesai?: string | null; totalJam?: number };
 export async function pauseJamKerja(api: AxiosInstance, id: number) {
   const { data } = await api.post<ApiResponse<PauseData>>(`/api/jam-kerja/${id}/pause`);
   return data;
 }
+export async function pauseJamKerjaStrict(api: AxiosInstance, id: number) {
+  const { data } = await api.post<ApiResponse<PauseData>>(`/api/jam-kerja/${id}/pause`);
+  return unwrap<PauseData>(data);
+}
 
-/** Resume: POST /:id/resume TANPA body (kompat: bisa flip status atau buat segmen baru di BE) */
+/** Resume: POST /:id/resume */
 type ResumeData = { id: number; status: "AKTIF"; jamMulai: string };
 export async function resumeJamKerja(api: AxiosInstance, id: number) {
   const { data } = await api.post<ApiResponse<ResumeData>>(`/api/jam-kerja/${id}/resume`);
   return data;
 }
+export async function resumeJamKerjaStrict(api: AxiosInstance, id: number) {
+  const { data } = await api.post<ApiResponse<ResumeData>>(`/api/jam-kerja/${id}/resume`);
+  return unwrap<ResumeData>(data);
+}
 
-/** End: PATCH /:id/end TANPA body */
+/** End: PATCH /:id/end */
 type EndData = { id: number; jamSelesai: string; totalJam: number; status?: "SELESAI" };
 export async function endJamKerja(api: AxiosInstance, id: number) {
   const { data } = await api.patch<ApiResponse<EndData>>(`/api/jam-kerja/${id}/end`);
   return data;
+}
+export async function endJamKerjaStrict(api: AxiosInstance, id: number) {
+  const { data } = await api.patch<ApiResponse<EndData>>(`/api/jam-kerja/${id}/end`);
+  return unwrap<EndData>(data);
 }
 
 /* =========================================================================
@@ -132,11 +148,7 @@ export function rowToItem(r: JamKerjaRow): JamKerjaItem {
   };
 }
 
-/**
- * getHistoriByRange — kompatibel untuk FE:
- * - Mengirim {from,to} ke BE (jika BE abaikan, kita filter sendiri di FE)
- * - Mengembalikan items yang sudah dikonversi (detik dari totalJam)
- */
+/** Range helper – BE boleh abaikan range; kita filter di FE */
 export async function getHistoriByRange(
   api: AxiosInstance,
   username: string,
@@ -145,20 +157,13 @@ export async function getHistoriByRange(
 ): Promise<{ totalJamDetik: number; items: JamKerjaItem[] }> {
   const raw = await apiGet<any>(api, "/api/jam-kerja", { username, from: fromISO, to: toISO });
 
-  // Unwrap fleksibel
   let rows: JamKerjaRow[] = [];
-  const unwrapped = unwrap<any>(raw); // bisa array langsung
-  if (Array.isArray(unwrapped)) {
-    rows = unwrapped as JamKerjaRow[];
-  } else if (unwrapped && typeof unwrapped === "object") {
-    const anyObj = unwrapped as { items?: unknown; data?: unknown };
-    if (Array.isArray(anyObj.items)) rows = anyObj.items as JamKerjaRow[];
-    else if (Array.isArray(anyObj.data)) rows = anyObj.data as JamKerjaRow[];
-  } else if (raw && typeof raw === "object") {
-    // fallback bila apiGet sudah unwrap sebagian
-    const anyObj = raw as { items?: unknown; data?: unknown };
-    if (Array.isArray(anyObj.items)) rows = anyObj.items as JamKerjaRow[];
-    else if (Array.isArray(anyObj.data)) rows = anyObj.data as JamKerjaRow[];
+  const unwrapped = unwrap<any>(raw);
+  if (Array.isArray(unwrapped)) rows = unwrapped;
+  else if (unwrapped && typeof unwrapped === "object") {
+    const o = unwrapped as { items?: unknown; data?: unknown };
+    if (Array.isArray(o.items)) rows = o.items as JamKerjaRow[];
+    else if (Array.isArray(o.data)) rows = o.data as JamKerjaRow[];
   }
 
   const inRange = (r: JamKerjaRow) => {
@@ -168,9 +173,7 @@ export async function getHistoriByRange(
   const filtered = rows.filter(inRange);
 
   const items = filtered.map(rowToItem);
-  const totalJamDetik = Math.round(
-    filtered.reduce((acc, r) => acc + (r.totalJam ?? 0) * 3600, 0)
-  );
+  const totalJamDetik = Math.round(filtered.reduce((acc, r) => acc + (r.totalJam ?? 0) * 3600, 0));
 
   return { totalJamDetik, items };
 }
@@ -220,3 +223,38 @@ export async function getUserSummary(api: AxiosInstance, username: string) {
   const raw = await apiGet<any>(api, "/api/jam-kerja/user-summary", { username });
   return unwrap<OwnerUserSummary>(raw);
 }
+
+/* =========================
+   EXTRA helpers (baru, tidak breaking)
+   ========================= */
+
+/** Ambil entry terbaru (paling atas) — berguna buat dapatkan activeSessionId setelah start */
+export async function getLatestEntry(api: AxiosInstance, username: string) {
+  const rows = await listJamKerja(api, username);
+  return rows[0] ?? null;
+}
+
+/** Derive status & activeSessionId dari list */
+export function deriveStatusAndActiveId(rows: JamKerjaRow[]) {
+  const latest = rows?.[0];
+  const status = (latest?.status ?? "OFF") as StatusSaatIni;
+  const activeSessionId =
+    latest && (latest.status === "AKTIF" || (latest.status === "JEDA" && latest.jamSelesai == null))
+      ? latest.id
+      : null;
+  return { status, activeSessionId };
+}
+
+export type OwnerSummary = {
+  counts?: { aktif?: number; jeda?: number };
+  users: Array<{
+    username: string;
+    status: "AKTIF" | "JEDA" | "SELESAI" | "OFF" | string;
+    totals?: {
+      hari?:    { totalJam?: number; totalGaji?: number };
+      minggu?:  { totalJam?: number; totalGaji?: number };
+      bulan?:   { totalJam?: number; totalGaji?: number };
+      semua?:   { totalJam?: number; totalGaji?: number };
+    };
+  }>;
+};

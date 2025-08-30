@@ -99,9 +99,8 @@ export class TutonService {
   }
 
   static async summary(courseId: number) {
-    const exists = await TutonRepository.exists(courseId)
-    if (!exists) throw AppError.fromCode(ERROR_CODE.NOT_FOUND, "Course not found")
-
-    return TutonRepository.getSummary(courseId)
+    const sum = await TutonRepository.getSummary(courseId);
+    if (!sum) throw AppError.fromCode(ERROR_CODE.NOT_FOUND, "Course not found");
+    return sum; // sudah berbentuk yang FE minta
   }
 }

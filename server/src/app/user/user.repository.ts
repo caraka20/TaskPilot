@@ -1,6 +1,6 @@
-import { prismaClient } from "../../config/database"
-import { User } from "../../generated/prisma"
-import { RegisterRequest } from "./user.model"
+import { prismaClient } from "../../config/database";
+import { User } from "../../generated/prisma";
+import { RegisterRequest } from "./user.model";
 
 export interface EffectiveKonfigurasi {
   gajiPerJam: number;
@@ -11,67 +11,75 @@ export interface EffectiveKonfigurasi {
 
 export class UserRepository {
   static async findByUsername(username: string) {
-    return prismaClient.user.findUnique({ where: { username } })
+    return prismaClient.user.findUnique({ where: { username } });
   }
 
   static async create(data: RegisterRequest) {
-    return prismaClient.user.create({ data })
+    return prismaClient.user.create({ data });
   }
 
   static async findAllUsers() {
-    return prismaClient.user.findMany()
+    return prismaClient.user.findMany();
   }
 
   static async login(username: string, token: string) {
     return prismaClient.user.update({
       where: { username },
       data: { token },
-    })
+    });
   }
 
   static async logout(user: User) {
     return prismaClient.user.update({
       where: { username: user.username },
       data: { token: null },
-    })
+    });
   }
 
   /**
    * DETAIL USER (schema baru)
    * - ikutkan relasi yang kamu perlukan
    */
-  static async getUserDetail(username: string) {
-    return prismaClient.user.findUnique({
-      where: { username },
-      include: {
-        jamKerja: true,
-        riwayatGaji: true,
-        tutonItems: {
-          select: {
-            id: true,
-            deskripsi: true,
-            jenis: true,
-            sesi: true,
-            status: true,
-            selesaiAt: true,
-            course: {
-              select: {
-                customer: {
-                  select: {
-                    id: true,
-                    namaCustomer: true,
-                    nim: true,
-                    jurusan: true,
-                  },
+static async getUserDetail(username: string) {
+  return prismaClient.user.findUnique({
+    where: { username },
+    include: {
+      // ✅ urutkan sama seperti repo jam kerja supaya FE dapat status terkini yang benar
+      jamKerja: {
+        orderBy: [
+          { jamSelesai: "asc" }, // null (OPEN) dulu
+          { jamMulai: "desc" },
+          { id: "desc" },
+        ],
+      },
+      riwayatGaji: true,
+      tutonItems: {
+        select: {
+          id: true,
+          deskripsi: true,
+          jenis: true,
+          sesi: true,
+          status: true,
+          selesaiAt: true,
+          course: {
+            select: {
+              customer: {
+                select: {
+                  id: true,
+                  namaCustomer: true,
+                  nim: true,
+                  jurusan: true,
                 },
               },
             },
           },
-          take: 50,
         },
+        take: 50,
       },
-    })
-  }
+    },
+  });
+}
+
 
   static async getKonfigurasi() {
     return prismaClient.konfigurasi.findFirst();
@@ -92,10 +100,7 @@ export class UserRepository {
   }
 
   /**
-   * Upsert override DENGAN MERGE:
-   * - patch: nilai yang dikirim klien (parsial)
-   * - sisa field diisi dari override saat ini kalau ada
-   * - jika override belum ada, fallback ke konfigurasi global
+   * Upsert override DENGAN MERGE
    */
   static async upsertOverrideMerged(
     username: string,
@@ -155,49 +160,52 @@ export class UserRepository {
     return { ok: true as const };
   }
 
-  static async tambahJamKerjaDanGaji(username: string, totalJam: number, gajiPerJam: number) {
-    const totalGaji = (totalJam || 0) * (gajiPerJam || 0)
+  static async tambahJamKerjaDanGaji(
+    username: string,
+    totalJam: number,
+    gajiPerJam: number
+  ) {
+    const totalGaji = (totalJam || 0) * (gajiPerJam || 0);
 
     try {
-      // Jika schema user memiliki kolom 'totalJamKerja' & 'totalGaji'
       return await prismaClient.user.update({
         where: { username },
         data: {
-          // kolom numeric; jika tidak ada di schema, blok ini akan gagal & ditangkap catch → no-op
           totalJamKerja: { increment: totalJam },
           totalGaji: { increment: totalGaji },
         } as any,
-      })
+      });
     } catch {
-      // Kolom ringkasan belum ada → biarkan sebagai no-op agar tidak mematahkan flow & test.
-      return null
+      return null;
     }
   }
 
-// 1) Ambil daftar semua username (urut alfabet)
-// Daftar semua username (urut alfabet)
-static async listUsernames(): Promise<string[]> {
-  const rows = await prismaClient.user.findMany({
-    select: { username: true },
-    orderBy: { username: "asc" },
-  });
-  return rows.map((r) => r.username);
+  // Daftar semua username (urut alfabet)
+  static async listUsernames(): Promise<string[]> {
+    const rows = await prismaClient.user.findMany({
+      select: { username: true },
+      orderBy: { username: "asc" },
+    });
+    return rows.map((r) => r.username);
+  }
+
+  // Konfigurasi efektif per user (override > global)
+    static async getEffectiveKonfigurasi(
+      username: string
+    ): Promise<EffectiveKonfigurasi & { updatedAt?: Date }> {
+      const [globalCfg, override] = await Promise.all([
+        prismaClient.konfigurasi.findFirst(),
+        prismaClient.konfigurasiOverride.findUnique({ where: { username } }),
+      ]);
+
+      return {
+        gajiPerJam: Number(override?.gajiPerJam ?? globalCfg?.gajiPerJam ?? 0),
+        batasJedaMenit: Number(override?.batasJedaMenit ?? globalCfg?.batasJedaMenit ?? 0),
+        jedaOtomatisAktif: Boolean(override?.jedaOtomatisAktif ?? globalCfg?.jedaOtomatisAktif ?? false),
+        // kunci: pastikan tipe literal, bukan string biasa
+        source: (override ? "override" : "global") as "override" | "global",
+        updatedAt: override?.updatedAt,
+      };
+    }
+
 }
-
-// Konfigurasi efektif per user (override > global)
-static async getEffectiveKonfigurasi(username: string) {
-  const [globalCfg, override] = await Promise.all([
-    prismaClient.konfigurasi.findFirst(),
-    prismaClient.konfigurasiOverride.findUnique({ where: { username } }),
-  ]);
-  return {
-    gajiPerJam: Number(override?.gajiPerJam ?? globalCfg?.gajiPerJam ?? 0),
-    batasJedaMenit: Number(override?.batasJedaMenit ?? globalCfg?.batasJedaMenit ?? 0),
-    jedaOtomatisAktif: Boolean(override?.jedaOtomatisAktif ?? globalCfg?.jedaOtomatisAktif ?? false),
-    source: override ? "override" : "global",
-  };
-}
-
-
-}
-

@@ -39,26 +39,28 @@ export class CustomerRepository {
   }
 
   /** Detail customer (dengan ringkasan relasi) */
-  static async findDetailById(id: number) {
-    return prismaClient.customer.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        namaCustomer: true,
-        noWa: true,
-        nim: true,
-        jurusan: true,
-        jenis: true,
-        totalBayar: true,
-        sudahBayar: true,
-        sisaBayar: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: { select: { tutonCourses: true } },
-        karil: { select: { id: true } },
-      },
-    }) as Promise<CustomerDetailRow | null>
-  }
+static async findDetailById(id: number) {
+  return prismaClient.customer.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      namaCustomer: true,
+      noWa: true,
+      nim: true,
+      jurusan: true,
+      jenis: true,
+      password: true,                // ⬅️ tambahkan
+      totalBayar: true,
+      sudahBayar: true,
+      sisaBayar: true,
+      createdAt: true,
+      updatedAt: true,
+      _count: { select: { tutonCourses: true } },
+      karil: { select: { id: true } },
+    },
+  }) as Promise<CustomerDetailRow | null>
+}
+
 
   /** Ambil customer polos */
   static async findById(id: number) {
@@ -263,18 +265,29 @@ export class CustomerRepository {
     })
   }
 
-  static buildWhereForList(q?: string): Prisma.CustomerWhereInput {
-    if (!q) return {}
-    return {
-      OR: [
-        { nim: { contains: q } },            // ❌ hapus mode: 'insensitive'
-        { namaCustomer: { contains: q } },   // MySQL biasanya sudah CI via collation
-      ],
+  static buildWhereForList(
+    q?: string,
+    jenis?: Customer["jenis"] | Customer["jenis"][]
+  ): Prisma.CustomerWhereInput {
+    const where: Prisma.CustomerWhereInput = {};
+
+    if (q) {
+      where.OR = [
+        { nim: { contains: q } },          // tanpa mode: 'insensitive'
+        { namaCustomer: { contains: q } }, // collation MySQL umumnya CI
+      ];
     }
+
+    if (jenis) {
+      where.jenis = Array.isArray(jenis) ? { in: jenis } : jenis;
+    }
+
+    return where;
   }
 
+  /** ⬅️ UPDATE: teruskan jenis ke buildWhereForList */
   static async list(query: CustomerListQuery) {
-    const where = this.buildWhereForList(query.q)
+    const where = this.buildWhereForList(query.q, query.jenis);
 
     const [rows, total] = await Promise.all([
       prismaClient.customer.findMany({
@@ -296,10 +309,10 @@ export class CustomerRepository {
           updatedAt: true,
           _count: { select: { tutonCourses: true } },
         },
-      }) as Promise<CustomerListRow[]>, // ← pastikan tipe pas dgn mapper
+      }) as Promise<CustomerListRow[]>,
       prismaClient.customer.count({ where }),
-    ])
+    ]);
 
-    return { rows, total }
+    return { rows, total };
   }
 }

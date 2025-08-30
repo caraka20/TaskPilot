@@ -10,14 +10,17 @@ import { ERROR_CODE } from "../../utils/error-codes";
 import { Role } from "../../generated/prisma";
 
 export class JamKerjaController {
-  // START: USER selalu start untuk dirinya; OWNER boleh menarget user lain via ?username=
+  // START: USER → dirinya; OWNER → boleh target via ?username= atau body.username
   static async start(req: UserRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw AppError.fromCode(ERROR_CODE.UNAUTHORIZED);
 
+      const fromQuery = typeof req.query.username === "string" ? req.query.username.trim() : "";
+      const fromBody  = typeof (req.body?.username) === "string" ? req.body.username.trim() : "";
+
       const targetUsername =
-        req.user.role === Role.OWNER && typeof req.query.username === "string" && req.query.username.trim()
-          ? String(req.query.username).trim()
+        req.user.role === Role.OWNER
+          ? (fromQuery || fromBody || req.user.username)
           : req.user.username;
 
       await Validation.validate(JamKerjaValidation.START, { username: targetUsername });
@@ -29,7 +32,7 @@ export class JamKerjaController {
     }
   }
 
-  // END: USER hanya boleh end miliknya sendiri; OWNER boleh end siapa pun
+  // END: USER hanya miliknya; OWNER bebas
   static async end(req: UserRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user) throw AppError.fromCode(ERROR_CODE.UNAUTHORIZED);
@@ -87,7 +90,7 @@ export class JamKerjaController {
         throw AppError.fromCode(ERROR_CODE.UNAUTHORIZED);
       }
 
-      const parsed = await Validation.validate(
+      const parsed = await Validation.validate<{ username: string; period: "minggu" | "bulan" }>(
         JamKerjaValidation.AKTIF_QUERY,
         req.query as Record<string, any>
       );
@@ -122,7 +125,6 @@ export class JamKerjaController {
     }
   }
 
-  // PAUSE: USER hanya miliknya; OWNER boleh siapa pun
   static async pause(req: UserRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user?.username || !req.user?.role) throw AppError.fromCode(ERROR_CODE.UNAUTHORIZED);
@@ -137,7 +139,6 @@ export class JamKerjaController {
     }
   }
 
-  // RESUME: USER hanya miliknya; OWNER boleh siapa pun
   static async resume(req: UserRequest, res: Response, next: NextFunction) {
     try {
       if (!req.user?.username || !req.user?.role) throw AppError.fromCode(ERROR_CODE.UNAUTHORIZED);

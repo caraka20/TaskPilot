@@ -5,12 +5,9 @@ import { ResponseHandler } from "../../utils/response-handler"
 import { TutonValidation } from "./tuton.validation"
 import { TutonService } from "./tuton.service"
 import { AddCourseRequest, CourseIdParam, CustomerIdParam } from "./tuton.model"
-import { TutonItemValidation } from "../tuton-item/tuton-item.validation"
-import { TutonSummaryService } from "../tuton-item/tuton-item.service"
 import { TutonRepository } from "./tuton.repository"
 import { AppError } from "../../middleware/app-error"
 import { ERROR_CODE } from "../../utils/error-codes"
-import { SUCCESS_MESSAGES } from "../../utils/success-messages"
 
 export class TutonController {
   static async addCourse(req: UserRequest, res: Response, next: NextFunction) {
@@ -56,14 +53,9 @@ export class TutonController {
 
   static async summary(req: UserRequest, res: Response, next: NextFunction) {
     try {
-      const { courseId } = TutonValidation.COURSE_ID_PARAM.parse(req.params);
-      const exists = await TutonRepository.exists(courseId);
-      if (!exists) {
-        throw AppError.fromCode(ERROR_CODE.NOT_FOUND);
-      }
-      const summary = await TutonRepository.getSummary(courseId);
-
-      return ResponseHandler.success(res, { courseId, ...summary });
+      const { courseId } = await Validation.validate(TutonValidation.COURSE_ID_PARAM, req.params as any);
+      const data = await TutonService.summary(courseId);
+      return ResponseHandler.success(res, data); // langsung kirim shape final
     } catch (err) {
       next(err);
     }

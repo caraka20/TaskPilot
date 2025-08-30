@@ -1,3 +1,6 @@
+// =====================
+// Prisma configuration
+// =====================
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -8,6 +11,9 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============
+// Base models
+// ============
 model User {
   username    String  @id @db.VarChar(100)
   password    String
@@ -21,8 +27,10 @@ model User {
 
   konfigurasiOverride KonfigurasiOverride?
 
-  jamKerja    JamKerja[]
-  tutonItems  TutonItem[]
+  // relations
+  jamKerja   JamKerja[]
+  tutonItems TutonItem[] @relation("TutonItemUser") // ⬅ back-relation TUNGGAL & JELAS
+
   riwayatGaji Salary[]
 
   createdAt DateTime @default(now())
@@ -133,11 +141,15 @@ model TutonItem {
 
   nilai Float?
 
+  // user penanggung jawab (opsional)
   username String? @db.VarChar(100)
-  user     User?   @relation(fields: [username], references: [username], onDelete: SetNull)
+  user     User?   @relation("TutonItemUser", fields: [username], references: [username], onDelete: SetNull)
 
   deskripsi String?
   selesaiAt DateTime?
+
+  // persist flag copas untuk DISKUSI/TUGAS
+  copasSoal Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -18,6 +18,7 @@ export const SUCCESS_MESSAGES = {
     REKAP_JAM_KERJA: 'Rekap Jam-Kerja data fetched successfully',
     AKTIF_JAM_KERJA : 'Aktif Jam-Kerja data fetched successfully',
     TUTON_SUMMARY : 'Aktif Tuton Summary data fetched successfully',
+    JAM_KERJA : 'Jam kerja data fetched successfully'
   },
   LOGOUT: {
     USER: 'Logout successful',

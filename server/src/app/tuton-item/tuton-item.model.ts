@@ -12,6 +12,7 @@ export interface TutonItemResponse {
   nilai?: number | null
   deskripsi?: string | null
   selesaiAt?: Date | null
+  copas: boolean
 }
 
 export function toTutonItemResponse(item: TutonItem): TutonItemResponse {
@@ -24,33 +25,24 @@ export function toTutonItemResponse(item: TutonItem): TutonItemResponse {
     nilai: item.nilai ?? null,
     deskripsi: item.deskripsi ?? null,
     selesaiAt: item.selesaiAt ?? null,
+    copas: !!item.copasSoal,
   }
 }
 
 export interface UpdateTutonItemRequest {
-  status?: StatusTugas            // <-- pakai enum, bukan string bebas
+  status?: StatusTugas
   nilai?: number | null
   deskripsi?: string | null
+  copas?: boolean
 }
 
-export interface UpdateStatusRequest {
-  status: StatusTugas             // <-- enum
-}
+export interface UpdateStatusRequest { status: StatusTugas }
+export interface UpdateNilaiRequest { nilai: number | null }
+export interface UpdateCopasRequest { copas: boolean }
 
-export interface UpdateNilaiRequest {
-  nilai: number | null
-}
+export interface CourseParam { courseId: number }
 
-
-/** PARAMS */
-export interface CourseParam {
-  courseId: number
-}
-
-/** INIT */
-export interface InitItemsRequest {
-  overwrite?: boolean
-}
+export interface InitItemsRequest { overwrite?: boolean }
 export interface InitItemsResponse {
   courseId: number
   created: boolean
@@ -58,56 +50,17 @@ export interface InitItemsResponse {
   completedItems: number
 }
 
-/** BULK STATUS */
-export interface BulkStatusItem {
-  itemId: number
-  status: StatusTugas
-}
-export interface BulkStatusRequest {
-  items: BulkStatusItem[]
-}
-export interface BulkResult {
-  updated: number
-}
+export interface BulkStatusItem { itemId: number; status: StatusTugas }
+export interface BulkStatusRequest { items: BulkStatusItem[] }
+export interface BulkResult { updated: number }
 
-/** BULK NILAI */
-export interface BulkNilaiItem {
-  itemId: number
-  nilai: number | null
-}
-export interface BulkNilaiRequest {
-  items: BulkNilaiItem[]
-}
+export interface BulkNilaiItem { itemId: number; nilai: number | null }
+export interface BulkNilaiRequest { items: BulkNilaiItem[] }
 
-/** LIST / SUMMARY SHAPES (opsional dipakai di tempat lain) */
 export interface TutonItemBrief {
   id: number
   jenis: JenisTugas
   sesi: number
   status: StatusTugas
   nilai?: number | null
-}
-
-export interface CourseSummaryResponse {
-  courseId: number
-  matkul: string
-  totalItems: number
-  completedItems: number
-  progress: number
-  byJenis: {
-    DISKUSI: { total: number; done: number; avgNilai: number | null }
-    ABSEN:   { total: number; done: number }
-    TUGAS:   { total: number; done: number; avgNilai: number | null }
-  }
-  updatedAt: Date
-}
-
-export function toItemBrief(item: TutonItem): TutonItemBrief {
-  return {
-    id: item.id,
-    jenis: item.jenis,
-    sesi: item.sesi,
-    status: item.status,
-    nilai: item.nilai ?? null,
-  }
 }

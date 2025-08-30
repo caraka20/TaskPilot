@@ -4,14 +4,11 @@ import { RequireToken, OwnerOnly } from "../../lib/guards";
 
 // public
 import LoginPage from "../../pages/LoginPage";
-import SettingsPage from "../../pages/SettingsPage";
 
 // protected pages
 import DashboardPage from "../../pages/DashboardPage";
 import CustomersList from "../../pages/customers/CustomersList";
 import CustomerDetail from "../../pages/customers/CustomerDetail";
-import BulkStatusPage from "../../pages/courses/BulkStatusPage";
-import BulkNilaiPage from "../../pages/courses/BulkNilaiPage";
 import ConflictsPage from "../../pages/courses/ConflictsPage";
 
 import GlobalConfigPage from "../../pages/config/GlobalConfigPage";
@@ -22,13 +19,19 @@ import UsersList from "../../pages/users/UsersList";
 import UserDetailPage from "../../pages/users/UserDetail";
 import RegisterUser from "../../pages/users/RegisterUser";
 
+// KARIL pages (lokasi sesuai punyamu)
+import KarilList from "../../pages/customers/KarilList";
+import TutonConflicts from "../../pages/tuton/Conflicts";
+
+// 404 page
+import NotFoundPage from "../../pages/NotFoundPage";
+
 export default function AppRouter() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
         {/* public */}
         <Route path="login" element={<LoginPage />} />
-        <Route path="settings" element={<SettingsPage />} />
 
         {/* index -> dashboard */}
         <Route index element={<Navigate to="/dashboard" replace />} />
@@ -48,18 +51,22 @@ export default function AppRouter() {
           <Route path="customers/:id" element={<CustomerDetail />} />
 
           {/* courses */}
-          <Route path="courses/bulk-status" element={<BulkStatusPage />} />
-          <Route path="courses/bulk-nilai" element={<BulkNilaiPage />} />
           <Route path="courses/conflicts" element={<ConflictsPage />} />
 
           {/* config */}
           <Route path="config/global" element={<OwnerOnly><GlobalConfigPage /></OwnerOnly>} />
           <Route path="config/effective" element={<EffectiveConfigPage />} />
           <Route path="config/overrides" element={<OwnerOnly><OverridesConfigPage /></OwnerOnly>} />
+
+          {/* KARIL (OWNER only) */}
+          <Route path="karil" element={<KarilList />} />
+
+          {/* TUTON */}
+          <Route path="/tuton-conflicts" element={<TutonConflicts />} />
         </Route>
 
         {/* 404 */}
-        <Route path="*" element={<div className="p-6">404</div>} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );

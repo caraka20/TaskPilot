@@ -1,5 +1,5 @@
 import { prismaClient } from "../../config/database"
-import { JenisTugas, StatusTugas } from "../../generated/prisma"
+import { JenisTugas, Prisma, StatusTugas } from "../../generated/prisma"
 
 export class TutonRepository {
   // --- Customer / Course basic ops ---
@@ -29,31 +29,47 @@ export class TutonRepository {
     return prismaClient.tutonCourse.delete({ where: { id: courseId } })
   }
 
-  // --- Items init / totals sync ---
+// TutonRepository.createItemsForCourse
   static async createItemsForCourse(courseId: number) {
-    const items: Array<{
-      courseId: number
-      jenis: JenisTugas
-      sesi: number
-      status: StatusTugas
-    }> = []
+    const items: Prisma.TutonItemCreateManyInput[] = []
 
-    // Diskusi 1..8
+    // DISKUSI — boleh punya copasSoal (default false, boleh di-skip)
     for (let s = 1; s <= 8; s++) {
-      items.push({ courseId, jenis: JenisTugas.DISKUSI, sesi: s, status: StatusTugas.BELUM })
+      items.push({
+        courseId,
+        jenis: JenisTugas.DISKUSI,
+        sesi: s,
+        status: StatusTugas.BELUM,
+        copasSoal: false, // opsional (default false di schema), boleh dihapus
+      })
     }
-    // Absen 1..8
+
+    // ABSEN — TIDAK punya copas/copasSoal
     for (let s = 1; s <= 8; s++) {
-      items.push({ courseId, jenis: JenisTugas.ABSEN, sesi: s, status: StatusTugas.BELUM })
+      items.push({
+        courseId,
+        jenis: JenisTugas.ABSEN,
+        sesi: s,
+        status: StatusTugas.BELUM,
+        // jangan kirim copas/copasSoal di ABSEN
+      } as Prisma.TutonItemCreateManyInput)
     }
-    // Tugas 3,5,7
+
+    // TUGAS — boleh punya copasSoal (default false)
     for (const s of [3, 5, 7]) {
-      items.push({ courseId, jenis: JenisTugas.TUGAS, sesi: s, status: StatusTugas.BELUM })
+      items.push({
+        courseId,
+        jenis: JenisTugas.TUGAS,
+        sesi: s,
+        status: StatusTugas.BELUM,
+        copasSoal: false, // opsional
+      })
     }
 
     await prismaClient.tutonItem.createMany({ data: items })
-    return items.length // 19
+    return items.length
   }
+
 
   static updateCourseTotals(courseId: number, totalItems: number, completedItems = 0) {
     return prismaClient.tutonCourse.update({
@@ -113,45 +129,76 @@ export class TutonRepository {
 
   // Summary berbasis TutonItem (bukan field di course)
   static async getSummary(courseId: number) {
+    const course = await prismaClient.tutonCourse.findUnique({
+      where: { id: courseId },
+      select: { id: true, matkul: true },
+    });
+    if (!course) return null;
+
     const [
       totalItems,
       completedItems,
+
       diskusiTotal,
       diskusiDone,
+      diskusiAvg,
+
       absenTotal,
       absenDone,
+
       tugasTotal,
       tugasDone,
+      tugasAvg,
     ] = await prismaClient.$transaction([
       prismaClient.tutonItem.count({ where: { courseId } }),
       prismaClient.tutonItem.count({ where: { courseId, status: StatusTugas.SELESAI } }),
 
       prismaClient.tutonItem.count({ where: { courseId, jenis: JenisTugas.DISKUSI } }),
-      prismaClient.tutonItem.count({
-        where: { courseId, jenis: JenisTugas.DISKUSI, status: StatusTugas.SELESAI },
+      prismaClient.tutonItem.count({ where: { courseId, jenis: JenisTugas.DISKUSI, status: StatusTugas.SELESAI } }),
+      prismaClient.tutonItem.aggregate({
+        where: { courseId, jenis: JenisTugas.DISKUSI, nilai: { not: null } },
+        _avg: { nilai: true },
       }),
 
       prismaClient.tutonItem.count({ where: { courseId, jenis: JenisTugas.ABSEN } }),
-      prismaClient.tutonItem.count({
-        where: { courseId, jenis: JenisTugas.ABSEN, status: StatusTugas.SELESAI },
-      }),
+      prismaClient.tutonItem.count({ where: { courseId, jenis: JenisTugas.ABSEN, status: StatusTugas.SELESAI } }),
 
       prismaClient.tutonItem.count({ where: { courseId, jenis: JenisTugas.TUGAS } }),
-      prismaClient.tutonItem.count({
-        where: { courseId, jenis: JenisTugas.TUGAS, status: StatusTugas.SELESAI },
+      prismaClient.tutonItem.count({ where: { courseId, jenis: JenisTugas.TUGAS, status: StatusTugas.SELESAI } }),
+      prismaClient.tutonItem.aggregate({
+        where: { courseId, jenis: JenisTugas.TUGAS, nilai: { not: null } },
+        _avg: { nilai: true },
       }),
     ]);
 
-    const byJenis = [
-      { jenis: JenisTugas.DISKUSI, total: diskusiTotal, selesai: diskusiDone },
-      { jenis: JenisTugas.ABSEN,   total: absenTotal,   selesai: absenDone },
-      { jenis: JenisTugas.TUGAS,   total: tugasTotal,   selesai: tugasDone },
-    ];
+    const progress = totalItems > 0
+      ? Math.round((completedItems / totalItems) * 100)
+      : 0;
 
-    const completionPercent =
-      totalItems > 0 ? Number(((completedItems / totalItems) * 100).toFixed(2)) : 0;
-
-    return { totalItems, completedItems, completionPercent, byJenis };
+    return {
+      courseId,
+      matkul: course.matkul,
+      totalItems,
+      completedItems,
+      progress,
+      byJenis: {
+        DISKUSI: {
+          total: diskusiTotal,
+          done: diskusiDone,
+          avgNilai: diskusiAvg._avg.nilai ?? null,
+        },
+        ABSEN: {
+          total: absenTotal,
+          done: absenDone,
+        },
+        TUGAS: {
+          total: tugasTotal,
+          done: tugasDone,
+          avgNilai: tugasAvg._avg.nilai ?? null,
+        },
+      },
+      updatedAt: new Date().toISOString(),
+    };
   }
 
 
@@ -168,4 +215,5 @@ export class TutonRepository {
       select: { id: true, totalItems: true, completedItems: true },
     })
   }
+  
 }

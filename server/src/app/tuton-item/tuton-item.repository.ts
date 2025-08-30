@@ -18,23 +18,15 @@ export class TutonItemRepository {
   }
 
   static updateItem(itemId: number, data: Prisma.TutonItemUpdateInput) {
-    return prismaClient.tutonItem.update({
-      where: { id: itemId },
-      data,
-    })
+    return prismaClient.tutonItem.update({ where: { id: itemId }, data })
   }
 
   static countCompletedInCourse(courseId: number) {
-    return prismaClient.tutonItem.count({
-      where: { courseId, status: StatusTugas.SELESAI },
-    })
+    return prismaClient.tutonItem.count({ where: { courseId, status: StatusTugas.SELESAI } })
   }
 
   static updateCourseCompleted(courseId: number, completedItems: number) {
-    return prismaClient.tutonCourse.update({
-      where: { id: courseId },
-      data: { completedItems },
-    })
+    return prismaClient.tutonCourse.update({ where: { id: courseId }, data: { completedItems } })
   }
 
   static async recalcCourseCompleted(courseId: number) {
@@ -51,11 +43,12 @@ export class TutonItemRepository {
     await prismaClient.tutonItem.deleteMany({ where: { courseId } })
   }
 
+
   static buildDefaultItems(courseId: number) {
-    const items: Array<{ courseId: number; jenis: JenisTugas; sesi: number; status: StatusTugas }> = []
+    const items: Prisma.TutonItemCreateManyInput[] = []
     for (let s = 1; s <= 8; s++) items.push({ courseId, jenis: JenisTugas.DISKUSI, sesi: s, status: StatusTugas.BELUM })
     for (let s = 1; s <= 8; s++) items.push({ courseId, jenis: JenisTugas.ABSEN,   sesi: s, status: StatusTugas.BELUM })
-    for (const s of [3, 5, 7]) items.push({ courseId, jenis: JenisTugas.TUGAS,   sesi: s, status: StatusTugas.BELUM })
+    for (const s of [3, 5, 7])  items.push({ courseId, jenis: JenisTugas.TUGAS,   sesi: s, status: StatusTugas.BELUM })
     return items
   }
 
@@ -65,46 +58,39 @@ export class TutonItemRepository {
     return items.length
   }
 
-  // --- BULK STATUS (lama: sequential). Biarkan ada, tapi gunakan versi Tx di bawah.
-  static async bulkUpdateStatus(items: Array<{ itemId: number; status: StatusTugas }>) {
-    let updated = 0
-    for (const it of items) {
-      const res = await prismaClient.tutonItem.update({
-        where: { id: it.itemId },
-        data: { status: it.status, selesaiAt: it.status === StatusTugas.SELESAI ? new Date() : null },
-      })
-      if (res) updated++
-    }
-    return updated
+
+  static async clearCompletionMarks(itemId: number) {
+    await prismaClient.tutonItem.update({
+      where: { id: itemId },
+      data: { selesaiAt: null },
+    })
   }
 
-  // ✅ BULK STATUS versi transaction (atomic & cepat)
+  // NEW: clear penanda “selesai” untuk banyak item
+  static async clearCompletionMarksBulk(itemIds: number[]) {
+    if (!itemIds.length) return
+    await prismaClient.tutonItem.updateMany({
+      where: { id: { in: itemIds } },
+      data: { selesaiAt: null },
+    })
+  }
+
   static async bulkUpdateStatusTx(items: Array<{ itemId: number; status: StatusTugas }>) {
     if (!items.length) return []
     return prismaClient.$transaction(
       items.map(i =>
         prismaClient.tutonItem.update({
           where: { id: i.itemId },
-          data: { status: i.status, selesaiAt: i.status === StatusTugas.SELESAI ? new Date() : null },
+          data: {
+            status: i.status,
+            // Jika SELESAI → cap waktu; jika BELUM → hapus cap
+            selesaiAt: i.status === StatusTugas.SELESAI ? new Date() : null,
+          },
         })
       )
     )
   }
 
-  // --- BULK NILAI (lama: sequential). Biarkan ada, tapi gunakan versi Tx di bawah.
-  static async bulkUpdateNilai(items: Array<{ itemId: number; nilai: number | null }>) {
-    let updated = 0
-    for (const it of items) {
-      const res = await prismaClient.tutonItem.update({
-        where: { id: it.itemId },
-        data: { nilai: it.nilai },
-      })
-      if (res) updated++
-    }
-    return updated
-  }
-
-  /** ✅ BULK NILAI (atomic) */
   static async bulkUpdateNilaiTx(items: Array<{ itemId: number; nilai: number | null }>) {
     if (!items.length) return []
     return prismaClient.$transaction(
@@ -118,7 +104,7 @@ export class TutonItemRepository {
   }
 
   static async findByIdsForCourse(courseId: number, ids: number[]) {
-    if (ids.length === 0) return []
+    if (!ids.length) return []
     return prismaClient.tutonItem.findMany({
       where: { courseId, id: { in: ids } },
       select: { id: true },
@@ -129,11 +115,10 @@ export class TutonItemRepository {
     if (!ids.length) return []
     return prismaClient.tutonItem.findMany({
       where: { courseId, id: { in: ids } },
-      select: { id: true, jenis: true }, // Prisma mengetikkan otomatis: JenisTugas
+      select: { id: true, jenis: true },
     })
   }
 }
-
 
 export class TutonCourseRepository {
   static async ensureExists(courseId: number) {
@@ -144,18 +129,12 @@ export class TutonCourseRepository {
     const completed = await prismaClient.tutonItem.count({
       where: { courseId, status: StatusTugas.SELESAI },
     })
-    await prismaClient.tutonCourse.update({
-      where: { id: courseId },
-      data: { completedItems: completed },
-    })
+    await prismaClient.tutonCourse.update({ where: { id: courseId }, data: { completedItems: completed } })
     return completed
   }
 
   static async touchTotals(courseId: number, totalItems: number) {
-    return prismaClient.tutonCourse.update({
-      where: { id: courseId },
-      data: { totalItems },
-    })
+    return prismaClient.tutonCourse.update({ where: { id: courseId }, data: { totalItems } })
   }
 
   static async summary(courseId: number) {
@@ -165,7 +144,6 @@ export class TutonCourseRepository {
     })
     if (!course) return null
 
-    // Count per jenis & avg nilai (diskusi, tugas)
     const [countDiskusi, countAbsen, countTugas, doneDiskusi, doneAbsen, doneTugas, avgDiskusi, avgTugas] =
       await Promise.all([
         prismaClient.tutonItem.count({ where: { courseId, jenis: "DISKUSI" } }),
@@ -187,5 +165,4 @@ export class TutonCourseRepository {
       },
     }
   }
-
 }

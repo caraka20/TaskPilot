@@ -431,7 +431,7 @@ describe('GET /api/gaji/me', () => {
       .get('/api/gaji/me')
       .set('Authorization', `Bearer ${userToken}`)
       .expect(200)
-
+      
     expect(res.body.status).toBe('success')
     const items = res.body.data.items as Array<any>
     expect(Array.isArray(items)).toBe(true)
@@ -526,6 +526,7 @@ describe('GET /api/gaji/summary', () => {
 
     expect(res.body.status).toBe('success')
     const data = res.body.data
+    
     expect(data).toHaveProperty('period', 'total')
     expect(typeof data.totalGaji).toBe('number')
     expect(typeof data.totalDibayar).toBe('number')
@@ -683,7 +684,7 @@ describe('GET /api/gaji/me/summary', () => {
       .get('/api/gaji/me/summary')
       .set('Authorization', `Bearer ${userToken}`)
       .expect(200)
-
+      
     expect(res.body.status).toBe('success')
     const s = res.body.data as {
       username: string

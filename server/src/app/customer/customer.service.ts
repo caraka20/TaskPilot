@@ -41,8 +41,9 @@ export class CustomerService {
   static async detail(id: number): Promise<CustomerDetailResponse> {
     const row = await CustomerRepository.findDetailById(id)
     if (!row) throw AppError.fromCode(ERROR_CODE.NOT_FOUND)
-    return toCustomerDetailResponse(row)
+    return toCustomerDetailResponse(row) // berisi password
   }
+
 
   static async addPayment(
     id: number,

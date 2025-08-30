@@ -1,3 +1,4 @@
+// client/src/services/users.service.ts
 import type { AxiosInstance } from "axios";
 import type { ApiEnvelope } from "../lib/types";
 
@@ -44,12 +45,11 @@ export type UserDetail = {
   role: "USER" | "OWNER";
   totalJamKerja: number;
   totalGaji: number;
-  jedaOtomatis?: boolean;    // ← opsional
+  jedaOtomatis?: boolean; // ← opsional
   jamKerja: JamKerjaBrief[];
   tugas: TugasBrief[];
   riwayatGaji: RiwayatGajiBrief[];
 };
-
 
 /** ─────────────── existing APIs ─────────────── */
 
@@ -92,5 +92,98 @@ export type MeResponse = {
 
 export async function getMe(api: AxiosInstance) {
   const { data } = await api.get<ApiEnvelope<MeResponse>>("/api/users/me");
+  return data.data;
+}
+
+/* ==== BARU: /api/users/:username/everything ==== */
+
+export type StatusSaatIni = "AKTIF" | "JEDA" | "SELESAI" | "OFF";
+
+export type JamKerjaItem = {
+  id: number;
+  username: string;
+  jamMulai: string;            // ISO string
+  jamSelesai: string | null;   // ISO string | null
+  totalJam: number;
+  status: "AKTIF" | "JEDA" | "SELESAI";
+};
+
+export type UserEverythingResponse = {
+  profile: {
+    username: string;
+    namaLengkap: string;
+    role: "OWNER" | "USER";
+    createdAt: string;
+    updatedAt: string;
+    totals: { totalJamKerja: number; totalGaji: number };
+  };
+  konfigurasi: {
+    gajiPerJam: number;
+    batasJedaMenit: number;
+    jedaOtomatisAktif: boolean;
+    source: "override" | "global";
+    updatedAt?: string;
+  };
+  jamKerja: {
+    latestStatus: StatusSaatIni;
+    activeSessionId: number | null;
+    today: { items: JamKerjaItem[]; total: number };
+    summary: {
+      hari: { totalJam: number; totalGaji: number };
+      minggu: { totalJam: number; totalGaji: number };
+      bulan: { totalJam: number; totalGaji: number };
+      semua: { totalJam: number; totalGaji: number };
+    };
+    history: {
+      items: JamKerjaItem[];
+      page: number;
+      perPage: number;
+      total: number;
+      range?: { from?: string; to?: string };
+    };
+  };
+  gaji: {
+    gajiPerJam: number;
+    summary: {
+      totalJam: number;
+      upahKeseluruhan: number;
+      totalDiterima: number;
+      belumDibayar: number;
+    };
+    riwayat: {
+      items: Array<{ id: number; jumlahBayar: number; tanggalBayar: string; catatan?: string | null }>;
+      page: number;
+      perPage: number;
+      total: number;
+    };
+  };
+  tugas: Array<{
+    id: number;
+    deskripsi: string;
+    jenisTugas: string;
+    status: string;
+    waktuSelesai: string | null;
+    customer: { id: number; namaCustomer: string; nim: string; jurusan: string };
+  }>;
+};
+
+export type UserEverythingQuery = Partial<{
+  from: string;     // ISO date string (YYYY-MM-DD atau full ISO)
+  to: string;       // ISO date string
+  histPage: number;
+  histLimit: number;
+  payPage: number;
+  payLimit: number;
+}>;
+
+export async function getUserEverything(
+  api: AxiosInstance,
+  username: string,
+  params?: UserEverythingQuery
+) {
+  const { data } = await api.get<ApiEnvelope<UserEverythingResponse>>(
+    `/api/users/${encodeURIComponent(username)}/everything`,
+    { params }
+  );
   return data.data;
 }

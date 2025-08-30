@@ -13,22 +13,50 @@ function cleanParams(q?: Query) {
 
 function pickError(payload: any): string {
   if (!payload) return "Terjadi kesalahan.";
+
   const er = (payload as any).errors;
 
-  // prioritas: errors (string|array|object) -> message -> code
+  // errors: string langsung
   if (typeof er === "string" && er.trim()) return er;
-  if (Array.isArray(er) && er.length) return er.map(x => String(x ?? "")).join("\n");
+
+  // errors: array → stringify tiap elemen (ambil .message kalau ada)
+  if (Array.isArray(er) && er.length) {
+    const lines = er.map((x: any) => {
+      if (x == null) return "";
+      if (typeof x === "string") return x;
+      if (typeof x?.message === "string") return x.message;
+      try {
+        return JSON.stringify(x);
+      } catch {
+        return String(x);
+      }
+    }).filter(Boolean);
+    if (lines.length) return lines.join("\n");
+  }
+
+  // errors: object (key berisi array/string dsb)
   if (er && typeof er === "object") {
-    const msg = Object.values(er).flat()
-      .map(x => (typeof x === "string" ? x : JSON.stringify(x)))
-      .join("\n")
-      .trim();
+    const lines = Object.values(er).flat().map((x: any) => {
+      if (x == null) return "";
+      if (typeof x === "string") return x;
+      if (typeof x?.message === "string") return x.message;
+      try {
+        return JSON.stringify(x);
+      } catch {
+        return String(x);
+      }
+    }).filter(Boolean);
+    const msg = lines.join("\n").trim();
     if (msg) return msg;
   }
-  if (typeof payload.message === "string" && payload.message.trim()) return payload.message;
-  if (typeof payload.code === "string" && payload.code.trim()) return payload.code;
+
+  // fallback ke message/code langsung di body
+  if (typeof payload?.message === "string" && payload.message.trim()) return payload.message;
+  if (typeof payload?.code === "string" && payload.code.trim()) return payload.code;
+
   return "Terjadi kesalahan.";
 }
+
 
 function unwrapOnSuccess<T>(body: any): T {
   // envelope: { status: 'success'|'error', data, ... }

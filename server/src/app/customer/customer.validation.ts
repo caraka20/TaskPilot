@@ -50,13 +50,26 @@ export class CustomerValidation {
         id: z.coerce.number().int().positive(),
     })
 
-  static readonly LIST_QUERY: ZodType<CustomerListQuery> = z.object({
-    q: z.string().trim().min(1).max(100).optional(),
-    page: z.coerce.number().int().positive().default(1),
-    limit: z.coerce.number().int().min(1).max(100).default(10),
-    sortBy: z.enum(["namaCustomer", "nim", "createdAt"]).default("createdAt"),
-    sortDir: z.enum(["asc", "desc"]).default("desc"),
-  })
+    private static readonly JENIS_Q = z.preprocess((val) => {
+      if (Array.isArray(val)) return val;                       // jenis[]=TUTON&jenis[]=KARIL
+      if (typeof val === "string" && val.includes(",")) {
+        return val.split(",").map((s) => s.trim()).filter(Boolean); // jenis=KARIL,TUTON
+      }
+      return val;
+    }, z.union([
+      z.nativeEnum(JenisUT),
+      z.array(z.nativeEnum(JenisUT)).min(1),
+    ]).optional());
+
+    static readonly LIST_QUERY: ZodType<CustomerListQuery> = z.object({
+      q: z.string().trim().min(1).max(100).optional(),
+      page: z.coerce.number().int().positive().default(1),
+      limit: z.coerce.number().int().min(1).max(100).default(10),
+      sortBy: z.enum(["namaCustomer", "nim", "createdAt"]).default("createdAt"),
+      sortDir: z.enum(["asc", "desc"]).default("desc"),
+      /** ⬅️ NEW */
+      jenis: this.JENIS_Q,
+    });
 
   static readonly PARAMS_ID = z.object({
     id: z.coerce.number().int().positive(),

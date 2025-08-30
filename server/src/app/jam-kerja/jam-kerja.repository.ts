@@ -3,17 +3,36 @@ import { StatusKerja } from "../../generated/prisma";
 import { JamKerjaAktifQuery } from "./jam-kerja.model";
 
 export class JamKerjaRepository {
-  // segmen yang benar-benar AKTIF (jamSelesai null)
+  /** Segmen terbuka: AKTIF atau JEDA yang belum ditutup (jamSelesai = null) */
   static async findOpenByUsername(username: string) {
     return prismaClient.jamKerja.findMany({
-      where: { username, status: StatusKerja.AKTIF, jamSelesai: null },
-      orderBy: { jamMulai: "desc" },
+      where: {
+        username,
+        OR: [
+          { status: StatusKerja.AKTIF, jamSelesai: null },
+          { status: StatusKerja.JEDA,  jamSelesai: null },
+        ],
+      },
+      orderBy: [{ jamMulai: "desc" }, { id: "desc" }],
     });
   }
 
+  /** Buat segmen baru AKTIF; isi kolom wajib */
   static async createStart(username: string, jamMulai: Date) {
+    const tanggal = new Date(
+      jamMulai.getFullYear(),
+      jamMulai.getMonth(),
+      jamMulai.getDate(), 0, 0, 0, 0
+    );
     return prismaClient.jamKerja.create({
-      data: { username, jamMulai, status: StatusKerja.AKTIF },
+      data: {
+        username,
+        tanggal,
+        jamMulai,
+        jamSelesai: null,
+        totalJam: 0,
+        status: StatusKerja.AKTIF,
+      },
     });
   }
 
@@ -21,12 +40,7 @@ export class JamKerjaRepository {
     return prismaClient.jamKerja.findUnique({ where: { id } });
   }
 
-  static async closeAs(
-    id: number,
-    jamSelesai: Date,
-    totalJam: number,
-    status: StatusKerja // JEDA atau SELESAI
-  ) {
+  static async closeAs(id: number, jamSelesai: Date, totalJam: number, status: StatusKerja) {
     return prismaClient.jamKerja.update({
       where: { id },
       data: { jamSelesai, totalJam, status },
@@ -40,7 +54,8 @@ export class JamKerjaRepository {
   static async findByUsername(username: string) {
     return prismaClient.jamKerja.findMany({
       where: { username },
-      orderBy: { jamMulai: "desc" },
+      orderBy: [{ jamMulai: "desc" }, { id: "desc" }],
+      take: 200,
     });
   }
 
@@ -57,8 +72,11 @@ export class JamKerjaRepository {
 
   static async findAktif(query: JamKerjaAktifQuery) {
     return prismaClient.jamKerja.findMany({
-      where: { username: query.username, status: { in: [StatusKerja.AKTIF, StatusKerja.JEDA] } },
-      orderBy: { jamMulai: "desc" },
+      where: {
+        username: query.username,
+        status: { in: [StatusKerja.AKTIF, StatusKerja.JEDA] },
+      },
+      orderBy: [{ jamMulai: "desc" }, { id: "desc" }],
     });
   }
 
@@ -74,35 +92,34 @@ export class JamKerjaRepository {
       where: { username, status: StatusKerja.SELESAI },
       _sum: { totalJam: true },
     });
-    return agg._sum.totalJam ?? 0;
+    return Number(agg._sum.totalJam ?? 0);
   }
 
-  // tambahan utilitas
   static async findLatestByUsername(username: string) {
     return prismaClient.jamKerja.findFirst({
       where: { username },
-      orderBy: { jamMulai: "desc" },
+      orderBy: [{ jamMulai: "desc" }, { id: "desc" }],
     });
   }
 
   static async findCurrentAll() {
     return prismaClient.jamKerja.findMany({
-      where: { status: { in: [StatusKerja.AKTIF, StatusKerja.JEDA] } },
-      orderBy: { jamMulai: "desc" },
+      where: { jamSelesai: null },
+      select: { username: true, status: true, jamSelesai: true, jamMulai: true, id: true },
+      orderBy: [{ jamMulai: "desc" }, { id: "desc" }],
     });
   }
 
-// Sum totalJam untuk status AKTIF/JEDA dalam rentang waktu
-static async rekapAktif(username: string, start: Date, end: Date) {
-  return prismaClient.jamKerja.aggregate({
-    where: {
-      username,
-      jamMulai: { gte: start, lte: end },
-      status: { in: [StatusKerja.AKTIF, StatusKerja.JEDA] },
-    },
-    _sum: { totalJam: true },
-  });
+  static async rekapAktif(username: string, start: Date, end: Date) {
+    return prismaClient.jamKerja.aggregate({
+      where: {
+        username,
+        jamMulai: { gte: start, lte: end },
+        status: { in: [StatusKerja.AKTIF, StatusKerja.JEDA] },
+      },
+      _sum: { totalJam: true },
+    });
+  }
 }
 
-
-}
+export default JamKerjaRepository;

@@ -1,9 +1,7 @@
-// client/src/components/jam-kerja/JamControls.tsx
 import { useMemo, useState } from "react";
 import { Button, Chip, Tooltip } from "@heroui/react";
 import { toHMS } from "../../utils/format";
 import { useApi } from "../../hooks/useApi";
-import { useAuthStore } from "../../store/auth.store";
 import {
   startJamKerja,
   pauseJamKerja,
@@ -29,7 +27,10 @@ type UiColor = "default" | "primary" | "secondary" | "success" | "warning" | "da
 
 type Props = {
   status: "AKTIF" | "JEDA" | "TIDAK_AKTIF";
+  /** ID sesi open (jamSelesai = null) — untuk pause & end */
   activeSessionId?: number | null;
+  /** ID baris jeda yang akan di-resume (bisa berbeda dari activeSessionId) */
+  resumeTargetId?: number | null;
 
   // API waktu (baru)
   detikBerjalan: number;       // akumulasi dari server (tanpa delta segmen aktif)
@@ -51,6 +52,22 @@ function apiErr(err: unknown) {
   return "Terjadi kesalahan";
 }
 
+/* ======================  UI POLISH  ====================== */
+
+function FancyShell({ children }: { children: React.ReactNode }) {
+  // aura glow + glass look; tanpa dependency tambahan
+  return (
+    <div className="relative group">
+      <div className="absolute -inset-2 rounded-3xl blur-2xl opacity-70 group-hover:opacity-95 transition-opacity bg-gradient-to-br from-emerald-400/16 via-cyan-400/12 to-indigo-400/16" />
+      <div className="rounded-[22px] p-[1.5px] bg-gradient-to-r from-white/10 to-white/10">
+        <div className="rounded-[20px] border border-default-200/70 bg-background/90 backdrop-blur-sm">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PrettyStatus({ status, durasi }: { status: Props["status"]; durasi: number }) {
   const color: UiColor =
     status === "AKTIF" ? "success" : status === "JEDA" ? "warning" : "danger";
@@ -61,9 +78,15 @@ function PrettyStatus({ status, durasi }: { status: Props["status"]; durasi: num
 
   return (
     <div className="w-full">
+      <div className="mb-2 h-[3px] w-24 rounded-full bg-gradient-to-r from-emerald-400/80 via-teal-400/60 to-cyan-400/80" />
       <div className="flex items-center gap-2">
         <span className="text-xs uppercase tracking-wide text-foreground-500">Status</span>
-        <Chip color={color} variant="flat" radius="lg" className="px-3 py-2 text-base font-medium">
+        <Chip
+          color={color}
+          variant="flat"
+          radius="lg"
+          className="px-3 py-2 text-base font-medium shadow-sm backdrop-blur"
+        >
           {label}
         </Chip>
       </div>
@@ -74,19 +97,20 @@ function PrettyStatus({ status, durasi }: { status: Props["status"]; durasi: num
   );
 }
 
+/* ======================  MAIN  ====================== */
+
 export default function JamControls({
   status,
   detikBerjalan,
   startedAt,
   serverNow,
   activeSessionId,
+  resumeTargetId,
   onChanged,
 }: Props) {
   const api = useApi();
-  const { username } = useAuthStore();
   const [loading, setLoading] = useState<null | "start" | "pause" | "resume" | "end">(null);
 
-  // durasi live (tahan refresh)
   const durasiBerjalanDetik = useLiveDuration({
     status,
     accumulatedSeconds: detikBerjalan,
@@ -94,21 +118,17 @@ export default function JamControls({
     serverNow: serverNow ?? null,
   });
 
-  // 👉 aturan enable tombol:
-  // - Mulai: hanya saat TIDAK_AKTIF
-  // - Jeda: hanya saat AKTIF
-  // - Lanjutkan: hanya saat JEDA
-  // - Selesai: **hanya saat AKTIF** (BE menolak jika JEDA)
-  const canStart = status === "TIDAK_AKTIF" && !!username && !activeSessionId;
-  const canPause = status === "AKTIF" && !!activeSessionId;
-  const canResume = status === "JEDA" && !!activeSessionId;
-  const canEnd = status === "AKTIF" && !!activeSessionId; // ← penting: jangan izinkan saat JEDA
+  // Aturan enable tombol
+  const canStart  = status === "TIDAK_AKTIF" && !activeSessionId;
+  const canPause  = status === "AKTIF" && !!activeSessionId;
+  const canResume = status === "JEDA"  && !!(resumeTargetId ?? activeSessionId);
+  const canEnd    = status === "AKTIF" && !!activeSessionId;
 
   const why = {
-    start: !username ? "Belum login" : activeSessionId ? "Sesi sudah berjalan" : "Status bukan TIDAK AKTIF",
-    pause: !activeSessionId ? "Tidak ada sesi aktif" : "Status bukan AKTIF",
-    resume: !activeSessionId ? "Tidak ada sesi jeda" : "Status bukan JEDA",
-    end: !activeSessionId ? "Tidak ada sesi aktif" : "Hanya bisa ketika AKTIF (bukan JEDA)",
+    start:  !canStart  ? "Status bukan TIDAK AKTIF" : "",
+    pause:  !activeSessionId ? "Tidak ada sesi aktif" : "Status bukan AKTIF",
+    resume: !(resumeTargetId ?? activeSessionId) ? "Tidak ada sesi jeda" : "Status bukan JEDA",
+    end:    !activeSessionId ? "Tidak ada sesi aktif" : "Hanya bisa ketika AKTIF (bukan JEDA)",
   };
 
   const ok = (title: string, text?: string) => toast.fire({ icon: "success", title, text });
@@ -123,8 +143,7 @@ export default function JamControls({
     if (!canStart) return;
     setLoading("start");
     try {
-      // BE baca username dari token; jangan kirim body apa pun di FE service
-      const res = await startJamKerja(api);
+      const res = await startJamKerja(api); // BE baca dari token
       handleResp(res, "Mulai kerja!");
       onChanged();
     } catch (e) {
@@ -149,10 +168,11 @@ export default function JamControls({
   };
 
   const doResume = async () => {
-    if (!canResume || !activeSessionId) return;
+    const targetId = resumeTargetId ?? activeSessionId ?? null;
+    if (!canResume || !targetId) return;
     setLoading("resume");
     try {
-      const res = await resumeJamKerja(api, activeSessionId);
+      const res = await resumeJamKerja(api, targetId);
       handleResp(res, "Dilanjutkan");
       onChanged();
     } catch (e) {
@@ -203,37 +223,51 @@ export default function JamControls({
   }, [primary, canStart, canPause, canResume, canEnd]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="flex flex-col gap-4">
-      <PrettyStatus status={status} durasi={durasiBerjalanDetik} />
+    <FancyShell>
+      <div className="flex flex-col gap-4 p-4 sm:p-5">
+        <PrettyStatus status={status} durasi={durasiBerjalanDetik} />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-        {buttons.map((b, idx) => {
-          const btn = (
-            <Button
-              key={b.key}
-              className={`w-full h-11 rounded-2xl ${idx === 0 ? "ring-1 ring-foreground-200" : ""}`}
-              variant={idx === 0 ? "solid" : "flat"}
-              color={b.color}
-              startContent={b.icon}
-              isDisabled={b.disabled}
-              isLoading={loading === b.loadingKey}
-              onPress={b.onPress}
-            >
-              {b.label}
-            </Button>
-          );
-          return b.disabled ? (
-            <Tooltip key={b.key} content={b.reason} placement="top" closeDelay={0}>
-              <div>{btn}</div>
-            </Tooltip>
-          ) : (btn);
-        })}
-      </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+          {buttons.map((b, idx) => {
+            const isPrimary = idx === 0;
+            const isFancy = isPrimary && !b.disabled;
 
-      <div className="flex items-center justify-between text-xs text-foreground-400">
-        <span>Tip: Untuk mengakhiri saat jeda, lanjutkan dulu sebentar lalu tekan Selesai.</span>
-        {status !== "TIDAK_AKTIF" && <span className="font-medium">Berjalan: {toHMS(durasiBerjalanDetik)}</span>}
+            const btn = (
+              <Button
+                key={b.key}
+                className={[
+                  "w-full h-11 rounded-2xl transition ring-1 ring-default-200",
+                  isFancy
+                    ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:opacity-95 border-0 shadow"
+                    : "",
+                ].join(" ")}
+                variant={isPrimary ? "solid" : "flat"}
+                color={b.color}
+                startContent={b.icon}
+                isDisabled={b.disabled}
+                isLoading={loading === (b as any).loadingKey}
+                onPress={b.onPress}
+              >
+                {b.label}
+              </Button>
+            );
+            return b.disabled ? (
+              <Tooltip key={b.key} content={b.reason} placement="top" closeDelay={0}>
+                <div>{btn}</div>
+              </Tooltip>
+            ) : (
+              btn
+            );
+          })}
+        </div>
+
+        <div className="flex items-center justify-between text-xs text-foreground-400">
+          <span>Tip: Untuk mengakhiri saat jeda, lanjutkan dulu sebentar lalu tekan Selesai.</span>
+          {status !== "TIDAK_AKTIF" && (
+            <span className="font-medium">Berjalan: {toHMS(durasiBerjalanDetik)}</span>
+          )}
+        </div>
       </div>
-    </div>
+    </FancyShell>
   );
 }

@@ -12,6 +12,9 @@ export const dtID = new Intl.DateTimeFormat("id-ID", {
   timeStyle: "short",
 })
 
+export const formatRupiah = (n: number) =>
+  `Rp. ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(n)}`;
+
 export function toHMS(totalSeconds: number) {
   if (!Number.isFinite(totalSeconds)) return "-"
   const s = Math.max(0, Math.floor(totalSeconds))

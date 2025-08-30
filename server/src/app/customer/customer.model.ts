@@ -92,11 +92,12 @@ export type CustomerSortBy = "namaCustomer" | "nim" | "createdAt"
 export type SortDir = "asc" | "desc"
 
 export interface CustomerListQuery {
-  q?: string
-  page: number
-  limit: number
-  sortBy: CustomerSortBy
-  sortDir: SortDir
+  q?: string;
+  page: number;
+  limit: number;
+  sortBy: CustomerSortBy;
+  sortDir: SortDir;
+  jenis?: JenisUT | JenisUT[];
 }
 
 // RESPONSE
@@ -154,7 +155,7 @@ export function toCustomerListItem(row: CustomerListRow): CustomerListItem {
     tutonCourseCount: row._count.tutonCourses,
   }
 }
-
+// === RESPONSE: detail ===
 export interface CustomerDetailResponse {
   id: number
   namaCustomer: string
@@ -162,6 +163,7 @@ export interface CustomerDetailResponse {
   nim: string
   jurusan: string
   jenis: string
+  password: string               // ⬅️ tambahkan
   totalBayar: number
   sudahBayar: number
   sisaBayar: number
@@ -171,9 +173,11 @@ export interface CustomerDetailResponse {
   updatedAt: Date
 }
 
+// === Row dari Prisma untuk detail ===
 export type CustomerDetailRow = Pick<
   Customer,
   | "id" | "namaCustomer" | "noWa" | "nim" | "jurusan" | "jenis"
+  | "password"                   // ⬅️ tambahkan
   | "totalBayar" | "sudahBayar" | "sisaBayar" | "createdAt" | "updatedAt"
 > & {
   _count: { tutonCourses: number },
@@ -188,6 +192,7 @@ export function toCustomerDetailResponse(row: CustomerDetailRow): CustomerDetail
     nim: row.nim,
     jurusan: row.jurusan,
     jenis: row.jenis,
+    password: row.password,          // ⬅️ kirimkan password apa adanya
     totalBayar: row.totalBayar,
     sudahBayar: row.sudahBayar,
     sisaBayar: row.sisaBayar,

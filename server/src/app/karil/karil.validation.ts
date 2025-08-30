@@ -14,5 +14,16 @@ export const KarilBodyValidation = z.object({
   keterangan: z.string().max(1000, "Keterangan terlalu panjang").optional(),
 })
 
+export const KarilListQueryValidation = z.object({
+  q: z.string().trim().min(1).max(100).optional(),
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
+  progress: z.enum(["all","complete","incomplete"]).default("all"),
+  sortBy: z.enum(["updatedAt","createdAt","namaCustomer","nim"]).default("updatedAt"),
+  sortDir: z.enum(["asc","desc"]).default("desc"),
+})
+
 export type KarilParam = z.infer<typeof KarilParamValidation>
 export type KarilBody = z.infer<typeof KarilBodyValidation>
+export type KarilListQueryRaw = z.input<typeof KarilListQueryValidation>
+export type KarilListQuery = z.infer<typeof KarilListQueryValidation>

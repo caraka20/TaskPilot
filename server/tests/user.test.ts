@@ -2,6 +2,61 @@ import supertest from 'supertest'
 import app from '../src/app'
 import { UserTest } from './test-util'
 
+/* Helpers */
+function expectEverythingShape(data: any) {
+  expect(data).toHaveProperty('profile')
+  expect(data.profile).toHaveProperty('username')
+  expect(data.profile).toHaveProperty('namaLengkap')
+  expect(data.profile).toHaveProperty('role')
+  expect(data.profile).toHaveProperty('createdAt')
+  expect(data.profile).toHaveProperty('updatedAt')
+  expect(data.profile).toHaveProperty('totals.totalJamKerja')
+  expect(typeof data.profile.totals.totalJamKerja).toBe('number')
+  expect(data.profile).toHaveProperty('totals.totalGaji')
+  expect(typeof data.profile.totals.totalGaji).toBe('number')
+
+  expect(data).toHaveProperty('konfigurasi')
+  expect(typeof data.konfigurasi.gajiPerJam).toBe('number')
+  expect(typeof data.konfigurasi.batasJedaMenit).toBe('number')
+  expect(typeof data.konfigurasi.jedaOtomatisAktif).toBe('boolean')
+  expect(['override', 'global']).toContain(data.konfigurasi.source)
+
+  expect(data).toHaveProperty('jamKerja')
+  expect(['AKTIF', 'JEDA', 'SELESAI', 'OFF']).toContain(data.jamKerja.latestStatus)
+  expect(data.jamKerja).toHaveProperty('activeSessionId')
+  expect(data.jamKerja).toHaveProperty('today.items')
+  expect(Array.isArray(data.jamKerja.today.items)).toBe(true)
+  expect(data.jamKerja).toHaveProperty('summary.hari.totalJam')
+  expect(typeof data.jamKerja.summary.hari.totalJam).toBe('number')
+  expect(data.jamKerja).toHaveProperty('summary.hari.totalGaji')
+  expect(typeof data.jamKerja.summary.hari.totalGaji).toBe('number')
+  expect(data.jamKerja).toHaveProperty('history.items')
+  expect(Array.isArray(data.jamKerja.history.items)).toBe(true)
+  expect(data.jamKerja).toHaveProperty('history.page')
+  expect(data.jamKerja).toHaveProperty('history.perPage')
+  expect(data.jamKerja).toHaveProperty('history.total')
+
+  expect(data).toHaveProperty('gaji.gajiPerJam')
+  expect(typeof data.gaji.gajiPerJam).toBe('number')
+  expect(data).toHaveProperty('gaji.summary.totalJam')
+  expect(typeof data.gaji.summary.totalJam).toBe('number')
+  expect(data).toHaveProperty('gaji.summary.upahKeseluruhan')
+  expect(typeof data.gaji.summary.upahKeseluruhan).toBe('number')
+  expect(data).toHaveProperty('gaji.summary.totalDiterima')
+  expect(typeof data.gaji.summary.totalDiterima).toBe('number')
+  expect(data).toHaveProperty('gaji.summary.belumDibayar')
+  expect(typeof data.gaji.summary.belumDibayar).toBe('number')
+  expect(data).toHaveProperty('gaji.riwayat.items')
+  expect(Array.isArray(data.gaji.riwayat.items)).toBe(true)
+  expect(data).toHaveProperty('gaji.riwayat.page')
+  expect(data).toHaveProperty('gaji.riwayat.perPage')
+  expect(data).toHaveProperty('gaji.riwayat.total')
+
+  expect(data).toHaveProperty('tugas')
+  expect(Array.isArray(data.tugas)).toBe(true)
+}
+
+/* ================= REGISTER ================= */
 describe('POST /api/users/register', () => {
   let ownerToken: string
 
@@ -60,6 +115,7 @@ describe('POST /api/users/register', () => {
   })
 })
 
+/* ================= LOGIN ================= */
 describe ('POST /api/users/login', () => {
   beforeEach(async ()=> {
     await UserTest.create()
@@ -76,7 +132,6 @@ describe ('POST /api/users/login', () => {
         password : "raka20"
       })
 
-      // console.log(response.body)
       expect(response.status).toBe(200)
       expect(response.body.data.token).toBeDefined()
   })
@@ -89,7 +144,6 @@ describe ('POST /api/users/login', () => {
         password: "raka20"
       })
 
-    // console.log(response.body)
     expect(response.status).toBe(404)
     expect(response.body.status).toBe('error')
   })
@@ -102,7 +156,6 @@ describe ('POST /api/users/login', () => {
         password: "password_salah"
       })
 
-    // console.log(response.body)
     expect(response.status).toBe(401)
     expect(response.body.status).toBe('error')
   })
@@ -115,13 +168,13 @@ describe ('POST /api/users/login', () => {
         password: ""
       })
 
-    // console.log(response.body)
     expect(response.status).toBe(400)
     expect(response.body.status).toBe('error')
     expect(response.body.errors).toBeDefined()
   })
 })
 
+/* ================= GET LIST USERS ================= */
 describe('GET /api/users', () => {
   let ownerToken: string
   let userToken: string
@@ -151,16 +204,12 @@ describe('GET /api/users', () => {
     data.forEach((user: any) => {
       expect(user).toHaveProperty('username')
       expect(typeof user.username).toBe('string')
-
       expect(user).toHaveProperty('namaLengkap')
       expect(typeof user.namaLengkap).toBe('string')
-
       expect(user).toHaveProperty('role')
       expect(['USER', 'OWNER']).toContain(user.role)
-
       expect(user).toHaveProperty('totalJamKerja')
       expect(typeof user.totalJamKerja).toBe('number')
-
       expect(user).toHaveProperty('totalGaji')
       expect(typeof user.totalGaji).toBe('number')
     })
@@ -183,6 +232,7 @@ describe('GET /api/users', () => {
   })
 })
 
+/* ================= GET USER DETAIL (lama) ================= */
 describe('GET /api/users/:username', () => {
   beforeEach(async () => {
     await UserTest.create()
@@ -198,7 +248,6 @@ describe('GET /api/users/:username', () => {
       .get('/api/users/raka20')
       .set('Authorization', `Bearer ${token}`)
 
-    // console.log(response.body)
     expect(response.status).toBe(200)
     expect(response.body.status).toBe('success')
 
@@ -217,12 +266,12 @@ describe('GET /api/users/:username', () => {
     const response = await supertest(app)
       .get('/api/users/unknownuser')
 
-    // console.log(response.body)
-    expect(response.status).toBe(401)
+    expect(response.status).toBe(401) // tidak ada token
     expect(response.body.status).toBe('error')
   })
 })
 
+/* ================= LOGOUT ================= */
 describe ('DELETE /api/users/logout', () => {
   beforeEach(async () => {
     await UserTest.create()
@@ -238,12 +287,12 @@ describe ('DELETE /api/users/logout', () => {
       .post("/api/users/logout")
       .set('Authorization', `Bearer ${token}`)
 
-      // console.log(response.body);
-      expect(response.status).toBe(200)
-      expect(response.body.status).toBe("success")
-  } )
+    expect(response.status).toBe(200)
+    expect(response.body.status).toBe("success")
+  })
 })
 
+/* ================= PATCH JEDA OTOMATIS ================= */
 describe('PATCH /api/users/:username/jeda-otomatis', () => {
   beforeEach(async () => {
     await UserTest.create()
@@ -299,8 +348,6 @@ describe('PATCH /api/users/:username/jeda-otomatis', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({ aktif: true })
 
-      console.log(response.body);
-      
     expect(response.status).toBe(404)
     expect(response.body.status).toBe('error')
     expect(response.body.message).toBe("User not found")
@@ -322,6 +369,61 @@ describe('PATCH /api/users/:username/jeda-otomatis', () => {
     const response = await supertest(app)
       .patch('/api/users/raka20/jeda-otomatis')
       .send({ aktif: true })
+
+    expect(response.status).toBe(401)
+    expect(response.body.status).toBe('error')
+  })
+})
+
+/* ================= GET USER EVERYTHING (baru) ================= */
+describe('GET /api/users/:username/everything', () => {
+  let ownerToken: string
+  let userToken: string
+
+  beforeEach(async () => {
+    await UserTest.create()
+    ownerToken = await UserTest.loginOwner()
+    userToken = await UserTest.login()
+  })
+
+  afterEach(async () => {
+    await UserTest.delete()
+  })
+
+  it('should allow OWNER to fetch any user everything', async () => {
+    const response = await supertest(app)
+      .get('/api/users/raka20/everything?histPage=1&histLimit=5&payPage=1&payLimit=5')
+      .set('Authorization', `Bearer ${ownerToken}`)
+
+    expect(response.status).toBe(200)
+    expect(response.body.status).toBe('success')
+    expectEverythingShape(response.body.data)
+  })
+
+  it('should allow USER to fetch his own everything', async () => {
+    const response = await supertest(app)
+      .get('/api/users/raka20/everything')
+      .set('Authorization', `Bearer ${userToken}`)
+
+    expect(response.status).toBe(200)
+    expect(response.body.status).toBe('success')
+    expectEverythingShape(response.body.data)
+  })
+
+  it('should return 403 when USER fetches other user everything', async () => {
+    // misal owner username = 'owner' (di util loginOwner)
+    // USER coba akses username lain
+    const response = await supertest(app)
+      .get('/api/users/owner/everything')
+      .set('Authorization', `Bearer ${userToken}`)
+
+    expect(response.status).toBe(403)
+    expect(response.body.status).toBe('error')
+  })
+
+  it('should return 401 if no token provided', async () => {
+    const response = await supertest(app)
+      .get('/api/users/raka20/everything')
 
     expect(response.status).toBe(401)
     expect(response.body.status).toBe('error')
