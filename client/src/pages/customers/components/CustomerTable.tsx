@@ -3,7 +3,7 @@ import {
   Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
   Pagination, Button, Tooltip, Chip,
 } from "@heroui/react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useMemo } from "react";
 import type { CustomerItem, CustomerListResponse } from "../../../utils/customer";
 import CustomerStatusChip from "./CustomerStatusChip";
@@ -47,12 +47,11 @@ export default function CustomerTable({
   const rows = data?.items ?? [];
   const pagination = data?.pagination;
 
-  // default lama: OWNER punya akses kelola
   const isOwner = useAuthStore((s) => s.role === "OWNER");
-  // final penentu: pakai prop jika diberikan, kalau tidak fallback ke role owner
   const canManage = manageAccess ?? isOwner;
 
-  // sort ASC by nama (UI only)
+  const location = useLocation(); // ⬅️ bawa ?page=&limit=&q=&jenis=
+
   const sorted = useMemo(() => {
     const arr = [...rows];
     arr.sort((a, b) =>
@@ -75,7 +74,6 @@ export default function CustomerTable({
     </div>
   );
 
-  // ===== VIEW DENGAN AKSES KELOLA (dulunya "OWNER view") =====
   if (canManage) {
     return (
       <div className="flex flex-col gap-3">
@@ -109,7 +107,10 @@ export default function CustomerTable({
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-medium text-slate-800">
-                          <Link to={`/customers/${row.id}`} className="hover:underline">
+                          <Link
+                            to={{ pathname: `/customers/${row.id}`, search: location.search }}
+                            className="hover:underline"
+                          >
                             {row.namaCustomer}
                           </Link>
                         </span>
@@ -137,7 +138,7 @@ export default function CustomerTable({
                         <Tooltip content="Lihat detail">
                           <Button
                             as={Link}
-                            to={`/customers/${row.id}`}
+                            to={{ pathname: `/customers/${row.id}`, search: location.search }}
                             size="sm"
                             className="bg-gradient-to-r from-sky-500 to-indigo-500 text-white"
                           >
@@ -168,7 +169,7 @@ export default function CustomerTable({
     );
   }
 
-  // ===== VIEW TANPA AKSES KELOLA (tetap ada, untuk reuse di tempat lain) =====
+  // read-only
   return (
     <div className="flex flex-col gap-3">
       <Wrapper>
@@ -192,7 +193,10 @@ export default function CustomerTable({
                 </TableCell>
 
                 <TableCell>
-                  <Link to={`/customers/${row.id}`} className="font-medium text-slate-800 hover:underline">
+                  <Link
+                    to={{ pathname: `/customers/${row.id}`, search: location.search }}
+                    className="font-medium text-slate-800 hover:underline"
+                  >
                     {row.namaCustomer}
                   </Link>
                 </TableCell>
@@ -205,7 +209,7 @@ export default function CustomerTable({
                   <Tooltip content="Lihat detail">
                     <Button
                       as={Link}
-                      to={`/customers/${row.id}`}
+                      to={{ pathname: `/customers/${row.id}`, search: location.search }}
                       size="sm"
                       className="bg-gradient-to-r from-sky-500 to-indigo-500 text-white"
                     >

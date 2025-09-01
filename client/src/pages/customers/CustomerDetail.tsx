@@ -20,7 +20,6 @@ import {
   addCustomerPayment,
   getCustomerById,
   getTutonSummary,
-  updateInvoiceTotal,
 } from "../../services/customer.service";
 import {
   getKarilDetail,
@@ -33,9 +32,8 @@ import type { CustomerDetail as DetailType } from "../../utils/customer";
 
 import CustomerDetailCard from "./components/CustomerDetailCard";
 import PaymentsForm from "./components/PaymentsForm";
-import UpdateInvoiceForm from "./components/UpdateInvoiceForm";
 import PaymentsTable from "./components/PaymentsTable";
-// ❌ Hapus TutonSummaryCard (tidak dipakai lagi)
+// ❌ TutonSummaryCard tetap tidak dipakai
 // import TutonSummaryCard from "./components/TutonSummaryCard";
 import KarilForm from "./components/KarilForm";
 
@@ -141,19 +139,6 @@ export default function CustomerDetail() {
       await addCustomerPayment(idNum, payload);
       closeAlert();
       await showSuccess("Pembayaran tercatat");
-      await load();
-    } catch (e) {
-      closeAlert();
-      await showApiError(e);
-    }
-  };
-
-  const onUpdateInvoice = async (totalBayar: number) => {
-    showLoading("Memperbarui tagihan...");
-    try {
-      await updateInvoiceTotal(idNum, { totalBayar });
-      closeAlert();
-      await showSuccess("Tagihan diperbarui");
       await load();
     } catch (e) {
       closeAlert();
@@ -303,24 +288,26 @@ export default function CustomerDetail() {
       <div className="mt-4">
         <CustomerDetailCard data={data} password={(data as any).password} showBilling={isOwner} />
 
-        {/* ======== Tuton (dipindah ke SINI, di bawah detail akun) ======== */}
+        {/* ======== Tuton (dipindah urutan) ======== */}
         {showTutonMatrix && summary && (
           <div className="mt-6 flex flex-col gap-4">
-            {/* ❌ Hilangkan ringkasan total (TutonSummaryCard) */}
-
-            {/* Kelola daftar matkul (add/delete) */}
-            <TutonCoursesSection customerId={idNum} courses={summary?.courses} onChanged={load} />
-
-            {/* Matrix detail per matkul */}
+            {/* 1) Matrix detail per matkul — DILETAKKAN DI ATAS */}
             {Array.isArray(summary?.courses) && summary.courses.length > 0 && (
-              <div className="mt-2">
-                <TutonMatrixTable courses={summary.courses} onSaved={load} />
+              <div className="mt-0">
+                <TutonMatrixTable
+                  courses={summary.courses}
+                  onSaved={load}
+                  {...({ showScores: true } as any)} // ✅ minta tombol tampilkan nilai bila tersedia
+                />
               </div>
             )}
+
+            {/* 2) Kelola daftar matkul (add/delete) — DIBAWAH Matrix */}
+            <TutonCoursesSection customerId={idNum} courses={summary?.courses} onChanged={load} />
           </div>
         )}
 
-        {/* ======== KARIL/TK detail diletakkan SETELAH Tuton Matrix ======== */}
+        {/* ======== KARIL/TK detail diletakkan SETELAH Tuton Matrix & Courses ======== */}
         <KarilDetailSection
           karil={karil}
           isKaril={isKarilLike}
@@ -340,12 +327,7 @@ export default function CustomerDetail() {
             </CardBody>
           </Card>
 
-          <Card className="mt-4 shadow-md border bg-white rounded-2xl">
-            <CardHeader className="font-semibold text-indigo-600">Update Total Tagihan</CardHeader>
-            <CardBody>
-              <UpdateInvoiceForm initialTotal={data.totalBayar} onSubmit={onUpdateInvoice} />
-            </CardBody>
-          </Card>
+          {/* ❌ HILANGKAN: Update Total Tagihan */}
 
           <Card className="mt-4 shadow-md border bg-white rounded-2xl">
             <CardHeader className="font-semibold text-indigo-600">Riwayat Pembayaran</CardHeader>

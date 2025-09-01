@@ -8,8 +8,7 @@ import LoginPage from "../../pages/LoginPage";
 // protected pages
 import DashboardPage from "../../pages/DashboardPage";
 import CustomersList from "../../pages/customers/CustomersList";
-import CustomerDetail from "../../pages/customers/CustomerDetail";
-import ConflictsPage from "../../pages/courses/ConflictsPage";
+import CustomerDetailWithSidebar from "../../pages/customers/components/CustomerDetailWithSidebar";
 
 import GlobalConfigPage from "../../pages/config/GlobalConfigPage";
 import EffectiveConfigPage from "../../pages/config/EffectiveConfigPage";
@@ -19,9 +18,11 @@ import UsersList from "../../pages/users/UsersList";
 import UserDetailPage from "../../pages/users/UserDetail";
 import RegisterUser from "../../pages/users/RegisterUser";
 
-// KARIL pages (lokasi sesuai punyamu)
+// KARIL pages
 import KarilList from "../../pages/customers/KarilList";
-import TutonConflicts from "../../pages/tuton/Conflicts";
+
+// TUTON pages
+import TutonSubjects from "../../pages/tuton/Subjects"; // ⬅️ NEW
 
 // 404 page
 import NotFoundPage from "../../pages/NotFoundPage";
@@ -48,21 +49,20 @@ export default function AppRouter() {
 
           {/* customers */}
           <Route path="customers" element={<CustomersList />} />
-          <Route path="customers/:id" element={<CustomerDetail />} />
+          <Route path="customers/:id" element={<CustomerDetailWithSidebar />} />
 
           {/* courses */}
-          <Route path="courses/conflicts" element={<ConflictsPage />} />
 
           {/* config */}
           <Route path="config/global" element={<OwnerOnly><GlobalConfigPage /></OwnerOnly>} />
           <Route path="config/effective" element={<EffectiveConfigPage />} />
           <Route path="config/overrides" element={<OwnerOnly><OverridesConfigPage /></OwnerOnly>} />
 
-          {/* KARIL (OWNER only) */}
+          {/* KARIL */}
           <Route path="karil" element={<KarilList />} />
 
           {/* TUTON */}
-          <Route path="/tuton-conflicts" element={<TutonConflicts />} />
+          <Route path="/tuton-subjects"  element={<TutonSubjects  />} /> {/* ⬅️ NEW */}
         </Route>
 
         {/* 404 */}

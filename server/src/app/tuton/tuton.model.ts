@@ -1,4 +1,4 @@
-import { TutonCourse } from "../../generated/prisma"
+import { JenisTugas, StatusTugas, TutonCourse } from "../../generated/prisma"
 
 // BODY REQUEST
 export interface AddCourseRequest {

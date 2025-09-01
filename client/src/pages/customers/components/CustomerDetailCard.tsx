@@ -77,6 +77,8 @@ function HighlightTile(props: {
   copyHint?: string;
   disabled?: boolean;
   onCopied?: () => void;
+  justCopied?: boolean;   // ⬅ tetap dipakai
+  copiedText?: string;    // ⬅ tetap dipakai
 }) {
   const {
     label,
@@ -86,6 +88,8 @@ function HighlightTile(props: {
     copyHint = "Salin",
     disabled,
     onCopied,
+    justCopied,
+    copiedText = "Disalin!",
   } = props;
 
   const display =
@@ -98,8 +102,7 @@ function HighlightTile(props: {
     try {
       await navigator.clipboard.writeText(value);
       onCopied?.();
-    } catch {
-      /* noop */
+    } catch (e){console.log(e);
     }
   };
 
@@ -118,7 +121,6 @@ function HighlightTile(props: {
         {onToggleMask && (
           <Tooltip content={masked ? "Tampilkan" : "Sembunyikan"}>
             <Button isIconOnly size="sm" variant="light" onPress={onToggleMask}>
-              {/* eye / eye-off */}
               {masked ? (
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
                   <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
@@ -136,18 +138,34 @@ function HighlightTile(props: {
           </Tooltip>
         )}
 
-        <Tooltip content={copyHint}>
-          <Button isIconOnly size="sm" variant="light" isDisabled={disabled} onPress={copy}>
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <rect x="9" y="9" width="11" height="11" rx="2" />
-              <rect x="4" y="4" width="11" height="11" rx="2" />
-            </svg>
-          </Button>
-        </Tooltip>
+        {/* ⬇️ Toast-nya kini nempel ke tombol salin */}
+        <div className="relative">
+          {justCopied && (
+            <div className="absolute right-0 -top-2 rounded-full bg-emerald-500/95 px-2.5 py-1
+                            text-[11px] font-semibold text-white shadow-lg ring-1 ring-emerald-600/40">
+              {copiedText}
+            </div>
+          )}
+          <Tooltip content={copyHint}>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="light"
+              isDisabled={disabled}
+              onPress={copy}
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <rect x="9" y="9" width="11" height="11" rx="2" />
+                <rect x="4" y="4" width="11" height="11" rx="2" />
+              </svg>
+            </Button>
+          </Tooltip>
+        </div>
       </div>
     </div>
   );
 }
+
 
 export default function CustomerDetailCard({ data, password, showBilling }: Props) {
   const [showPass, setShowPass] = useState(false);
@@ -226,6 +244,8 @@ export default function CustomerDetailCard({ data, password, showBilling }: Prop
                 setCopied("nim");
                 setTimeout(() => setCopied(null), 1200);
               }}
+              justCopied={copied === "nim"}
+              copiedText="NIM disalin!"
             />
             <HighlightTile
               label="Password (E-Learning)"
@@ -238,6 +258,8 @@ export default function CustomerDetailCard({ data, password, showBilling }: Prop
                 setCopied("pass");
                 setTimeout(() => setCopied(null), 1200);
               }}
+              justCopied={copied === "pass"}
+              copiedText="Password disalin!"
             />
           </div>
         </div>

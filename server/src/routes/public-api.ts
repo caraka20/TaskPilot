@@ -113,6 +113,16 @@ route.get('/api/tuton-courses/conflicts/:matkul',
   TutonController.getConflictByMatkul
 );
 
+route.get('/api/tuton/subjects',
+  authMiddleware, requireRole(Role.OWNER, Role.USER),
+  TutonController.listSubjects
+)
+
+route.get('/api/tuton/scan',
+  authMiddleware, requireRole(Role.OWNER, Role.USER),
+  TutonController.scan
+)
+
 
 
 // // CONFLICTS (matkul duplikat lintas customer)

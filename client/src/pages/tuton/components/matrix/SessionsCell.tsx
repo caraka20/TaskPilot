@@ -1,6 +1,8 @@
+import { useEffect, useState } from "react";
 import type { TutonItemResponse } from "../../../../services/tuton.service";
 import { isTugas as isTugasSesi } from "./constants";
 import CopasDot from "./CopasDot";
+import DTScore from "../DTScore";
 
 export type SessionsCellProps = {
   sesi: number;
@@ -14,6 +16,15 @@ export type SessionsCellProps = {
   compact?: boolean;
 };
 
+function bgByScore(score: number | null, done: boolean) {
+  if (score != null) {
+    if (score >= 80) return "bg-emerald-300";
+    if (score >= 70) return "bg-amber-300";
+    return "bg-rose-300";
+  }
+  return done ? "bg-emerald-600 text-white" : "bg-default-200 text-foreground-700";
+}
+
 export default function SessionsCell({
   sesi,
   diskusi,
@@ -25,27 +36,39 @@ export default function SessionsCell({
   markDirty,
   compact = true,
 }: SessionsCellProps) {
-  const btnSize = compact ? "h-7 px-2" : "h-9 px-3";
-  const iconSize = compact ? "h-3.5 w-3.5" : "h-4 w-4";
-  const showTugas = isTugasSesi(sesi);
+  // Dimensi tombol (tanpa ikon). Scored sedikit lebih besar, tapi tetap tidak melebihi cell.
+  const SIZE_SCORED  = compact ? "h-8 md:h-9" : "h-10";
+  const SIZE_DEFAULT = compact ? "h-7 md:h-8" : "h-9";
+  const WIDTH_DEFAULT = "w-9  md:w-10"; // ~36–40px
 
+  const showTugas = isTugasSesi(sesi);
   const norm = (v: any) => String(v ?? "").trim().toUpperCase();
-  // DONE jika status "SELESAI" ATAU selesaiAt ada
   const diskusiDone = !!diskusi && (norm(diskusi.status) === "SELESAI" || !!diskusi.selesaiAt);
   const tugasDone   = !!tugas   && (norm(tugas.status)   === "SELESAI" || !!tugas.selesaiAt);
 
-  // DEBUG: nilai yang menentukan warna tombol
-  console.log("[TP][render-cell]", {
-    sesi,
-    hasDiskusi: !!diskusi,
-    diskusiStatus: diskusi?.status,
-    diskusiSelesaiAt: diskusi?.selesaiAt,
-    diskusiDone,
-    hasTugas: !!tugas,
-    tugasStatus: tugas?.status,
-    tugasSelesaiAt: tugas?.selesaiAt,
-    tugasDone
-  });
+  // local optimistic score
+  const [dScoreLocal, setDScoreLocal] = useState<number | null>(
+    diskusi && Number.isFinite(diskusi.nilai as any) ? Math.round(Number(diskusi.nilai)) : null
+  );
+  const [tScoreLocal, setTScoreLocal] = useState<number | null>(
+    tugas && Number.isFinite(tugas.nilai as any) ? Math.round(Number(tugas.nilai)) : null
+  );
+  useEffect(() => {
+    setDScoreLocal(diskusi && Number.isFinite(diskusi.nilai as any) ? Math.round(Number(diskusi.nilai)) : null);
+  }, [diskusi?.nilai, diskusi?.id]);
+  useEffect(() => {
+    setTScoreLocal(tugas && Number.isFinite(tugas.nilai as any) ? Math.round(Number(tugas.nilai)) : null);
+  }, [tugas?.nilai, tugas?.id]);
+
+  const [editingDiskusi, setEditingDiskusi] = useState(false);
+  const [editingTugas,   setEditingTugas]   = useState(false);
+
+  // wrapper agar konten selalu center
+  const Inner = ({ children }: { children: React.ReactNode }) => (
+    <span className="w-full inline-flex items-center justify-center text-center leading-none">
+      {children}
+    </span>
+  );
 
   return (
     <div className="flex items-center justify-center gap-2">
@@ -54,20 +77,65 @@ export default function SessionsCell({
         <button
           type="button"
           title={`Diskusi sesi ${sesi}`}
-          onClick={() => diskusi && markDirty(diskusi)}
+          onClick={(e) => {
+            if (!diskusi || editingDiskusi) { e.stopPropagation(); return; }
+            markDirty(diskusi);
+          }}
+          onMouseDownCapture={(e) => {
+            if (editingDiskusi) { e.stopPropagation(); e.preventDefault(); }
+          }}
           className={[
-            "inline-flex items-center gap-1 rounded-full text-[12px]",
-            btnSize,
-            diskusiDone ? "bg-emerald-600 text-white" : "bg-default-200 text-foreground-700",
-            "focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-500",
+            "relative inline-flex items-center justify-center rounded-full text-[12px] select-none",
+            dScoreLocal != null ? SIZE_SCORED : SIZE_DEFAULT,
+            dScoreLocal != null ? WIDTH_DEFAULT : WIDTH_DEFAULT,
+            bgByScore(dScoreLocal, !!diskusiDone),
+            "focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-500 hover:brightness-95",
             !diskusi && "opacity-50 pointer-events-none",
+            dScoreLocal != null ? "text-black" : "",
           ].join(" ")}
           disabled={!diskusi}
         >
-          <svg className={iconSize} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M20 2H4a2 2 0 0 0-2 2v14l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2z" />
-          </svg>
-          D
+          {dScoreLocal == null ? (
+            <Inner>
+              {diskusi ? (
+                <DTScore
+                  itemId={diskusi.id}
+                  jenis="DISKUSI"
+                  status={diskusi.status as any}
+                  nilai={dScoreLocal}
+                  mark="D"               // hanya huruf D
+                  onSavedValue={setDScoreLocal}
+                  onOpenChange={setEditingDiskusi}
+                  expandTrigger
+                  className="font-semibold"
+                />
+              ) : (
+                <span className="font-semibold">D</span>
+              )}
+            </Inner>
+          ) : (
+            diskusi ? (
+              <Inner>
+                <DTScore
+                  itemId={diskusi.id}
+                  jenis="DISKUSI"
+                  status={diskusi.status as any}
+                  nilai={dScoreLocal}
+                  mark="D"
+                  onSavedValue={setDScoreLocal}
+                  onOpenChange={setEditingDiskusi}
+                  expandTrigger
+                  className="font-extrabold text-black text-[15px] md:text-[16px] tracking-tight tabular-nums"
+                />
+              </Inner>
+            ) : (
+              <Inner>
+                <span className="font-extrabold text-black text-[15px] md:text-[16px] tracking-tight tabular-nums">
+                  {dScoreLocal}
+                </span>
+              </Inner>
+            )
+          )}
         </button>
 
         {diskusi && (
@@ -85,20 +153,65 @@ export default function SessionsCell({
           <button
             type="button"
             title={`Tugas sesi ${sesi}`}
-            onClick={() => tugas && markDirty(tugas)}
+            onClick={(e) => {
+              if (!tugas || editingTugas) { e.stopPropagation(); return; }
+              markDirty(tugas);
+            }}
+            onMouseDownCapture={(e) => {
+              if (editingTugas) { e.stopPropagation(); e.preventDefault(); }
+            }}
             className={[
-              "inline-flex items-center gap-1 rounded-full text-[12px]",
-              btnSize,
-              tugasDone ? "bg-emerald-600 text-white" : "bg-default-200 text-foreground-700",
-              "focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-500",
+              "relative inline-flex items-center justify-center rounded-full text-[12px] select-none",
+              tScoreLocal != null ? SIZE_SCORED : SIZE_DEFAULT,
+              tScoreLocal != null ? WIDTH_DEFAULT : WIDTH_DEFAULT,
+              bgByScore(tScoreLocal, !!tugasDone),
+              "focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-500 hover:brightness-95",
               !tugas && "opacity-50 pointer-events-none",
+              tScoreLocal != null ? "text-black" : "",
             ].join(" ")}
             disabled={!tugas}
           >
-            <svg className={iconSize} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M9 2h6a2 2 0 0 1 2 2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2-2zm0 2v2h6V4H9z" />
-            </svg>
-            T
+            {tScoreLocal == null ? (
+              <Inner>
+                {tugas ? (
+                  <DTScore
+                    itemId={tugas.id}
+                    jenis="TUGAS"
+                    status={tugas.status as any}
+                    nilai={tScoreLocal}
+                    mark="T"             // hanya huruf T
+                    onSavedValue={setTScoreLocal}
+                    onOpenChange={setEditingTugas}
+                    expandTrigger
+                    className="font-semibold"
+                  />
+                ) : (
+                  <span className="font-semibold">T</span>
+                )}
+              </Inner>
+            ) : (
+              tugas ? (
+                <Inner>
+                  <DTScore
+                    itemId={tugas.id}
+                    jenis="TUGAS"
+                    status={tugas.status as any}
+                    nilai={tScoreLocal}
+                    mark="T"
+                    onSavedValue={setTScoreLocal}
+                    onOpenChange={setEditingTugas}
+                    expandTrigger
+                    className="font-extrabold text-black text-[15px] md:text-[16px] tracking-tight tabular-nums"
+                  />
+                </Inner>
+              ) : (
+                <Inner>
+                  <span className="font-extrabold text-black text-[15px] md:text-[16px] tracking-tight tabular-nums">
+                    {tScoreLocal}
+                  </span>
+                </Inner>
+              )
+            )}
           </button>
 
           {tugas && (

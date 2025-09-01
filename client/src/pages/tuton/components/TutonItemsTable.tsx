@@ -2,16 +2,6 @@
 import {
   Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
   Chip, Button, Tooltip, Input, Switch,
-} from "@heroui/react";
-import type { TutonItemResponse, StatusTugas, JenisTugas } from "../../../services/tuton.service";
-import { useState } from "react";
-
-type Props = {
-  items: TutonItemResponse[];
-  selected: Set<number>;
-  onToggleSelect: (id: number, on: boolean) => void;
-  onInlineUpdate: (itemId: number, next: Partial<{ status: StatusTugas; nilai: number | null; deskripsi: string | null }>) => void;
-};
 
 const jenisColor = (j: string | JenisTugas) =>
   j === "DISKUSI" ? "primary" : j === "ABSEN" ? "secondary" : "warning";
@@ -23,18 +13,6 @@ export default function TutonItemsTable({ items, selected, onToggleSelect, onInl
         <Table
           aria-label="Tuton Items"
           removeWrapper
-          className="rounded-none [&_thead_th]:bg-slate-50 [&_thead_th]:text-slate-600 [&_thead_th]:font-semibold"
-          isStriped
-        >
-          <TableHeader>
-            <TableColumn className="w-[52px]">Pilih</TableColumn>
-            <TableColumn>Jenis</TableColumn>
-            <TableColumn className="w-[84px]">Sesi</TableColumn>
-            <TableColumn className="w-[140px]">Status</TableColumn>
-            <TableColumn className="w-[140px]">Nilai</TableColumn>
-            <TableColumn>Deskripsi</TableColumn>
-            <TableColumn className="w-[160px]">Aksi</TableColumn>
-          </TableHeader>
 
           <TableBody emptyContent="Belum ada item. Inisialisasi dulu dari tombol di atas.">
             {items.map((it) => {

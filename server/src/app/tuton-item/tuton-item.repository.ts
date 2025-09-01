@@ -1,7 +1,21 @@
 import { prismaClient } from "../../config/database"
 import { JenisTugas, Prisma, StatusTugas } from "../../generated/prisma"
 
+export type ScanRow = {
+  id: number
+  courseId: number
+  jenis: JenisTugas
+  sesi: number
+  status: StatusTugas
+  course: {
+    id: number
+    matkul: string
+    customer: { id: number; namaCustomer: string }
+  }
+}
+
 export class TutonItemRepository {
+  
   static getCourseById(courseId: number) {
     return prismaClient.tutonCourse.findUnique({ where: { id: courseId } })
   }
@@ -43,7 +57,6 @@ export class TutonItemRepository {
     await prismaClient.tutonItem.deleteMany({ where: { courseId } })
   }
 
-
   static buildDefaultItems(courseId: number) {
     const items: Prisma.TutonItemCreateManyInput[] = []
     for (let s = 1; s <= 8; s++) items.push({ courseId, jenis: JenisTugas.DISKUSI, sesi: s, status: StatusTugas.BELUM })
@@ -58,7 +71,6 @@ export class TutonItemRepository {
     return items.length
   }
 
-
   static async clearCompletionMarks(itemId: number) {
     await prismaClient.tutonItem.update({
       where: { id: itemId },
@@ -66,7 +78,6 @@ export class TutonItemRepository {
     })
   }
 
-  // NEW: clear penanda “selesai” untuk banyak item
   static async clearCompletionMarksBulk(itemIds: number[]) {
     if (!itemIds.length) return
     await prismaClient.tutonItem.updateMany({
@@ -83,7 +94,6 @@ export class TutonItemRepository {
           where: { id: i.itemId },
           data: {
             status: i.status,
-            // Jika SELESAI → cap waktu; jika BELUM → hapus cap
             selesaiAt: i.status === StatusTugas.SELESAI ? new Date() : null,
           },
         })
@@ -118,6 +128,74 @@ export class TutonItemRepository {
       select: { id: true, jenis: true },
     })
   }
+
+  // ===== NEW: scan untuk dashboard pengecekan sesi =====
+  static async scanByFilters(params: {
+    matkul?: string
+    jenis?: JenisTugas
+    sesi?: number
+    status: StatusTugas
+    skip: number
+    take: number
+  }): Promise<ScanRow[]> {
+    const { matkul, jenis, sesi, status, skip, take } = params
+
+    return prismaClient.tutonItem.findMany({
+      where: {
+        status,
+        ...(typeof jenis !== "undefined" ? { jenis } : {}),
+        ...(typeof sesi  !== "undefined" ? { sesi }  : {}),
+        ...(matkul
+          // ⬇️ tidak pakai `is:`; langsung WhereInput di field relasi
+          ? { course: { matkul: { contains: matkul } } }
+          : {}),
+      },
+      select: {
+        id: true,
+        courseId: true,
+        jenis: true,
+        sesi: true,
+        status: true,
+        course: {
+          select: {
+            id: true,
+            matkul: true,
+            customer: { select: { id: true, namaCustomer: true } },
+          },
+        },
+      },
+      orderBy: [
+        { course: { matkul: "asc" } },
+        { sesi: "asc" },
+        { jenis: "asc" },
+        { id: "asc" },
+      ],
+      skip,
+      take,
+    })
+  }
+
+  /** Counter untuk scan; bentuk where harus sama */
+  static async countScanByFilters(params: {
+    matkul?: string
+    jenis?: JenisTugas
+    sesi?: number
+    status: StatusTugas
+  }): Promise<number> {
+    const { matkul, jenis, sesi, status } = params
+
+    return prismaClient.tutonItem.count({
+      where: {
+        status,
+        ...(typeof jenis !== "undefined" ? { jenis } : {}),
+        ...(typeof sesi  !== "undefined" ? { sesi }  : {}),
+        ...(matkul
+          ? { course: { matkul: { contains: matkul } } }
+          : {}),
+      },
+    })
+  }
+
 }
 
 export class TutonCourseRepository {

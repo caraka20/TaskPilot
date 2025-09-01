@@ -110,10 +110,10 @@ export default function Topbar() {
   const status = useStatusMeta();
 
   const menus = [
-    { to: "/dashboard", label: "Dashboard", show: true },
-    { to: "/customers", label: "Customers", show: true },
-    { to: "/tuton-conflicts", label: "Conflicts", show: true },
-    { to: "/users", label: "Users", show: isOwner },
+    { to: "/dashboard",       label: "Dashboard", show: true },
+    { to: "/customers",       label: "Customers", show: true },
+    { to: "/tuton-subjects",  label: "Matakuliah",  show: true }, // ⬅️ NEW
+    { to: "/users",           label: "Users",     show: isOwner },
   ];
 
   async function onLogout() {
@@ -169,8 +169,9 @@ export default function Topbar() {
       maxWidth="full"
       isMenuOpen={isMenuOpen}
       onMenuOpenChange={setIsMenuOpen}
-      className="relative z-40 backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:supports-[backdrop-filter]:bg-black/30"
+      className="sticky top-0 z-[120] backdrop-blur supports-[backdrop-filter]:bg-white/70 dark:supports-[backdrop-filter]:bg-black/30"
     >
+
       {/* LEFT (mobile): hamburger + logo icon */}
       <NavbarContent className="sm:hidden gap-2" justify="start">
         <NavbarMenuToggle aria-label={isMenuOpen ? "Close menu" : "Open menu"} />
