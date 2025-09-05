@@ -18,7 +18,7 @@ type AuthState = {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      baseUrl: import.meta.env.VITE_API_BASE_URL || "http://localhost:3000",
+      baseUrl: import.meta.env.VITE_API_BASE_URL,
       token: "",
       username: "",
       role: "",

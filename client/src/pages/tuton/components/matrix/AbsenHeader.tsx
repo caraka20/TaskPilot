@@ -1,8 +1,5 @@
 import { TableColumn, Button } from "@heroui/react";
 import { SESSIONS } from "./constants";
-// Untuk runtime React (kalau masih butuh); tak masalah meski tak dipakai eksplisit
-import React from "react";
-// ⬇️ penting: type-only import agar cocok dengan `verbatimModuleSyntax`
 import type { ReactElement } from "react";
 
 type Status = "SELESAI" | "BELUM";

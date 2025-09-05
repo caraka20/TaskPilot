@@ -1,18 +1,60 @@
 // client/src/pages/tuton/components/TutonItemsTable.tsx
+import { useState } from "react";
 import {
-  Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
-  Chip, Button, Tooltip, Input, Switch,
+  Table,
+  TableHeader,
+  TableColumn,
+  TableBody,
+  TableRow,
+  TableCell,
+  Chip,
+  Button,
+  Tooltip,
+  Input,
+  Switch,
+} from "@heroui/react";
+
+type JenisTugas = "ABSEN" | "DISKUSI" | "TUGAS";
+type StatusTugas = "SELESAI" | "BELUM";
+
+type TutonItem = {
+  id: number;
+  jenis: JenisTugas;
+  sesi: number;
+  status: StatusTugas;
+  nilai?: number | null;
+  deskripsi?: string | null;
+};
+
+type Props = {
+  items: TutonItem[];
+  selected: Set<number>;
+  onToggleSelect: (id: number, checked: boolean) => void;
+  onInlineUpdate: (id: number, changes: Partial<TutonItem>) => void;
+};
 
 const jenisColor = (j: string | JenisTugas) =>
   j === "DISKUSI" ? "primary" : j === "ABSEN" ? "secondary" : "warning";
 
-export default function TutonItemsTable({ items, selected, onToggleSelect, onInlineUpdate }: Props) {
+export default function TutonItemsTable({
+  items,
+  selected,
+  onToggleSelect,
+  onInlineUpdate,
+}: Props) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white shadow-md overflow-hidden">
       <div className="overflow-x-auto">
-        <Table
-          aria-label="Tuton Items"
-          removeWrapper
+        <Table aria-label="Tuton Items" removeWrapper>
+          <TableHeader>
+            <TableColumn>✓</TableColumn>
+            <TableColumn>Jenis</TableColumn>
+            <TableColumn>Sesi</TableColumn>
+            <TableColumn>Status</TableColumn>
+            <TableColumn>Nilai</TableColumn>
+            <TableColumn>Deskripsi</TableColumn>
+            <TableColumn>Aksi</TableColumn>
+          </TableHeader>
 
           <TableBody emptyContent="Belum ada item. Inisialisasi dulu dari tombol di atas.">
             {items.map((it) => {
@@ -30,7 +72,11 @@ export default function TutonItemsTable({ items, selected, onToggleSelect, onInl
                   </TableCell>
 
                   <TableCell>
-                    <Chip size="sm" variant="flat" color={jenisColor(it.jenis as any)}>
+                    <Chip
+                      size="sm"
+                      variant="flat"
+                      color={jenisColor(it.jenis as any)}
+                    >
                       {String(it.jenis)}
                     </Chip>
                   </TableCell>
@@ -44,9 +90,19 @@ export default function TutonItemsTable({ items, selected, onToggleSelect, onInl
                       <Switch
                         size="sm"
                         isSelected={isDone}
-                        onValueChange={(v) => onInlineUpdate(it.id, { status: v ? "SELESAI" : "BELUM" })}
+                        onValueChange={(v) =>
+                          onInlineUpdate(it.id, {
+                            status: v ? "SELESAI" : "BELUM",
+                          })
+                        }
                       />
-                      <span className={isDone ? "text-emerald-600 font-medium" : "text-slate-600"}>
+                      <span
+                        className={
+                          isDone
+                            ? "text-emerald-600 font-medium"
+                            : "text-slate-600"
+                        }
+                      >
                         {isDone ? "Selesai" : "Belum"}
                       </span>
                     </div>
@@ -58,7 +114,9 @@ export default function TutonItemsTable({ items, selected, onToggleSelect, onInl
                     ) : (
                       <NilaiCell
                         value={it.nilai ?? null}
-                        onChange={(val) => onInlineUpdate(it.id, { nilai: val })}
+                        onChange={(val) =>
+                          onInlineUpdate(it.id, { nilai: val })
+                        }
                       />
                     )}
                   </TableCell>
@@ -66,19 +124,33 @@ export default function TutonItemsTable({ items, selected, onToggleSelect, onInl
                   <TableCell>
                     <DeskripsiCell
                       value={it.deskripsi ?? ""}
-                      onChange={(val) => onInlineUpdate(it.id, { deskripsi: val })}
+                      onChange={(val) =>
+                        onInlineUpdate(it.id, { deskripsi: val })
+                      }
                     />
                   </TableCell>
 
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <Tooltip content="Tandai selesai">
-                        <Button size="sm" variant="flat" onPress={() => onInlineUpdate(it.id, { status: "SELESAI" })}>
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          onPress={() =>
+                            onInlineUpdate(it.id, { status: "SELESAI" })
+                          }
+                        >
                           Selesai
                         </Button>
                       </Tooltip>
                       <Tooltip content="Tandai belum">
-                        <Button size="sm" variant="flat" onPress={() => onInlineUpdate(it.id, { status: "BELUM" })}>
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          onPress={() =>
+                            onInlineUpdate(it.id, { status: "BELUM" })
+                          }
+                        >
                           Belum
                         </Button>
                       </Tooltip>
@@ -94,8 +166,16 @@ export default function TutonItemsTable({ items, selected, onToggleSelect, onInl
   );
 }
 
-function NilaiCell({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
-  const [val, setVal] = useState<string>(value == null ? "" : String(value));
+function NilaiCell({
+  value,
+  onChange,
+}: {
+  value: number | null;
+  onChange: (v: number | null) => void;
+}) {
+  const [val, setVal] = useState<string>(
+    value == null ? "" : String(value)
+  );
 
   return (
     <Input
@@ -116,7 +196,13 @@ function NilaiCell({ value, onChange }: { value: number | null; onChange: (v: nu
   );
 }
 
-function DeskripsiCell({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function DeskripsiCell({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
   const [val, setVal] = useState<string>(value ?? "");
   return (
     <Input

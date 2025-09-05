@@ -27,7 +27,7 @@ httpClient.interceptors.request.use((config) => {
   const { token, baseUrl } = getAuth();
 
   // set baseURL tiap request dari store (fallback ke .env atau localhost)
-  config.baseURL = baseUrl || import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+  config.baseURL = baseUrl || import.meta.env.VITE_API_BASE_URL;
 
   if (token) {
     config.headers = config.headers ?? {};

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, memo } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import {
   Table,
   TableHeader,
@@ -113,7 +113,6 @@ export default function MatrixTable({
   isCopas,
   toggleCopas,
   copyMatkul,
-  copiedId, // tidak wajib dipakai—kita andalkan state lokal di tombol
   markDirty,
 }: Props) {
   const conflictSet = conflicts ?? new Set<string>();

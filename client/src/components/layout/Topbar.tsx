@@ -117,7 +117,8 @@ export default function Topbar() {
   ];
 
   async function onLogout() {
-    try { await logoutSvc(api); } catch {}
+    try { await logoutSvc(api); } catch (e){console.log(e);
+    }
     reset();
     navigate("/login", { replace: true });
   }
@@ -271,7 +272,6 @@ export default function Topbar() {
               <DropdownItem
                 key="open_dashboard"
                 as={NavLink}
-                to="/dashboard"
                 textValue="Open Dashboard"
                 className="rounded-xl"
                 startContent={<LayoutDashboard className="h-4 w-4" />}

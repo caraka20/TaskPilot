@@ -72,7 +72,7 @@ export default function DashboardPage() {
     useState<"AKTIF" | "JEDA" | "TIDAK_AKTIF">("TIDAK_AKTIF");
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const [durasiBerjalanDetik, setDurasiBerjalanDetik] = useState(0);
-  const [jamHariIni, setJamHariIni] = useState(0);
+  // const [jamHariIni, setJamHariIni] = useState(0);
 
   // KPI lain
   const [jamMingguIni, setJamMingguIni] = useState(0);
@@ -110,7 +110,7 @@ export default function DashboardPage() {
         // Hitung durasi hari ini (clamp realtime)
         const now = new Date();
         const totalMs = itemsToday.reduce((acc, r) => acc + clampDurationMs(r, now), 0);
-        setJamHariIni(totalMs / 1000 / 3600);
+        // setJamHariIni(totalMs / 1000 / 3600);
 
         // Status terkini & sumber live
         const last = itemsToday[0];

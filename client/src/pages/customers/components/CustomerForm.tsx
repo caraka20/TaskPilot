@@ -97,7 +97,7 @@ export default function CustomerForm({ onSubmit, busy }: Props) {
             onValueChange={(v) => set("namaCustomer", v)}
             isInvalid={isInvalid("namaCustomer")}
             errorMessage={errors.namaCustomer}
-            placeholder="cth: zul"
+            placeholder="cth: akka"
           />
           <Input
             label="No. WA"

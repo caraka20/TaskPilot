@@ -79,7 +79,7 @@ export default function CustomerFilters({
           <div className="flex-1 min-w-[220px]">
             <Input
               label="Cari (nama / NIM)"
-              placeholder="zul"
+              placeholder="nama / nim"
               value={q}
               onValueChange={setQ}
               onKeyDown={(e) => e.key === "Enter" && apply()}
