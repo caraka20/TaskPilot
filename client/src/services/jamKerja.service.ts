@@ -258,3 +258,93 @@ export type OwnerSummary = {
     };
   }>;
 };
+
+// =========================
+// Mutations (OWNER only)
+// =========================
+
+export type UpdateJamKerjaPayload = Partial<{
+  jamMulai: string | Date;
+  jamSelesai: string | Date | null;
+  status: "AKTIF" | "JEDA" | "SELESAI";
+  recalcGaji: boolean; // default server: true
+}>;
+
+type UpdateResp = JamKerjaRow & { isOpen?: boolean };
+
+function toIsoOrNull(v: unknown): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  if (typeof v === "string") return v;
+  if (v instanceof Date) return v.toISOString();
+  return String(v);
+}
+
+/** Normalisasi payload: Date -> ISO & drop undefined keys */
+function normalizeUpdatePayload(patch: UpdateJamKerjaPayload) {
+  const out: any = {};
+  if (patch.jamMulai !== undefined) out.jamMulai = toIsoOrNull(patch.jamMulai);
+  if (patch.jamSelesai !== undefined) out.jamSelesai = toIsoOrNull(patch.jamSelesai);
+  if (patch.status !== undefined) out.status = patch.status;
+  if (patch.recalcGaji !== undefined) out.recalcGaji = patch.recalcGaji;
+  return out;
+}
+
+/** PATCH /api/jam-kerja/:id (OWNER only) — return envelope apa adanya */
+export async function updateJamKerja(
+  api: AxiosInstance,
+  id: number,
+  patch: UpdateJamKerjaPayload
+) {
+  const body = normalizeUpdatePayload(patch);
+  const { data } = await api.patch<ApiResponse<UpdateResp>>(`/api/jam-kerja/${id}`, body);
+  return data;
+}
+
+/** Versi strict (unwrap & throw) */
+export async function updateJamKerjaStrict(
+  api: AxiosInstance,
+  id: number,
+  patch: UpdateJamKerjaPayload
+) {
+  const body = normalizeUpdatePayload(patch);
+  const { data } = await api.patch<ApiResponse<UpdateResp>>(`/api/jam-kerja/${id}`, body);
+  return unwrap<UpdateResp>(data);
+}
+
+/* ====== convenience helpers (opsional) ====== */
+
+/** Tandai selesai dgn jamSelesai (default: sekarang) */
+export async function finishJamKerjaNow(
+  api: AxiosInstance,
+  id: number,
+  opts?: { when?: Date | string; recalcGaji?: boolean }
+) {
+  const whenIso = toIsoOrNull(opts?.when ?? new Date());
+  return updateJamKerja(api, id, { status: "SELESAI", jamSelesai: whenIso!, recalcGaji: opts?.recalcGaji });
+}
+
+/** Koreksi jamMulai (mis. mundurkan 10 menit) */
+export async function correctStartTime(
+  api: AxiosInstance,
+  id: number,
+  newStart: Date | string,
+  recalcGaji = true
+) {
+  return updateJamKerja(api, id, { jamMulai: newStart, recalcGaji });
+}
+
+/** Set ke JEDA open (tanpa jamSelesai) */
+export async function setJedaOpen(api: AxiosInstance, id: number) {
+  return updateJamKerja(api, id, { status: "JEDA", jamSelesai: null });
+}
+
+/** Set ke JEDA closed (dengan jamSelesai spesifik) */
+export async function setJedaClosed(
+  api: AxiosInstance,
+  id: number,
+  when: Date | string,
+  recalcGaji = true
+) {
+  return updateJamKerja(api, id, { status: "JEDA", jamSelesai: when, recalcGaji });
+}

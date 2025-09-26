@@ -7,23 +7,14 @@ import { useNavigate } from "react-router-dom";
 type Tone = "sky" | "indigo" | "violet" | "emerald" | "amber" | "rose" | "slate";
 
 type Props = {
-  /** Arah kembali, default: -1 (history back) */
   to?: To | number;
-  /** Teks tombol, default: "Kembali" */
   label?: string;
-  /** Kelas tambahan untuk <Button> */
   className?: string;
-  /** Variant heroui (light/flat/solid/faded/bordered/ghost) */
   variant?: ButtonProps["variant"];
-  /** Ukuran tombol (sm/md/lg) */
   size?: ButtonProps["size"];
-  /** Handler custom, override navigate */
   onPress?: () => void;
-  /** Warna aksen untuk gelembung ikon (gradien) */
   tone?: Tone;
-  /** Hanya ikon (tanpa label). Aksesibel via aria-label/tooltip. */
   iconOnly?: boolean;
-  /** Tooltip saat hover */
   tooltip?: string;
 };
 
@@ -48,24 +39,31 @@ export default function BackButton({
 
   const gradient = getToneGradient(tone);
 
-  // ukuran konsisten untuk kapsul & ikon
   const sizeMap = {
     sm: { btn: "h-8 pl-2 pr-3 text-sm", bubble: "h-6 w-6", icon: "h-3.5 w-3.5" },
     md: { btn: "h-9 pl-2 pr-3",         bubble: "h-6 w-6", icon: "h-3.5 w-3.5" },
     lg: { btn: "h-10 pl-2.5 pr-3.5",    bubble: "h-7 w-7", icon: "h-4 w-4" },
   } as const;
-
   const sz = sizeMap[size ?? "md"];
 
-  const coreBtnCls =
-    "group rounded-full border border-slate-200 bg-white shadow-sm " +
-    "hover:shadow-md focus-visible:outline-none focus-visible:ring-2 " +
-    "focus-visible:ring-slate-300/70 transition-all " +
-    sz.btn;
+  const coreBtnCls = [
+    "group rounded-full transition-all",
+    // light look
+    "border border-slate-200 bg-white shadow-sm hover:shadow-md",
+    // dark look (gelap, bukan hitam pekat)
+    "dark:border-neutral-800 dark:bg-[#0B1220] dark:hover:bg-[#121A2C]",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300/70",
+    sz.btn,
+  ].join(" ");
 
-  const bubbleCls =
-    `${gradient.base} ${gradient.hover} inline-flex ${sz.bubble} items-center justify-center ` +
-    "rounded-full ring-1 ring-inset ring-slate-200 transition-colors";
+  const bubbleCls = [
+    "inline-flex items-center justify-center rounded-full ring-1 ring-inset",
+    "ring-slate-200",                           // light ring
+    gradient.base, gradient.hover,              // light bubble gradien
+    // bubble gelap elegan di dark
+    "dark:ring-neutral-700 dark:bg-[linear-gradient(135deg,#0e1726,#111827)] dark:hover:bg-[linear-gradient(135deg,#101a2b,#141c2e)]",
+    sz.bubble,
+  ].join(" ");
 
   const content = (
     <Button
@@ -75,22 +73,24 @@ export default function BackButton({
       className={[coreBtnCls, className].filter(Boolean).join(" ")}
       startContent={
         <span className={bubbleCls}>
-          <ArrowLeft className={sz.icon} />
+          <ArrowLeft className={[sz.icon, "text-slate-700 dark:text-white"].join(" ")} />
         </span>
       }
       aria-label={iconOnly ? label : undefined}
     >
-      {iconOnly ? <span className="sr-only">{label}</span> : (
-        <span className="text-slate-700 group-hover:text-slate-900">{label}</span>
+      {iconOnly ? (
+        <span className="sr-only">{label}</span>
+      ) : (
+        // teks putih terang saat dark
+        <span className="text-slate-700 group-hover:text-slate-900 dark:!text-white dark:group-hover:!text-white">
+          {label}
+        </span>
       )}
     </Button>
   );
 
-  // Tooltip opsional (cocok untuk iconOnly)
   return tooltip || iconOnly ? <Tooltip content={tooltip ?? label}>{content}</Tooltip> : content;
 }
-
-/* ==================== Utils ==================== */
 
 function getToneGradient(tone: Tone) {
   switch (tone) {

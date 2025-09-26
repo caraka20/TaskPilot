@@ -1,6 +1,6 @@
 import z, { ZodType } from "zod"
 import { JenisUT } from "../../generated/prisma"
-import { CreateCustomerRequest, CustomerListQuery, UpdatePaymentRequest } from "./customer.model"
+import { CreateCustomerRequest, CustomerListQuery, UpdateCustomerRequest, UpdatePaymentRequest } from "./customer.model"
 
 export class CustomerValidation {
   static readonly ID_PARAM = z.object({
@@ -74,5 +74,20 @@ export class CustomerValidation {
   static readonly PARAMS_ID = z.object({
     id: z.coerce.number().int().positive(),
   })
+
+  static readonly NIM_PARAM = z.object({
+    nim: z.string().min(3).max(191),
+  });
+
+  static readonly UPDATE: ZodType<UpdateCustomerRequest> = z.object({
+    namaCustomer: z.string().min(2).max(200).optional(),
+    noWa: z.string().min(5).max(30).optional(),
+    nim: z.string().min(3).max(191).optional(),
+    password: z.string().min(6).optional(),
+    jurusan: z.string().min(2).max(200).optional(),
+    jenis: z.nativeEnum(JenisUT).optional(),
+  }).refine(obj => Object.keys(obj).length > 0, {
+    message: "Tidak ada field yang diubah",
+  });
 
 }

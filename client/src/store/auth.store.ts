@@ -18,7 +18,7 @@ type AuthState = {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      baseUrl: import.meta.env.VITE_API_BASE_URL,
+      baseUrl: import.meta.env.VITE_API_BASE_URL, // default selalu ikut ENV
       token: "",
       username: "",
       role: "",
@@ -26,12 +26,17 @@ export const useAuthStore = create<AuthState>()(
       setToken: (v) => set({ token: v }),
       setUsername: (v) => set({ username: v }),
       setRole: (v) => set({ role: v }),
-      reset: () => set({ token: "", username: "", role: "" }),
+      reset: () => set({ token: "", username: "", role: "", baseUrl: import.meta.env.VITE_API_BASE_URL }),
     }),
     {
       name: "client-auth",
-      // ✅ Persist SEMUA yang dibutuhkan agar setelah refresh langsung siap
-      partialize: (s) => ({ token: s.token, baseUrl: s.baseUrl, username: s.username, role: s.role }),
+      partialize: (s) => ({
+        token: s.token,
+        username: s.username,
+        role: s.role,
+        // ❌ baseUrl tidak disimpan, selalu ikut env
+      }),
     }
   )
 );
+

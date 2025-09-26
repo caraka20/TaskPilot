@@ -4,7 +4,7 @@ import { Validation } from "../../middleware/validation"
 import { ResponseHandler } from "../../utils/response-handler"
 import { TutonValidation } from "./tuton.validation"
 import { TutonService } from "./tuton.service"
-import { AddCourseRequest, CourseIdParam, CustomerIdParam } from "./tuton.model"
+import { AddCourseRequest, CourseIdParam, CustomerIdParam, UpdateCourseRequest } from "./tuton.model"
 
 export class TutonController {
   // ===== Existing =====
@@ -64,6 +64,16 @@ export class TutonController {
       return ResponseHandler.success(res, data)
     } catch (err) { next(err) }
   }
+
+  static async updateCourse(req: UserRequest, res: Response, next: NextFunction) {
+    try {
+      const { courseId } = await Validation.validate(TutonValidation.COURSE_ID_PARAM, req.params as any);
+      const body = await Validation.validate<UpdateCourseRequest>(TutonValidation.UPDATE_COURSE_BODY, req.body);
+      const data = await TutonService.updateCourse(courseId, body);
+      return ResponseHandler.success(res, data, "Matakuliah diperbarui");
+    } catch (err) { next(err); }
+  }
+
 }
 
 export default TutonController

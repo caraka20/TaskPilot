@@ -1,6 +1,8 @@
+// client/src/pages/DashboardPage.tsx
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { Spacer } from "@heroui/react";
 
+import { useUIStore } from "../store/ui.store"; // ⬅️ for smooth transition on sidebar toggle
 import { useAuthStore } from "../store/auth.store";
 import { useApi } from "../hooks/useApi";
 
@@ -33,6 +35,8 @@ import KPICards from "../components/dashboard/KPICards";
 import HistoriHariIniTable from "../components/dashboard/HistoriHariIniTable";
 
 import { startOfWeek } from "../utils/format";
+import { computeRunningSecondsAndStart } from "../utils/jamkerja";
+import { WORK_STARTED_EVENT, WORK_ACTIVITY_EVENT } from "../utils/workActivity";
 
 /* ===== Utils: tanggal hari ini & clamp durasi ke rentang hari ini ===== */
 function startOfToday(d = new Date()) {
@@ -72,7 +76,6 @@ export default function DashboardPage() {
     useState<"AKTIF" | "JEDA" | "TIDAK_AKTIF">("TIDAK_AKTIF");
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const [durasiBerjalanDetik, setDurasiBerjalanDetik] = useState(0);
-  // const [jamHariIni, setJamHariIni] = useState(0);
 
   // KPI lain
   const [jamMingguIni, setJamMingguIni] = useState(0);
@@ -84,6 +87,15 @@ export default function DashboardPage() {
   const [serverNowIso, setServerNowIso] = useState<string | null>(null);
 
   const setWorkStatus = useWorkStore((s) => s.setStatus);
+
+  // ⬇️ Smooth anim saat sidebar open/close
+  const { sidebarCollapsed: collapsed } = useUIStore();
+  const [resizing, setResizing] = useState(false);
+  useEffect(() => {
+    setResizing(true);
+    const t = setTimeout(() => setResizing(false), 320); // match duration-300
+    return () => clearTimeout(t);
+  }, [collapsed]);
 
   const refresh = useCallback(async () => {
     if (!username) return;
@@ -102,71 +114,64 @@ export default function DashboardPage() {
         // Histori hari ini (untuk status real-time & tabel mini)
         const histToday = await getHistoriByRange(api, username, todayISO, todayISO);
         // Pastikan terbaru di index 0
-        const itemsToday = (histToday.items ?? []).slice().sort(
-          (a, b) => new Date(b.mulai).getTime() - new Date(a.mulai).getTime()
-        );
+        const itemsToday = (histToday.items ?? [])
+          .slice()
+          .sort((a, b) => new Date(b.mulai).getTime() - new Date(a.mulai).getTime());
         setHistoriHariIni(itemsToday);
 
-        // Hitung durasi hari ini (clamp realtime)
-        const now = new Date();
-        const totalMs = itemsToday.reduce((acc, r) => acc + clampDurationMs(r, now), 0);
-        // setJamHariIni(totalMs / 1000 / 3600);
+        // ====== hitung baseline & startedAt (konsisten dgn Owner)
+        const adapted = itemsToday.map((r) => ({
+          jamMulai: r.mulai,
+          jamSelesai: r.selesai ?? null,
+          totalJam: (r.durasiDetik ?? 0) / 3600,
+          status: r.status as "AKTIF" | "JEDA" | "SELESAI",
+        }));
+        const { seconds: baseSeconds, startedAt } = computeRunningSecondsAndStart(adapted);
 
-        // Status terkini & sumber live
+        // Status terkini (berdasar entry terbaru)
         const last = itemsToday[0];
         let nextStatus: "AKTIF" | "JEDA" | "TIDAK_AKTIF" = "TIDAK_AKTIF";
         let nextActiveId: number | null = null;
-        let nextDetikBadge = 0;
-        let accumForLive = Math.floor(totalMs / 1000);
-        let startedAtISO: string | null = null;
+        let nextBadge = 0;
 
         if (last?.status === "AKTIF") {
           nextStatus = "AKTIF";
           nextActiveId = last.id ?? null;
-          nextDetikBadge = last.durasiDetik ?? 0;
-          if (last.mulai) {
-            const segStart = new Date(last.mulai);
-            const sinceStart = Math.max(0, Math.floor((now.getTime() - segStart.getTime()) / 1000));
-            accumForLive = Math.max(0, accumForLive - sinceStart);
-            startedAtISO = segStart.toISOString();
-          }
+          nextBadge = last.durasiDetik ?? 0;
         } else if (last?.status === "JEDA") {
           nextStatus = "JEDA";
           nextActiveId = last.id ?? null;
-          nextDetikBadge = last.durasiDetik ?? 0;
-          startedAtISO = null; // jeda → tidak tambah delta
-          // accumForLive tetap totalMs detik
+          nextBadge = last.durasiDetik ?? 0;
         } else {
           nextStatus = "TIDAK_AKTIF";
           nextActiveId = null;
-          nextDetikBadge = 0;
-          startedAtISO = null;
-          // accumForLive tetap totalMs detik
+          nextBadge = 0;
         }
 
         setStatusLabel(nextStatus);
         setActiveSessionId(nextActiveId);
-        setDurasiBerjalanDetik(nextDetikBadge);
-        setDetikHariIniAccum(accumForLive);
-        setActiveStartedAt(startedAtISO);
-        setServerNowIso(now.toISOString());
+        setDurasiBerjalanDetik(nextBadge);
 
-        // === Jam MINGGU INI (LIVE): histori Senin–hari ini + delta segmen AKTIF
+        // Detik hari ini (baseline) + startedAt untuk hook live
+        setDetikHariIniAccum(baseSeconds);
+        setActiveStartedAt(startedAt);
+        setServerNowIso(new Date().toISOString());
+
+        // === Jam MINGGU INI
         const weekStart = startOfWeek(new Date());
         const today = new Date();
         const histWeek = await getHistoriByRange(api, username, isoDate(weekStart), isoDate(today));
         const weekMs = (histWeek.items ?? []).reduce((acc, r) => {
           const s = new Date(r.mulai);
           const e = r.selesai ? new Date(r.selesai) : (r.status === "AKTIF" ? today : s);
-          // clamp ke rentang minggu ini
           const a = Math.max(s.getTime(), weekStart.getTime());
           const b = Math.min(e.getTime(), today.getTime());
           return acc + Math.max(0, b - a);
         }, 0);
         setJamMingguIni(weekMs / 3600000);
 
-        // === Seluruh JAM (LIVE): semua sesi + delta aktif (jika ada)
-        const allRows = await listJamKerja(api, username); // JamKerjaRow[]
+        // === Semua JAM
+        const allRows = await listJamKerja(api, username);
         const nowAll = new Date();
         const allMs = (allRows ?? []).reduce((acc, row) => {
           const s = new Date(row.jamMulai).getTime();
@@ -176,10 +181,6 @@ export default function DashboardPage() {
           return acc + Math.max(0, e - s);
         }, 0);
         setTotalJamAll(allMs / 3600000);
-
-        // (Opsional) Jika tetap ingin simpan rekap mingguan dari BE untuk perbandingan:
-        // const rekapMinggu = await getRekapJam(api, username, "minggu");
-        // console.debug("rekap (SELESAI saja) vs live:", rekapMinggu.totalJam, weekMs / 3600000);
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Gagal memuat dashboard");
@@ -205,6 +206,19 @@ export default function DashboardPage() {
     void refresh();
   }, [refresh]);
 
+  // 🔔 Auto-refresh ketika ada WORK_STARTED_EVENT (start/resume dari mana pun)
+  useEffect(() => {
+    const onStarted = () => { void refresh(); };
+    const onActivity = () => { /* opsional: bisa dipakai nanti */ };
+
+    window.addEventListener(WORK_STARTED_EVENT, onStarted as any);
+    window.addEventListener(WORK_ACTIVITY_EVENT, onActivity as any);
+    return () => {
+      window.removeEventListener(WORK_STARTED_EVENT, onStarted as any);
+      window.removeEventListener(WORK_ACTIVITY_EVENT, onActivity as any);
+    };
+  }, [refresh]);
+
   // Histori hari ini (durasi baris aktif dijalankan realtime)
   const historiView = useMemo(() => {
     if (isOwner) return [];
@@ -217,7 +231,14 @@ export default function DashboardPage() {
   }, [isOwner, historiHariIni, durasiBerjalanDetik]);
 
   return (
-    <div className="px-4 py-6 max-w-7xl mx-auto">
+    <div
+      className={[
+        "w-full",
+        "transition-[transform,opacity] duration-300 ease-[cubic-bezier(.2,.8,.2,1)]",
+        "motion-reduce:transition-none",
+        resizing ? "opacity-95 scale-[.997] will-change-transform" : "",
+      ].join(" ")}
+    >
       <DashboardHeader role={role} onRefresh={refresh} />
 
       <Spacer y={3} />

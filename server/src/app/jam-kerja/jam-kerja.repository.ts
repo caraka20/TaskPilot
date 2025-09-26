@@ -1,6 +1,12 @@
+// src/api/jam-kerja/jam-kerja.repository.ts
 import { prismaClient } from "../../config/database";
 import { StatusKerja } from "../../generated/prisma";
 import { JamKerjaAktifQuery } from "./jam-kerja.model";
+
+/** Start-of-day sesuai locale server (dipakai untuk kolom `tanggal`) */
+function startOfDayLocal(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
 
 export class JamKerjaRepository {
   /** Segmen terbuka: AKTIF atau JEDA yang belum ditutup (jamSelesai = null) */
@@ -32,6 +38,7 @@ export class JamKerjaRepository {
         jamSelesai: null,
         totalJam: 0,
         status: StatusKerja.AKTIF,
+        isOpen: true, // eksplisit: segmen baru sedang berjalan
       },
     });
   }
@@ -40,10 +47,16 @@ export class JamKerjaRepository {
     return prismaClient.jamKerja.findUnique({ where: { id } });
   }
 
+  /** Tutup segmen sebagai status tertentu (JEDA/SELESAI) */
   static async closeAs(id: number, jamSelesai: Date, totalJam: number, status: StatusKerja) {
     return prismaClient.jamKerja.update({
       where: { id },
-      data: { jamSelesai, totalJam, status },
+      data: {
+        jamSelesai,
+        totalJam,
+        status,
+        isOpen: false, // pastikan tertutup saat sudah punya jamSelesai
+      },
     });
   }
 
@@ -80,10 +93,13 @@ export class JamKerjaRepository {
     });
   }
 
+  /** Update status + sinkronkan isOpen sesuai jamSelesai */
   static async updateStatus(id: number, status: StatusKerja) {
+    const row = await prismaClient.jamKerja.findUnique({ where: { id } });
+    const open = status === StatusKerja.AKTIF && row?.jamSelesai == null;
     return prismaClient.jamKerja.update({
       where: { id },
-      data: { status },
+      data: { status, isOpen: open },
     });
   }
 
@@ -120,6 +136,30 @@ export class JamKerjaRepository {
       _sum: { totalJam: true },
     });
   }
+
+  /** Hitung total jam (desimal) dari dua waktu */
+  static calcTotalJam(jamMulai: Date, jamSelesai: Date | null): number {
+    if (!jamSelesai) return 0;
+    const ms = jamSelesai.getTime() - jamMulai.getTime();
+    return Math.max(0, Math.round((ms / 3600000) * 100) / 100);
+  }
+
+  /** Patch sebagian kolom (untuk mode single-row pause/resume) */
+  static async updatePartial(
+    id: number,
+    patch: Partial<{
+      jamMulai: Date;
+      jamSelesai: Date | null;
+      status: StatusKerja;
+      totalJam: number;
+      isOpen: boolean;
+      tanggal: Date;
+    }>
+  ) {
+    return prismaClient.jamKerja.update({ where: { id }, data: patch });
+  }
+
+  static startOfDayLocal = startOfDayLocal;
 }
 
 export default JamKerjaRepository;

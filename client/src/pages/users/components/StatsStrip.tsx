@@ -1,5 +1,12 @@
 import { Chip } from "@heroui/react";
-import { Users, Activity, PauseCircle, Clock3, Wallet, Gauge } from "lucide-react";
+import {
+  Users,
+  Activity,
+  PauseCircle,
+  Clock3,
+  Wallet,
+  Gauge,
+} from "lucide-react";
 import type { RangeKey, RowItem } from "./userlist.types";
 
 export default function StatsStrip({
@@ -11,15 +18,23 @@ export default function StatsStrip({
 }) {
   const pick = (u: RowItem) => {
     switch (range) {
-      case "TODAY": return { jam: u.totalJamHariIni,   gaji: u.totalGajiHariIni };
-      case "WEEK":  return { jam: u.totalJamMingguIni, gaji: u.totalGajiMingguIni };
-      case "MONTH": return { jam: u.totalJamBulanIni,  gaji: u.totalGajiBulanIni };
-      default:      return { jam: u.totalJamSemua,     gaji: u.totalGajiSemua };
+      case "TODAY":
+        return { jam: u.totalJamHariIni, gaji: u.totalGajiHariIni };
+      case "WEEK":
+        return { jam: u.totalJamMingguIni, gaji: u.totalGajiMingguIni };
+      case "MONTH":
+        return { jam: u.totalJamBulanIni, gaji: u.totalGajiBulanIni };
+      default:
+        return { jam: u.totalJamSemua, gaji: u.totalGajiSemua };
     }
   };
 
   const nUsers = users.length;
-  let sumJam = 0, sumGaji = 0, maxJam = 0, aktif = 0, jeda = 0;
+  let sumJam = 0,
+    sumGaji = 0,
+    maxJam = 0,
+    aktif = 0,
+    jeda = 0;
 
   for (const u of users) {
     const s = pick(u);
@@ -31,16 +46,62 @@ export default function StatsStrip({
   }
 
   const fmtHours = (x: number) => (Math.round(x * 10) / 10).toFixed(1);
-  const fmtRupiah = (x: number) => `Rp ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(x)}`;
+  const fmtRupiah = (x: number) =>
+    `Rp ${new Intl.NumberFormat("id-ID", {
+      maximumFractionDigits: 0,
+    }).format(x)}`;
 
   return (
     <div className="flex flex-wrap gap-2">
-      <Chip variant="flat" startContent={<Users className="h-3.5 w-3.5" />}>Users: <b className="ml-1">{nUsers}</b></Chip>
-      <Chip color="success" variant="flat" startContent={<Activity className="h-3.5 w-3.5" />}>Aktif: <b className="ml-1">{aktif}</b></Chip>
-      <Chip color="warning" variant="flat" startContent={<PauseCircle className="h-3.5 w-3.5" />}>Jeda: <b className="ml-1">{jeda}</b></Chip>
-      <Chip variant="flat" startContent={<Clock3 className="h-3.5 w-3.5" />}>Total Jam: <b className="ml-1">{fmtHours(sumJam)}</b></Chip>
-      <Chip variant="flat" startContent={<Gauge className="h-3.5 w-3.5" />}>Max Jam: <b className="ml-1">{fmtHours(maxJam)}</b></Chip>
-      <Chip variant="flat" startContent={<Wallet className="h-3.5 w-3.5" />}>Total Gaji: <b className="ml-1">{fmtRupiah(sumGaji)}</b></Chip>
+      <Chip
+        variant="flat"
+        className="rounded-xl bg-default-100/70 dark:bg-slate-800/50"
+        startContent={<Users className="h-3.5 w-3.5" />}
+      >
+        Users: <b className="ml-1">{nUsers}</b>
+      </Chip>
+
+      <Chip
+        color="success"
+        variant="flat"
+        className="rounded-xl dark:bg-emerald-900/30"
+        startContent={<Activity className="h-3.5 w-3.5" />}
+      >
+        Aktif: <b className="ml-1">{aktif}</b>
+      </Chip>
+
+      <Chip
+        color="warning"
+        variant="flat"
+        className="rounded-xl dark:bg-amber-900/30"
+        startContent={<PauseCircle className="h-3.5 w-3.5" />}
+      >
+        Jeda: <b className="ml-1">{jeda}</b>
+      </Chip>
+
+      <Chip
+        variant="flat"
+        className="rounded-xl bg-default-100/70 dark:bg-slate-800/50"
+        startContent={<Clock3 className="h-3.5 w-3.5" />}
+      >
+        Total Jam: <b className="ml-1">{fmtHours(sumJam)}</b>
+      </Chip>
+
+      <Chip
+        variant="flat"
+        className="rounded-xl bg-default-100/70 dark:bg-slate-800/50"
+        startContent={<Gauge className="h-3.5 w-3.5" />}
+      >
+        Max Jam: <b className="ml-1">{fmtHours(maxJam)}</b>
+      </Chip>
+
+      <Chip
+        variant="flat"
+        className="rounded-xl bg-default-100/70 dark:bg-slate-800/50"
+        startContent={<Wallet className="h-3.5 w-3.5" />}
+      >
+        Total Gaji: <b className="ml-1">{fmtRupiah(sumGaji)}</b>
+      </Chip>
     </div>
   );
 }

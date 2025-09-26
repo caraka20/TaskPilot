@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Input, Button, Select, SelectItem, Kbd, Tooltip, Chip } from "@heroui/react";
 import type { ListParams, CustomerJenis } from "../../../utils/customer";
+import { CUSTOMER_JENIS_OPTIONS } from "../../../utils/customer";
 
 type Props = {
-  initial?: Partial<ListParams> & { jenis?: CustomerJenis };
-  onChange: (next: Partial<ListParams> & { jenis?: CustomerJenis | "ALL" }) => void;
+  initial?: Partial<ListParams>; // jenis optional (single value) → kalau kosong = semua
+  onChange: (next: Partial<ListParams>) => void;
   autoSearch?: boolean;
   debounceMs?: number;
 };
@@ -16,23 +17,24 @@ export default function CustomerFilters({
   debounceMs = 450,
 }: Props) {
   const [q, setQ] = useState<string>(initial?.q ?? "");
-  const [jenis, setJenis] = useState<CustomerJenis | "ALL">(
-    (initial?.jenis as CustomerJenis) ?? "ALL"
+  const [jenis, setJenis] = useState<CustomerJenis | "">(
+    ((Array.isArray(initial?.jenis) ? initial?.jenis[0] : initial?.jenis) as CustomerJenis) ?? ""
   );
 
   const didMount = useRef(false);
 
   const apply = () => {
     const val = q.trim();
-    const payload: any = { page: 1, jenis }; // kirim SELALU (termasuk "ALL")
+    const payload: any = { page: 1 };
     if (val) payload.q = val;
+    if (jenis) payload.jenis = jenis; // single value
     onChange(payload);
   };
 
   const reset = () => {
     setQ("");
-    setJenis("ALL");
-    onChange({ q: undefined, page: 1, jenis: "ALL" } as any);
+    setJenis("");
+    onChange({ q: undefined, page: 1, jenis: undefined });
   };
 
   useEffect(() => {
@@ -55,26 +57,27 @@ export default function CustomerFilters({
     []
   );
 
-  // Badge ringkas untuk mempertegas filter aktif
   const ActiveBadge = () => {
     const items: string[] = [];
     if (q.trim()) items.push(`Cari: "${q.trim()}"`);
-    if (jenis !== "ALL") items.push(`Jenis: ${jenis}`);
+    if (jenis) items.push(`Jenis: ${jenis}`);
     if (items.length === 0) return null;
     return (
       <div className="flex flex-wrap items-center gap-2">
-        {items.map((t, i) => (
-          <Chip key={i} size="sm" variant="flat" className="border border-slate-200 bg-slate-50">
-            {t}
-          </Chip>
-        ))}
+        <Chip
+          size="sm"
+          variant="flat"
+          className="border border-default-100 bg-default-50 text-foreground-600"
+        >
+          {items.join(" • ")}
+        </Chip>
       </div>
     );
   };
 
   return (
     <div className="w-full">
-      <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-md">
+      <div className="rounded-2xl border border-default-100 bg-content1 p-3 sm:p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
           <div className="flex-1 min-w-[220px]">
             <Input
@@ -104,16 +107,17 @@ export default function CustomerFilters({
           <Select
             label="Jenis"
             className="w-[180px]"
-            selectedKeys={[jenis]}
-            onChange={(e) =>
-              setJenis(((e.target.value as CustomerJenis) || "ALL") as any)
-            }
             variant="bordered"
+            isClearable
+            selectedKeys={jenis ? new Set([jenis]) : new Set()}
+            onSelectionChange={(keys) => {
+              const val = (Array.from(keys)[0] as CustomerJenis | undefined) ?? "";
+              setJenis(val);
+            }}
           >
-            <SelectItem key="ALL">Semua</SelectItem>
-            <SelectItem key="TUTON">TUTON</SelectItem>
-            <SelectItem key="KARIL">KARIL</SelectItem>
-            <SelectItem key="TK">TK</SelectItem>
+            {CUSTOMER_JENIS_OPTIONS.map((k) => (
+              <SelectItem key={k}>{k}</SelectItem>
+            ))}
           </Select>
 
           <div className="flex items-center gap-2">
@@ -124,7 +128,7 @@ export default function CustomerFilters({
             >
               Terapkan
             </Button>
-            <Button variant="flat" className="bg-slate-50" onPress={reset}>
+            <Button variant="flat" className="bg-default-100" onPress={reset}>
               Reset
             </Button>
 

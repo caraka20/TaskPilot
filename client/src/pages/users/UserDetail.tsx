@@ -165,7 +165,7 @@ export default function UserDetailPage() {
   }, [data]);
 
   return (
-    <div className="p-4 space-y-5">
+    <div className="space-y-5">
       <Button
         as={Link}
         to="/users"
@@ -252,9 +252,12 @@ export default function UserDetailPage() {
 
           {/* Histori jam kerja + filter + pagination */}
           <WorkHistory
-            items={(data.jamKerja as any) ?? []}
+            items={(data?.jamKerja as any) ?? []}
             serverNow={(data as any)?.serverNow ?? null}
             title="Histori Jam Kerja"
+            api={api}                     // ⬅️ kasih Axios instance ke WorkHistory
+            canEdit={role === "OWNER"}    // ⬅️ hanya OWNER yang lihat tombol Update
+            onUpdated={load}              // ⬅️ setelah update sukses, refresh halaman
           />
         </>
       )}

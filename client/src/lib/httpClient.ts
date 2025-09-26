@@ -1,20 +1,20 @@
-// src/lib/httpClient.ts
 import axios from "axios";
-import { useAuthStore } from "../store/auth.store"; // SESUAIKAN path store-mu
+import { useAuthStore } from "../store/auth.store";
 
 /**
- * Axios instance tanpa baseURL statis.
- * baseURL & Authorization akan diisi dinamis dari Zustand store setiap request.
+ * Axios instance global
  */
 const httpClient = axios.create({
-  withCredentials: false, // set true jika pakai cookie session
+  withCredentials: false, // ganti true kalau pakai cookie
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
   },
 });
 
-// ambil nilai dari Zustand store (bukan hook React — aman dipakai di luar komponen)
+/**
+ * Ambil data auth dari Zustand store
+ */
 function getAuth() {
   try {
     return useAuthStore.getState();
@@ -26,16 +26,31 @@ function getAuth() {
 httpClient.interceptors.request.use((config) => {
   const { token, baseUrl } = getAuth();
 
-  // set baseURL tiap request dari store (fallback ke .env atau localhost)
-  config.baseURL = baseUrl || import.meta.env.VITE_API_BASE_URL;
+  // baseURL prioritas: ENV (biar nggak terkunci ke store yang lama)
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  config.baseURL = envUrl || baseUrl;
+
+  // Debug log (lihat di console browser)
+  console.log("👉 BASE URL dipakai:", config.baseURL);
+  console.log("👉 ENV URL:", envUrl);
+  console.log("👉 STORE URL:", baseUrl);
+
+  if (!envUrl && baseUrl) {
+    console.warn("⚠️ ENV kosong, fallback ke store:", baseUrl);
+  }
 
   if (token) {
     config.headers = config.headers ?? {};
     (config.headers as any).Authorization = `Bearer ${token}`;
   }
+
   return config;
 });
 
+/**
+ * Response Interceptor
+ * - Auto logout kalau 401
+ */
 httpClient.interceptors.response.use(
   (res) => res,
   (err) => {

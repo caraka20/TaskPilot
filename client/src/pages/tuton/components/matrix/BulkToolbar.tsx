@@ -1,3 +1,5 @@
+// client/src/pages/customers/components/BulkToolbar.tsx
+import { useState } from "react";
 import { Button, Chip, Tooltip } from "@heroui/react";
 import { CheckSquare, ClipboardCheck, Layers } from "lucide-react";
 import { SESSIONS, isTugas } from "./constants";
@@ -17,30 +19,75 @@ export default function BulkToolbar({
   onBulkCopas,
   onBulkCompleteSession,
 }: BulkToolbarProps) {
+  const [busy, setBusy] = useState(false);
+
+  const handleComplete = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (onBulkCompleteSession) {
+        // gunakan handler khusus jika disuplai parent
+        await onBulkCompleteSession(sesi);
+      } else {
+        // fallback bawaan: selesaiin semuanya untuk 1 sesi
+        await onBulkStatus("DISKUSI", sesi);
+        await onBulkStatus("ABSEN", sesi);
+        if (isTugas(sesi)) {
+          await onBulkStatus("TUGAS", sesi);
+        }
+        await onBulkCopas("DISKUSI", sesi);
+        if (isTugas(sesi)) {
+          await onBulkCopas("TUGAS", sesi);
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col gap-3 p-3 border-b border-default-200 bg-gradient-to-br from-white to-slate-50">
+    <div
+      className={[
+        "flex flex-col gap-3 p-3 border-b border-default-200",
+        "bg-content1",
+      ].join(" ")}
+    >
       <div className="flex items-center justify-between gap-3 flex-wrap">
         {/* Selector sesi */}
         <div className="flex items-center gap-2">
-          <Chip size="sm" variant="flat" className="bg-default-100">
+          <Chip
+            size="sm"
+            variant="flat"
+            className="bg-default-100 dark:bg-content2 dark:text-foreground-600"
+          >
             Bulk Aksi per Sesi
           </Chip>
+
           <div className="flex items-center gap-1">
-            {SESSIONS.map((s) => (
-              <button
-                key={s.key}
-                type="button"
-                onClick={() => setSesi(s.sesi)}
-                className={[
-                  "px-2.5 py-1.5 rounded-md text-[12px] font-medium border transition",
-                  sesi === s.sesi
-                    ? "bg-blue-600 text-white border-blue-700 shadow-sm"
-                    : "bg-white text-foreground-600 border-default-300 hover:bg-default-100",
-                ].join(" ")}
-              >
-                {s.label}
-              </button>
-            ))}
+            {SESSIONS.map((s) => {
+              const active = sesi === s.sesi;
+              const baseBtn =
+                "px-2.5 py-1.5 rounded-md text-[12px] font-medium transition ring-1 ring-inset";
+              const inactiveCls =
+                "bg-default-50 text-foreground-600 border border-default-200 " +
+                "hover:bg-default-100 " +
+                "dark:bg-content2 dark:text-foreground-500 dark:hover:bg-content2/80 dark:border-default-200/60";
+              const activeCls =
+                "text-white border border-transparent bg-gradient-to-r from-sky-600 to-indigo-600 shadow-sm " +
+                "dark:bg-[linear-gradient(90deg,rgba(14,22,38,.92),rgba(14,22,38,.92))] " +
+                "dark:shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] dark:ring-sky-400/40";
+
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => setSesi(s.sesi)}
+                  className={[baseBtn, active ? activeCls : inactiveCls].join(" ")}
+                >
+                  {s.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -88,7 +135,7 @@ export default function BulkToolbar({
             <Button
               size="sm"
               variant="flat"
-              className="bg-default-100"
+              className="bg-default-100 dark:bg-content2"
               startContent={<ClipboardCheck className="h-4 w-4" />}
               onPress={() => onBulkCopas("DISKUSI", sesi)}
             >
@@ -101,7 +148,7 @@ export default function BulkToolbar({
               <Button
                 size="sm"
                 variant="flat"
-                className="bg-default-100 disabled:opacity-60"
+                className="bg-default-100 dark:bg-content2 disabled:opacity-60"
                 startContent={<ClipboardCheck className="h-4 w-4" />}
                 onPress={() => onBulkCopas("TUGAS", sesi)}
                 isDisabled={!isTugas(sesi)}
@@ -111,24 +158,27 @@ export default function BulkToolbar({
             </span>
           </Tooltip>
 
-          <Tooltip placement="bottom" offset={6} content="Set A/D/T jadi SELESAI & tandai COPAS Diskusi/Tugas untuk sesi terpilih">
-            <span>
-              <Button
-                size="sm"
-                className="bg-green-700 text-white disabled:opacity-60"
-                startContent={<Layers className="h-4 w-4" />}
-                onPress={() => onBulkCompleteSession?.(sesi)}
-                isDisabled={!onBulkCompleteSession}
-              >
-                Selesai 1 Sesi
-              </Button>
-            </span>
+          <Tooltip
+            placement="bottom"
+            offset={6}
+            content="Set A/D/T jadi SELESAI & tandai COPAS Diskusi/Tugas untuk sesi terpilih"
+          >
+            <Button
+              size="sm"
+              className="bg-green-700 text-white"
+              startContent={<Layers className="h-4 w-4" />}
+              onPress={handleComplete}
+              isLoading={busy}
+              isDisabled={busy}
+            >
+              Selesai 1 Sesi
+            </Button>
           </Tooltip>
 
           <Chip
             size="sm"
             variant="flat"
-            className="bg-default-100"
+            className="bg-default-100 dark:bg-content2 dark:text-foreground-600"
             startContent={<Layers className="h-3.5 w-3.5" />}
           >
             Sesi {sesi}

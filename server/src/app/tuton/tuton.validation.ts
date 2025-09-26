@@ -1,5 +1,5 @@
 import z, { ZodType } from "zod"
-import { AddCourseRequest, CourseIdParam, CustomerIdParam } from "./tuton.model"
+import { AddCourseRequest, CourseIdParam, CustomerIdParam, UpdateCourseRequest } from "./tuton.model"
 import { JenisTugas, StatusTugas } from "../../generated/prisma"
 
 export interface MatkulParam { matkul: string }
@@ -47,4 +47,11 @@ export class TutonValidation {
     page: z.coerce.number().int().min(1).optional().default(1),
     pageSize: z.coerce.number().int().min(1).max(200).optional().default(50),
   })
+
+  static readonly UPDATE_COURSE_BODY: ZodType<UpdateCourseRequest> = z.object({
+    matkul: z.string().min(2).max(200).optional(),
+    resetItems: z.coerce.boolean().optional().default(false),
+  }).refine(v => v.matkul !== undefined || v.resetItems === true, {
+    message: "Tidak ada perubahan",
+  });
 }

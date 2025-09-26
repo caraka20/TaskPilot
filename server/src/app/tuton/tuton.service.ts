@@ -1,11 +1,12 @@
 import { AppError } from "../../middleware/app-error"
 import { ERROR_CODE } from "../../utils/error-codes"
-import { AddCourseRequest, ConflictCustomerEntry, ConflictGroupResponse } from "./tuton.model"
+import { AddCourseRequest, ConflictCustomerEntry, ConflictGroupResponse, UpdateCourseRequest } from "./tuton.model"
 import { TutonRepository } from "./tuton.repository"
 import { toTutonCourseResponse, TutonCourseResponse } from "./tuton.model"
 import { JenisTugas, StatusTugas } from "../../generated/prisma"
 import { TutonItemRepository } from "../tuton-item/tuton-item.repository" 
 import type { ScanRow } from "../tuton-item/tuton-item.repository";
+import { prismaClient } from "../../config/database"
 
 export class TutonService {
   // ===== Existing =====
@@ -161,6 +162,65 @@ export class TutonService {
       },
       rows: data,
     }
+  }
+
+  static async updateCourse(courseId: number, payload: UpdateCourseRequest) {
+    const found = await TutonRepository.findCourseWithCustomerId(courseId);
+    if (!found) throw AppError.fromCode(ERROR_CODE.NOT_FOUND, "Course tidak ditemukan");
+
+    let updated = null;
+
+    // Jika rename matkul → pastikan unik per customer
+    if (payload.matkul && payload.matkul !== found.matkul) {
+      const dup = await TutonRepository.existsMatkulForCustomerExcept(
+        found.customerId,
+        payload.matkul,
+        courseId
+      );
+      if (dup) {
+        throw AppError.fromCode(
+          ERROR_CODE.BAD_REQUEST,
+          "Matkul sudah terdaftar untuk customer ini"
+        );
+      }
+      updated = await TutonRepository.updateCourseMatkul(courseId, payload.matkul);
+    }
+
+    // Jika reset items → hapus semua item & seed default lagi, lalu set totals
+    if (payload.resetItems) {
+      await prismaClient.$transaction(async (tx) => {
+        // hapus items
+        await tx.tutonItem.deleteMany({ where: { courseId } });
+
+        // seed default (8 diskusi + 8 absen + 3 tugas = 19)
+        const items: any[] = [];
+        for (let s = 1; s <= 8; s++) {
+          items.push({ courseId, jenis: "DISKUSI", sesi: s, status: "BELUM", copasSoal: false });
+        }
+        for (let s = 1; s <= 8; s++) {
+          items.push({ courseId, jenis: "ABSEN", sesi: s, status: "BELUM" });
+        }
+        for (const s of [3, 5, 7]) {
+          items.push({ courseId, jenis: "TUGAS", sesi: s, status: "BELUM", copasSoal: false });
+        }
+        await tx.tutonItem.createMany({ data: items });
+
+        // set totals (19, 0)
+        updated = await tx.tutonCourse.update({
+          where: { id: courseId },
+          data: { totalItems: items.length, completedItems: 0 },
+        });
+      });
+    }
+
+    // Jika hanya rename saja (tanpa reset) & kamu ingin sync progress dari item terkini:
+    if (!payload.resetItems && !payload.matkul) {
+      // no-op (kalau mau, bisa refreshCompletedItems di sini)
+      updated = await TutonRepository.findCourseById(courseId);
+    }
+    if (!updated) updated = await TutonRepository.findCourseById(courseId);
+
+    return toTutonCourseResponse(updated!);
   }
 
 }

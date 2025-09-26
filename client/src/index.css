@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
-/* aktifkan plugin HeroUI */
+/* aktifkan plugin HeroUI (via file hero.ts di root) */
 @plugin "./hero.ts";
 
-/* biar Tailwind scan class dari paket HeroUI */
+/* scan class dari paket HeroUI */
 @source "../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}";
 
 /* (opsional) tema warna project */
@@ -13,9 +13,110 @@
   --color-warning: #F59E0B;
   --color-danger:  #F43F5E;
 }
-:root { --font-ui: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial; }
+
+/* ===== Base font & sizing ===== */
+:root {
+  --font-ui: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+}
+html, body, #root { height: 100%; }
 body { font-family: var(--font-ui); }
 
+/* ===== hint native theme (scrollbar/form) ===== */
+html { color-scheme: light; }
+html.dark { color-scheme: dark; }
 
-html, body, #root { height: 100%; }
-body { background: #F9FAFB; color: #111827; }
+/* ===== Default background/text: light & dark (dipakai yang navy) ===== */
+body { background: #F9FAFB; color: #111827; }          /* light */
+html.dark body { background: #0B1220; color: #E5E7EB; } /* dark */
+
+/* (opsional) transisi halus saat ganti tema */
+.theme-transition, .theme-transition * {
+  transition:
+    background-color .28s cubic-bezier(.2,.8,.2,1),
+    color .28s cubic-bezier(.2,.8,.2,1),
+    border-color .28s cubic-bezier(.2,.8,.2,1),
+    box-shadow .28s cubic-bezier(.2,.8,.2,1);
+}
+
+/* (opsional) token supaya komponen HeroUI ikut nyesuaiin surface */
+html.dark [data-customers-shell] {
+  --nextui-background: #0B1220;
+  --nextui-content1:   #0E1626;  /* kartu/section */
+  --nextui-content2:   #0C1422;  /* surface lebih gelap */
+  --nextui-foreground: #E8EDF6;
+}
+
+/* =========================
+   Tuton Matrix conflict row
+   ========================= */
+/* Versi lebih tegas */
+.tuton-conflict-bg {
+  /* light */
+  --tc-bg: rgb(255 228 230); /* rose-100 */
+  background-color: var(--tc-bg) !important;
+}
+.dark .tuton-conflict-bg {
+  /* dark: lebih kontras */
+  --tc-bg: rgba(159, 18, 57, 0.30); /* rose-700/30 */
+  background-color: var(--tc-bg) !important;
+}
+
+.tuton-conflict-ring {
+  /* ring terlihat baik di dua mode */
+  box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.55) inset !important;  /* rose-500/55 */
+}
+.dark .tuton-conflict-ring {
+  box-shadow: 0 0 0 1px rgba(251, 113, 133, 0.50) inset !important;/* rose-400/50 */
+}
+
+/* hindari clipping */
+.tuton-conflict-cell {
+  position: relative;
+  overflow: visible;
+}
+
+/* accent bar di kiri cell MATKUL */
+.tuton-conflict-accent { position: relative; }
+.tuton-conflict-accent::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  bottom: -1px;
+  width: 6px;
+  border-top-left-radius: 10px;
+  border-bottom-left-radius: 10px;
+  background: linear-gradient(180deg, #fb7185 0%, #f43f5e 100%); /* rose-400 → rose-500 */
+  box-shadow: 0 0 0 1px rgba(244, 63, 94, .35);
+}
+.dark .tuton-conflict-accent::before {
+  background: linear-gradient(180deg, #fb7185cc 0%, #f43f5ecc 100%);
+  box-shadow: 0 0 0 1px rgba(251, 113, 133, .35);
+}
+
+/* badge kecil “Konflik” di pojok kanan atas cell MATKUL */
+.tuton-conflict-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #f43f5e;   /* rose-500 */
+  color: white;
+  letter-spacing: .2px;
+  box-shadow: 0 1px 0 rgba(0,0,0,.06);
+}
+.dark .tuton-conflict-badge {
+  background: #fb7185;   /* rose-400 */
+  color: #0B1220;        /* kontras di dark navy */
+}
+
+/* hover glow halus untuk baris konflik */
+.tuton-conflict-hover:hover {
+  box-shadow: 0 0 0 2px rgba(244, 63, 94, .18) inset !important;
+}
+.dark .tuton-conflict-hover:hover {
+  box-shadow: 0 0 0 2px rgba(251, 113, 133, .18) inset !important;
+}

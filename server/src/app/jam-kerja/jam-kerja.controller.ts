@@ -8,6 +8,7 @@ import { Validation } from "../../middleware/validation";
 import { AppError } from "../../middleware/app-error";
 import { ERROR_CODE } from "../../utils/error-codes";
 import { Role } from "../../generated/prisma";
+import { UpdateJamKerjaRequest } from "./jam-kerja.model";
 
 export class JamKerjaController {
   // START: USER → dirinya; OWNER → boleh target via ?username= atau body.username
@@ -172,6 +173,37 @@ export class JamKerjaController {
       }
       const data = await JamKerjaService.buildUserSummary(q.username);
       return ResponseHandler.success(res, data);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async update(req: UserRequest, res: Response, next: NextFunction) {
+    try {
+      if (!req.user?.username || !req.user?.role) {
+        throw AppError.fromCode(ERROR_CODE.UNAUTHORIZED);
+      }
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) {
+        throw AppError.fromCode(ERROR_CODE.BAD_REQUEST, "Param id invalid");
+      }
+
+      const body = await Validation.validate<UpdateJamKerjaRequest>(
+        JamKerjaValidation.UPDATE,
+        req.body
+      );
+
+      const updated = await JamKerjaService.update(
+        { username: req.user.username, role: req.user.role },
+        id,
+        body
+      );
+
+      return ResponseHandler.success(
+        res,
+        updated,
+        SUCCESS_MESSAGES?.UPDATED?.JAM_KERJA ?? "Jam kerja diupdate"
+      );
     } catch (err) {
       next(err);
     }

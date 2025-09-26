@@ -1,3 +1,4 @@
+// client/src/pages/customers/components/KarilFilters.tsx
 import { useEffect, useRef, useState } from "react";
 import { Input, Button, Kbd, Chip, Tooltip } from "@heroui/react";
 import type { KarilListParams } from "../../../services/karil.service";
@@ -43,6 +44,7 @@ export default function KarilFilters({
     });
   };
 
+  // auto-apply (debounced) saat q/progress berubah
   useEffect(() => {
     if (!autoSearch) return;
     if (!didMount.current) {
@@ -68,7 +70,13 @@ export default function KarilFilters({
             size="sm"
             variant={active ? "solid" : "flat"}
             color={active ? "primary" : "default"}
-            className={active ? "shadow-sm" : "border border-slate-200 bg-slate-50"}
+            className={
+              active
+                ? // tampil lebih “mahal” saat aktif
+                  "shadow-sm bg-gradient-to-r from-sky-500 to-indigo-500 text-white"
+                : // netral, mengikuti tema
+                  "border border-default-200 bg-default-100 text-foreground-600 hover:bg-default-200"
+            }
             onClick={() => setProgress(opt.key as any)}
           >
             {opt.label}
@@ -81,12 +89,18 @@ export default function KarilFilters({
   const ActiveBadge = () => {
     const items: string[] = [];
     if (q.trim()) items.push(`Cari: "${q.trim()}"`);
-    if (progress !== "all") items.push(`Progress: ${progress === "complete" ? "Selesai" : "Belum lengkap"}`);
+    if (progress !== "all")
+      items.push(`Progress: ${progress === "complete" ? "Selesai" : "Belum lengkap"}`);
     if (items.length === 0) return null;
     return (
       <div className="flex flex-wrap items-center gap-2">
         {items.map((t, i) => (
-          <Chip key={i} size="sm" variant="flat" className="border border-slate-200 bg-slate-50">
+          <Chip
+            key={i}
+            size="sm"
+            variant="flat"
+            className="border border-default-200 bg-default-100 text-foreground-600"
+          >
             {t}
           </Chip>
         ))}
@@ -96,8 +110,9 @@ export default function KarilFilters({
 
   return (
     <div className="w-full">
-      <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 shadow-md">
+      <div className="rounded-2xl border border-default-200 bg-content1 p-3 sm:p-4 shadow-md">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
+          {/* Cari */}
           <div className="flex-1 min-w-[240px]">
             <Input
               label="Cari (nama / NIM)"
@@ -123,22 +138,21 @@ export default function KarilFilters({
             />
           </div>
 
-          {/* Progress — pilih salah satu (Chips premium) */}
+          {/* Progress */}
           <div className="min-w-[240px]">
-            <label className="block text-xs font-medium text-slate-500 mb-1">Progress</label>
+            <label className="block text-xs font-medium text-foreground-500 mb-1">Progress</label>
             <ProgressChips />
           </div>
 
-          {/* Tombol aksi */}
+          {/* Aksi */}
           <div className="flex items-center gap-2">
             <Button
-              color="primary"
               className="bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-sm"
               onPress={apply}
             >
               Terapkan
             </Button>
-            <Button variant="flat" className="bg-slate-50" onPress={reset}>
+            <Button variant="flat" className="bg-default-100" onPress={reset}>
               Reset
             </Button>
             <Tooltip content="Shortcut">

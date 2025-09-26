@@ -30,11 +30,29 @@ export default function KarilDetailSection({
   const pct = Math.round(((karil?.progress ?? 0) || 0) * 100);
   const isComplete = pct >= 100;
 
+  const time = (s?: string) =>
+    s
+      ? new Date(s).toLocaleString("id-ID", {
+          year: "numeric",
+          month: "short",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "—";
+
+  /** Chip status tugas (Selesai / Belum) */
   const TaskPill = ({ on }: { on?: boolean }) => (
     <Chip
       size="sm"
       variant="flat"
-      className={`border ${on ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-slate-50 text-slate-600 border-slate-200"}`}
+      color={on ? "success" : "default"}
+      className={[
+        "border",
+        on
+          ? "border-success-200 bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300 dark:border-success-400/20"
+          : "border-default-200 bg-content2 text-foreground-600",
+      ].join(" ")}
       startContent={
         on ? (
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
@@ -51,25 +69,17 @@ export default function KarilDetailSection({
     </Chip>
   );
 
-  const time = (s?: string) =>
-    s
-      ? new Date(s).toLocaleString("id-ID", {
-          year: "numeric",
-          month: "short",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "—";
-
   return (
     <Card
       className={[
-        "mt-6 overflow-hidden border border-slate-200 shadow-md rounded-2xl",
-        isComplete ? "ring-1 ring-emerald-200" : "",
+        "mt-6 overflow-hidden rounded-2xl border border-default-200 bg-content1 shadow-md",
+        isComplete ? "ring-1 ring-success-400/40" : "",
         className,
-      ].filter(Boolean).join(" ")}
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
+      {/* Accent bar */}
       <div
         className={[
           "h-1 w-full bg-gradient-to-r from-violet-500 via-indigo-500 to-sky-500",
@@ -80,12 +90,13 @@ export default function KarilDetailSection({
       <CardHeader className="flex flex-col gap-2 pt-4">
         <div className="flex w-full items-start justify-between">
           <div className="flex items-center gap-2">
-            <div className="text-lg font-semibold text-slate-900">{label} — Detail</div>
+            <div className="text-lg font-semibold text-foreground">{label} — Detail</div>
             {isComplete && (
               <Chip
                 size="sm"
+                color="success"
                 variant="flat"
-                className="border border-emerald-200 bg-emerald-50 text-emerald-700"
+                className="border border-success-200 bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300 dark:border-success-400/20"
                 startContent={<Trophy className="h-3.5 w-3.5" />}
               >
                 Selesai 100%
@@ -110,13 +121,13 @@ export default function KarilDetailSection({
         </div>
 
         {!karil ? (
-          <div className="text-sm text-slate-500">Belum ada data {label} untuk customer ini.</div>
+          <div className="text-sm text-foreground-500">Belum ada data {label} untuk customer ini.</div>
         ) : (
           <div className="w-full">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Judul</div>
-            <div className="text-base font-medium text-slate-900" title={karil.judul}>
+            <div className="text-xs uppercase tracking-wide text-foreground-500">Judul</div>
+            <div className="text-base font-medium text-foreground" title={karil.judul}>
               <span className="inline-flex items-start gap-2">
-                <FileText className="mt-0.5 h-4 w-4 text-slate-400" />
+                <FileText className="mt-0.5 h-4 w-4 text-foreground-400" />
                 <span className="line-clamp-3">{karil.judul}</span>
               </span>
             </div>
@@ -124,8 +135,8 @@ export default function KarilDetailSection({
         )}
 
         {karil && isComplete && (
-          <div className="mt-2 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50 p-3">
-            <div className="flex items-center gap-2 text-emerald-700">
+          <div className="mt-2 rounded-xl border border-success-200 bg-success-50/80 p-3 dark:bg-success-500/10 dark:border-success-400/20">
+            <div className="flex items-center gap-2 text-success-700 dark:text-success-300">
               <Sparkles className="h-4 w-4" />
               <span className="text-sm font-medium">
                 Keren! Semua tugas {label} sudah rampung dan tervalidasi.
@@ -137,45 +148,69 @@ export default function KarilDetailSection({
 
       {karil && (
         <CardBody className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="mb-3 text-sm font-semibold text-slate-700">Progress Tugas</div>
+          {/* Kolom kiri: progress tugas */}
+          <div className="rounded-2xl border border-default-200 bg-content1 p-4">
+            <div className="mb-3 text-sm font-semibold text-foreground">Progress Tugas</div>
+
             <div className="grid grid-cols-2 gap-2">
-              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <span className="text-sm text-slate-600">Tugas 1</span><TaskPill on={karil.tugas1} />
+              <div className="flex items-center justify-between rounded-lg border border-default-200 bg-content2 px-3 py-2">
+                <span className="text-sm text-foreground-600">Tugas 1</span>
+                <TaskPill on={karil.tugas1} />
               </div>
-              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <span className="text-sm text-slate-600">Tugas 2</span><TaskPill on={karil.tugas2} />
+              <div className="flex items-center justify-between rounded-lg border border-default-200 bg-content2 px-3 py-2">
+                <span className="text-sm text-foreground-600">Tugas 2</span>
+                <TaskPill on={karil.tugas2} />
               </div>
-              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <span className="text-sm text-slate-600">Tugas 3</span><TaskPill on={karil.tugas3} />
+              <div className="flex items-center justify-between rounded-lg border border-default-200 bg-content2 px-3 py-2">
+                <span className="text-sm text-foreground-600">Tugas 3</span>
+                <TaskPill on={karil.tugas3} />
               </div>
-              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <span className="text-sm text-slate-600">Tugas 4</span><TaskPill on={karil.tugas4} />
+              <div className="flex items-center justify-between rounded-lg border border-default-200 bg-content2 px-3 py-2">
+                <span className="text-sm text-foreground-600">Tugas 4</span>
+                <TaskPill on={karil.tugas4} />
               </div>
             </div>
-            <div className="mt-2 text-xs text-slate-500">
-              Selesai: <span className="font-medium text-slate-700">{karil.doneTasks}</span> /{" "}
-              <span className="font-medium text-slate-700">{karil.totalTasks}</span> tugas
+
+            <div className="mt-2 text-xs text-foreground-500">
+              Selesai:{" "}
+              <span className="font-medium text-foreground">{karil.doneTasks}</span> /{" "}
+              <span className="font-medium text-foreground">{karil.totalTasks}</span> tugas
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="mb-2 text-sm font-semibold text-slate-700">Keterangan</div>
-            <div className="min-h-[64px] rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 whitespace-pre-wrap">
+          {/* Kolom kanan: keterangan + meta + progress bar */}
+          <div className="rounded-2xl border border-default-200 bg-content1 p-4">
+            <div className="mb-2 text-sm font-semibold text-foreground">Keterangan</div>
+
+            <div className="min-h-[64px] rounded-xl border border-default-200 bg-content2 p-3 text-sm text-foreground whitespace-pre-wrap">
               {karil.keterangan ?? "—"}
             </div>
 
-            <Divider className="my-4 bg-slate-100" />
+            <Divider className="my-4 bg-default-200" />
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-slate-500">
-              <div>Diubah: <span className="font-medium text-slate-700">{time(karil.updatedAt)}</span></div>
-              <div>Dibuat: <span className="font-medium text-slate-700">{time(karil.createdAt)}</span></div>
+            <div className="grid grid-cols-1 gap-3 text-xs text-foreground-500 sm:grid-cols-2">
+              <div>
+                Diubah: <span className="font-medium text-foreground">{time(karil.updatedAt)}</span>
+              </div>
+              <div>
+                Dibuat: <span className="font-medium text-foreground">{time(karil.createdAt)}</span>
+              </div>
             </div>
 
             <div className="mt-4">
-              <div className="mb-2 text-sm text-slate-600">Persentase penyelesaian</div>
-              <Progress aria-label="Progress" value={pct} className={["w-full", isComplete ? "[&>div>div]:bg-emerald-500" : ""].join(" ")} />
-              <div className={["mt-1 text-right text-xs", isComplete ? "text-emerald-600 font-medium" : "text-slate-500"].join(" ")}>
+              <div className="mb-2 text-sm text-foreground-600">Persentase penyelesaian</div>
+              <Progress
+                aria-label="Progress"
+                value={pct}
+                className="w-full"
+                color={isComplete ? "success" : pct > 0 ? "primary" : "default"}
+              />
+              <div
+                className={[
+                  "mt-1 text-right text-xs",
+                  isComplete ? "text-success-600 font-medium dark:text-success-400" : "text-foreground-500",
+                ].join(" ")}
+              >
                 {pct}%
               </div>
 
@@ -185,7 +220,7 @@ export default function KarilDetailSection({
                     <Button
                       size="sm"
                       variant="flat"
-                      className="bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full"
+                      className="rounded-full bg-success-50 text-success-700 border border-success-200 dark:bg-success-500/10 dark:text-success-300 dark:border-success-400/25"
                       onPress={onManage}
                     >
                       Kelola Setelah Selesai

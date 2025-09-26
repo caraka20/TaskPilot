@@ -4,7 +4,7 @@ import { Validation } from "../../middleware/validation"
 import { ResponseHandler } from "../../utils/response-handler"
 import { CustomerValidation } from "./customer.validation"
 import { CustomerService } from "./customer.service"
-import { AddCustomerPaymentBody, CreateCustomerRequest, ERequest, IdParam, PaymentsListQueryRaw, UpdateInvoiceBody, UpdatePaymentRequest } from "./customer.model"
+import { AddCustomerPaymentBody, CreateCustomerRequest, ERequest, IdParam, PaymentsListQueryRaw, UpdateCustomerRequest, UpdateInvoiceBody, UpdatePaymentRequest } from "./customer.model"
 
 export class CustomerController {
   static async create(req: UserRequest, res: Response, next: NextFunction) {
@@ -105,6 +105,31 @@ export class CustomerController {
       return ResponseHandler.success(res, result)
     } catch (err) {
       next(err)
+    }
+  }
+
+  static async publicSelfByNim(req: UserRequest, res: Response, next: NextFunction) {
+    try {
+      const { nim } = CustomerValidation.NIM_PARAM.parse(req.params);
+      const data = await CustomerService.publicSelfViewByNim(nim);
+      return ResponseHandler.success(res, data);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async update(
+    req: ERequest<IdParam, any, UpdateCustomerRequest>,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const { id } = Validation.validate(CustomerValidation.ID_PARAM, req.params);
+      const body = Validation.validate(CustomerValidation.UPDATE, req.body);
+      const data = await CustomerService.update(Number(id), body);
+      return ResponseHandler.success(res, data, "Data customer diperbarui");
+    } catch (err) {
+      next(err);
     }
   }
 }

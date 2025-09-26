@@ -1,18 +1,23 @@
 import { Card, CardHeader, CardBody } from "@heroui/react";
 import JamControls from "../jam-kerja/JamControls";
 
+type Status = "AKTIF" | "JEDA" | "TIDAK_AKTIF";
+
 type Props = {
-  statusLabel: "AKTIF" | "JEDA" | "TIDAK_AKTIF";
+  statusLabel: Status;
   activeSessionId: number | null;
 
-  // lama (optional)
+  /** (Deprecated) — masih didukung sementara untuk kompatibilitas lama */
   durasiBerjalanDetik?: number;
 
-  // baru (direkomendasikan)
-  detikBerjalan?: number;   // accumulated seconds (tanpa delta segmen aktif)
+  /** Rekomendasi baru: detik akumulasi tanpa delta segmen aktif (server side) */
+  detikBerjalan?: number;
+  /** ISO jam mulai segmen AKTIF (kalau AKTIF), dipakai untuk delta live */
   startedAt?: string | null;
+  /** ISO waktu server saat render, opsional (lebih akurat kalau ada) */
   serverNow?: string | null;
 
+  /** Auto-pause (idle) */
   jedaOtomatisAktif?: boolean;
   batasJedaMenit?: number;
 
@@ -22,36 +27,40 @@ type Props = {
 export default function StatusCard({
   statusLabel,
   activeSessionId,
+  // legacy
   durasiBerjalanDetik,
+  // new
   detikBerjalan,
-  startedAt,
-  serverNow,
-  jedaOtomatisAktif,
-  batasJedaMenit,
+  startedAt = null,
+  serverNow = null,
+  // auto-pause
+  jedaOtomatisAktif = false,
+  batasJedaMenit = 5,
   onChanged,
 }: Props) {
   const normalizedDetik =
-    typeof detikBerjalan === "number" ? detikBerjalan : (durasiBerjalanDetik ?? 0);
+    typeof detikBerjalan === "number"
+      ? detikBerjalan
+      : Math.max(0, Number(durasiBerjalanDetik || 0));
+
+  const startedIso = startedAt || undefined;
+  const serverNowIso = serverNow || undefined;
 
   return (
-    <Card>
+    <Card className="border border-default-200/70 bg-background/90 backdrop-blur-sm">
       <CardHeader className="text-sm text-foreground-500">Status Kerja</CardHeader>
       <CardBody className="gap-3">
-        <JamControls
-          status={statusLabel}
-          activeSessionId={activeSessionId}
-          detikBerjalan={normalizedDetik}
-          startedAt={startedAt ?? null}
-          serverNow={serverNow ?? null}
-          onChanged={onChanged}
-        />
-        <p className="text-xs text-foreground-500">
-          {typeof jedaOtomatisAktif === "boolean"
-            ? (jedaOtomatisAktif
-                ? `Jeda otomatis aktif • Batas ${batasJedaMenit ?? 0} menit`
-                : "Jeda otomatis nonaktif")
-            : ""}
-        </p>
+      <JamControls
+        mode="user"
+        status={statusLabel}
+        activeSessionId={activeSessionId ?? undefined}
+        detikBerjalan={normalizedDetik}
+        startedAt={startedIso}
+        serverNow={serverNowIso}
+        onChanged={onChanged}
+        autoPauseEnabled={Boolean(jedaOtomatisAktif)}
+        autoPauseMinutes={Number.isFinite(batasJedaMenit) ? Math.max(1, batasJedaMenit) : 5}
+      />
       </CardBody>
     </Card>
   );

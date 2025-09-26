@@ -51,7 +51,7 @@ route.get('/api/jam-kerja/aktif', authMiddleware, requireRole(Role.OWNER, Role.U
 
 route.get('/api/jam-kerja/summary', authMiddleware, requireRole(Role.OWNER, Role.USER), JamKerjaController.ownerSummary);
 route.get('/api/jam-kerja/user-summary', authMiddleware, requireRole(Role.OWNER, Role.USER), JamKerjaController.userSummary);
-
+route.patch('/api/jam-kerja/:id', authMiddleware, requireRole(Role.OWNER), JamKerjaController.update);
 
 
 // KONFIGURASI
@@ -67,6 +67,7 @@ route.get('/api/dashboard/summary', authMiddleware, requireRole(Role.OWNER), Das
 // CUSTOMER (MVP CRUD)
 route.post('/api/customers', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.create)
 route.get('/api/customers/:id', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.detail)
+route.patch('/api/customers/:id', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.update);
 // Tambah pembayaran customer (OWNER only)
 route.post('/api/customers/:id/payments',authMiddleware, requireRole(Role.OWNER), CustomerController.addPayment)
 // Update total tagihan/invoice (OWNER only)
@@ -75,11 +76,14 @@ route.patch('/api/customers/:id/invoice',authMiddleware, requireRole(Role.OWNER)
 route.get('/api/customers/:id/payments',authMiddleware, requireRole(Role.OWNER),CustomerController.listPayments )
 route.delete('/api/customers/:id', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.remove)
 route.get('/api/customers', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.list)
+route.get("/api/public/customers/:nim/tuton", CustomerController.publicSelfByNim);
 
 
-// TUTON (MVP: tambah/hapus matkul + auto seed 19 item)
-route.post('/api/customers/:id/tuton-courses', authMiddleware, requireRole(Role.OWNER, Role.USER), TutonController.addCourse)
-route.delete('/api/tuton-courses/:courseId', authMiddleware, requireRole(Role.OWNER, Role.USER), TutonController.deleteCourse)
+// TUTON (create / update / delete)
+route.post(  '/api/customers/:id/tuton-courses',  authMiddleware, requireRole(Role.OWNER, Role.USER), TutonController.addCourse);
+route.patch( '/api/tuton-courses/:courseId',      authMiddleware, requireRole(Role.OWNER, Role.USER), TutonController.updateCourse);
+route.delete('/api/tuton-courses/:courseId',      authMiddleware, requireRole(Role.OWNER, Role.USER), TutonController.deleteCourse);
+
 
 // OWNER mengelola KARIL
 route.put("/api/customers/:id/karil", authMiddleware, requireRole(Role.OWNER, Role.USER), KarilController.upsert)

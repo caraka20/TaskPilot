@@ -414,7 +414,6 @@ export function useMatrixState(courses: MinimalCourse[], onSaved?: () => void) {
         ta.value = text;
         document.body.appendChild(ta);
         ta.select();
-        // @ts-ignore old API
         document.execCommand?.("copy");
         document.body.removeChild(ta);
       }
@@ -422,7 +421,8 @@ export function useMatrixState(courses: MinimalCourse[], onSaved?: () => void) {
       window.setTimeout(() => {
         setCopiedId((curr) => (curr === rowId ? null : curr));
       }, 1500);
-    } catch {}
+    } catch (e){console.log(e);
+    }
   };
 
   return {

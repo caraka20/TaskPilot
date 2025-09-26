@@ -4,7 +4,13 @@ import {
   RekapJamKerjaQuery,
   StartJamKerjaRequest,
 } from "./jam-kerja.model";
+import type { UpdateJamKerjaRequest } from "./jam-kerja.model";
 
+const DateOrIsoNullable = z.union([
+  z.date(),
+  z.string().refine((s) => !Number.isNaN(Date.parse(s)), "Invalid date string"),
+  z.null(),
+]);
 export class JamKerjaValidation {
   static readonly START: ZodType<StartJamKerjaRequest> = z.object({
     username: z.string().min(3).max(100),
@@ -37,4 +43,17 @@ export class JamKerjaValidation {
   static readonly USER_SUMMARY_QUERY = z.object({
     username: z.string().min(3),
   });
+
+  static readonly UPDATE: ZodType<UpdateJamKerjaRequest> = z.object({
+    jamMulai: z.union([
+      z.date(),
+      z.string().refine((s) => !Number.isNaN(Date.parse(s)), "Invalid date string"),
+    ]).optional(),
+    jamSelesai: DateOrIsoNullable.optional(),
+    status: z.enum(["AKTIF", "JEDA", "SELESAI"]).optional(),
+    recalcGaji: z.boolean().optional(),
+  }).refine(
+    (v) => v.jamMulai !== undefined || v.jamSelesai !== undefined || v.status !== undefined,
+    { message: "Minimal satu field (jamMulai/jamSelesai/status) harus diisi" }
+  );
 }

@@ -1,3 +1,4 @@
+// src/app/jam-kerja/jam-kerja.service.ts
 import { AppError } from "../../middleware/app-error";
 import { ERROR_CODE } from "../../utils/error-codes";
 import { UserRepository } from "../user/user.repository";
@@ -9,6 +10,7 @@ import {
   toRekapJamKerjaResponse,
   OwnerUserSummary,
   OwnerSummaryResponse,
+  UpdateJamKerjaRequest,
 } from "./jam-kerja.model";
 import { JamKerjaRepository } from "./jam-kerja.repository";
 import { io } from "../../server";
@@ -42,15 +44,12 @@ async function getRateFor(username: string): Promise<number> {
 export class JamKerjaService {
   /* START */
   static async startJamKerja(payload: StartJamKerjaRequest) {
-    // pastikan user ada → kalau tidak, jangan biarkan Prisma error 500
     const target = await UserRepository.findByUsername(payload.username);
     if (!target) throw AppError.fromCode(ERROR_CODE.USER_NOT_FOUND);
 
-    // jika sudah ada sesi terbuka, kembalikan saja (tidak error) supaya FE langsung sync
     const open = await JamKerjaRepository.findOpenByUsername(payload.username);
     if (open.length > 0) return open[0];
 
-    // buat segmen baru
     const now = new Date();
     const jamKerja = await JamKerjaRepository.createStart(payload.username, now);
 
@@ -64,7 +63,7 @@ export class JamKerjaService {
     return jamKerja;
   }
 
-  /* END (SELESAI) */
+  /* END (SELESAI) — single row */
   static async endJamKerja(current: { username: string; role: Role }, id: number) {
     const row = await JamKerjaRepository.findById(id);
     if (!row) throw AppError.fromCode(ERROR_CODE.NOT_FOUND);
@@ -72,27 +71,48 @@ export class JamKerjaService {
     if (current.role !== Role.OWNER && row.username !== current.username) {
       throw AppError.fromCode(ERROR_CODE.FORBIDDEN);
     }
-    if (row.status !== "AKTIF" || row.jamSelesai) {
+    if (row.jamSelesai) {
+      throw AppError.fromCode(ERROR_CODE.BAD_REQUEST, "Sesi sudah ditutup");
+    }
+    if (row.status !== StatusKerja.AKTIF && row.status !== StatusKerja.JEDA) {
       throw AppError.fromCode(ERROR_CODE.BAD_REQUEST, "Sesi tidak aktif");
     }
 
     const now = new Date();
-    const durasiJam = (now.getTime() - new Date(row.jamMulai).getTime()) / 3600000;
-    const totalJam = Math.max(0, round2(durasiJam));
-    const gajiPerJam = await getRateFor(row.username);
 
-    await JamKerjaRepository.endJamKerja(id, now, totalJam);
-    await UserRepository.tambahJamKerjaDanGaji(row.username, totalJam, gajiPerJam);
+    // Final total: akumulasi delta terakhir jika berakhir dari AKTIF
+    let finalTotal = Number(row.totalJam || 0);
+    if (row.status === StatusKerja.AKTIF) {
+      const deltaJam = Math.max(
+        0,
+        round2((now.getTime() - new Date(row.jamMulai).getTime()) / 3600000)
+      );
+      finalTotal = round2(finalTotal + deltaJam);
+    }
+
+    // Karena tadi sudah dijamin statusnya bukan SELESAI, kontribusi lama = 0
+    const deltaJam = finalTotal; // kontribusi baru penuh
+    if (deltaJam > 0) {
+      const gajiPerJam = await getRateFor(row.username);
+      await UserRepository.tambahJamKerjaDanGaji(row.username, deltaJam, gajiPerJam);
+    }
+
+    const updated = await JamKerjaRepository.updatePartial(id, {
+      jamSelesai: now,
+      totalJam: finalTotal,
+      status: StatusKerja.SELESAI,
+      isOpen: false,
+    });
 
     io?.emit?.("jamKerja:ended", {
-      id: row.id,
-      username: row.username,
-      jamSelesai: now,
-      totalJam,
+      id: updated.id,
+      username: updated.username,
+      jamSelesai: updated.jamSelesai,
+      totalJam: updated.totalJam,
       status: "SELESAI",
     });
 
-    return { totalJam, jamSelesai: now };
+    return { id: updated.id, totalJam: updated.totalJam, jamSelesai: updated.jamSelesai, status: "SELESAI" as const };
   }
 
   /* HISTORY */
@@ -153,26 +173,35 @@ export class JamKerjaService {
     }));
   }
 
-  /* PAUSE/RESUME */
+  /* PAUSE/RESUME — SINGLE ROW */
   static async pause(current: { username: string; role: Role }, id: number) {
     const row = await JamKerjaRepository.findById(id);
     if (!row) throw AppError.fromCode(ERROR_CODE.NOT_FOUND);
     if (current.role !== Role.OWNER && row.username !== current.username) {
       throw AppError.fromCode(ERROR_CODE.FORBIDDEN);
     }
-    if (row.status !== "AKTIF" || row.jamSelesai)
+    if (row.status !== StatusKerja.AKTIF || row.jamSelesai) {
       throw AppError.fromCode(ERROR_CODE.BAD_REQUEST, "Sesi tidak bisa dijeda");
+    }
 
     const now = new Date();
-    const durasiJam = (now.getTime() - new Date(row.jamMulai).getTime()) / 3600000;
+    const deltaJam = round2((now.getTime() - new Date(row.jamMulai).getTime()) / 3600000);
+    const newTotal = round2((row.totalJam ?? 0) + Math.max(0, deltaJam));
 
-    const updated = await JamKerjaRepository.closeAs(
-      id, now, Math.max(0, Math.round(durasiJam * 100) / 100), StatusKerja.JEDA
-    );
+    const updated = await JamKerjaRepository.updatePartial(id, {
+      totalJam: newTotal,
+      status: StatusKerja.JEDA,
+      isOpen: true,
+      // jamSelesai tetap null, jamMulai tetap; baseline akan direset saat resume
+    });
 
     io?.emit?.("jamKerja:paused", {
-      id: updated.id, username: updated.username, status: updated.status,
-      jamMulai: updated.jamMulai, jamSelesai: updated.jamSelesai, totalJam: updated.totalJam,
+      id: updated.id,
+      username: updated.username,
+      status: updated.status,
+      jamMulai: updated.jamMulai,
+      jamSelesai: updated.jamSelesai,
+      totalJam: updated.totalJam,
     });
 
     return updated;
@@ -184,37 +213,26 @@ export class JamKerjaService {
     if (current.role !== Role.OWNER && row.username !== current.username) {
       throw AppError.fromCode(ERROR_CODE.FORBIDDEN);
     }
-    if (row.status !== "JEDA") {
+    if (row.status !== StatusKerja.JEDA || row.jamSelesai) {
       throw AppError.fromCode(ERROR_CODE.BAD_REQUEST, "Sesi tidak bisa diresume");
     }
 
-    // legacy flip jika belum ditutup
-    if (!row.jamSelesai) {
-      const updated = await JamKerjaRepository.updateStatus(id, StatusKerja.AKTIF);
-      io?.emit?.("jamKerja:resumed", {
-        id: updated.id, username: updated.username, status: updated.status, jamMulai: updated.jamMulai,
-      });
-      return updated;
-    }
-
-    // segmen baru jika jeda sudah ditutup
-    const open = await JamKerjaRepository.findOpenByUsername(row.username);
-    if (open.length > 0) {
-      throw AppError.fromCode(ERROR_CODE.BAD_REQUEST, "Masih ada sesi aktif");
-    }
-
     const now = new Date();
-    const created = await JamKerjaRepository.createStart(row.username, now);
-
-    io?.emit?.("jamKerja:resumed", {
-      id: created.id, username: created.username, status: created.status, jamMulai: created.jamMulai,
+    const updated = await JamKerjaRepository.updatePartial(id, {
+      status: StatusKerja.AKTIF,
+      jamMulai: now, // baseline baru
+      isOpen: true,
     });
 
-    return created;
+    io?.emit?.("jamKerja:resumed", {
+      id: updated.id, username: updated.username, status: updated.status, jamMulai: updated.jamMulai,
+    });
+
+    return updated;
   }
 
   /* SUMMARY (tetap) */
-  static async buildUserSummary(username: string) { /* ... (tidak diubah) ... */ 
+  static async buildUserSummary(username: string) {
     const gajiPerJam = await getRateFor(username);
     const latestList = await JamKerjaRepository.findByUsername(username);
     const latest = latestList[0];
@@ -266,6 +284,99 @@ export class JamKerjaService {
       counts: { users: summaries.length, aktif: aktifSet.size, jeda: jedaSet.size },
       users: summaries,
     };
+  }
+
+  /* ===== OWNER UPDATE (PATCH) ===== */
+
+  static asDate(x: string | Date | null | undefined): Date | null | undefined {
+    if (x === null || x === undefined) return x as any;
+    return typeof x === "string" ? new Date(x) : x;
+  }
+
+  static computeIsOpen(status: StatusKerja, jamSelesai: Date | null): boolean {
+    if (status === StatusKerja.SELESAI) return false;
+    if (status === StatusKerja.AKTIF) return jamSelesai == null;
+    if (status === StatusKerja.JEDA)  return jamSelesai == null;
+    return false;
+  }
+
+  static async update(
+    current: { username: string; role: Role },
+    id: number,
+    payload: UpdateJamKerjaRequest
+  ) {
+    const row = await JamKerjaRepository.findById(id);
+    if (!row) throw AppError.fromCode(ERROR_CODE.NOT_FOUND);
+
+    if (current.role !== Role.OWNER && row.username !== current.username) {
+      throw AppError.fromCode(ERROR_CODE.FORBIDDEN);
+    }
+
+    const nextJamMulai   = this.asDate(payload.jamMulai)   ?? row.jamMulai;
+    const nextJamSelesai = (payload.jamSelesai === undefined)
+      ? row.jamSelesai
+      : (payload.jamSelesai === null ? null : this.asDate(payload.jamSelesai)!);
+    const nextStatus = (payload.status ?? row.status) as StatusKerja;
+
+    if (nextJamSelesai && nextJamSelesai.getTime() < nextJamMulai.getTime()) {
+      throw AppError.fromCode(ERROR_CODE.BAD_REQUEST, "jamSelesai < jamMulai");
+    }
+    if (nextStatus === StatusKerja.SELESAI && !nextJamSelesai) {
+      throw AppError.fromCode(ERROR_CODE.BAD_REQUEST, "SELESAI memerlukan jamSelesai");
+    }
+    if (nextStatus === StatusKerja.AKTIF && nextJamSelesai) {
+      throw AppError.fromCode(ERROR_CODE.BAD_REQUEST, "AKTIF tidak boleh punya jamSelesai");
+    }
+
+    let newTotalJam = Number(row.totalJam || 0);
+    if (nextStatus === StatusKerja.SELESAI) {
+      newTotalJam = JamKerjaRepository.calcTotalJam(nextJamMulai, nextJamSelesai!);
+    } else if (nextJamSelesai) {
+      newTotalJam = JamKerjaRepository.calcTotalJam(nextJamMulai, nextJamSelesai);
+    } else if (nextStatus === StatusKerja.JEDA) {
+      newTotalJam = Number(row.totalJam || 0);
+    } else {
+      newTotalJam = Number(row.totalJam || 0);
+    }
+
+    const tanggal =
+      nextJamMulai.getTime() !== row.jamMulai.getTime()
+        ? JamKerjaRepository.startOfDayLocal(nextJamMulai)
+        : undefined;
+
+    const nextIsOpen = this.computeIsOpen(nextStatus, nextJamSelesai ?? null);
+
+    const doRecalc = payload.recalcGaji !== false;
+    if (doRecalc) {
+      const oldContrib = row.status === StatusKerja.SELESAI ? Number(row.totalJam || 0) : 0;
+      const newContrib = nextStatus === StatusKerja.SELESAI ? Number(newTotalJam || 0) : 0;
+      const deltaJam = round2(newContrib - oldContrib);
+      if (deltaJam !== 0) {
+        const rate = await getRateFor(row.username);
+        await UserRepository.tambahJamKerjaDanGaji(row.username, deltaJam, rate);
+      }
+    }
+
+    const updated = await JamKerjaRepository.updatePartial(id, {
+      jamMulai: nextJamMulai,
+      jamSelesai: nextJamSelesai ?? null,
+      status: nextStatus,
+      totalJam: newTotalJam,
+      tanggal,
+      isOpen: nextIsOpen,
+    });
+
+    io?.emit?.("jamKerja:updated", {
+      id: updated.id,
+      username: updated.username,
+      status: updated.status,
+      jamMulai: updated.jamMulai,
+      jamSelesai: updated.jamSelesai,
+      totalJam: updated.totalJam,
+      isOpen: updated.isOpen,
+    });
+
+    return updated;
   }
 }
 

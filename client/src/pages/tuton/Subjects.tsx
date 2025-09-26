@@ -6,7 +6,6 @@ import {
   Chip, Button, Input, Select, SelectItem, Pagination, Spinner, Divider,
 } from "@heroui/react";
 import { useSearchParams } from "react-router-dom";
-import BackButton from "../../components/common/BackButton";
 import {
   listSubjects, scanTuton,
   type SubjectEntry, type ScanResponse, type ScanRow,
@@ -155,124 +154,35 @@ export default function TutonSubjects() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl px-3 md:px-6 py-4">
-      <Card className="rounded-2xl border border-default-200 shadow-md overflow-hidden">
+    <div className="mx-auto">
+      {/* ===== TITLE CARD (tanpa BackButton) ===== */}
+      <Card className="rounded-2xl border border-default-200 shadow-md overflow-hidden bg-content1">
         <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-sky-500 to-indigo-600" />
         <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <BackButton variant="flat" />
             <div className="text-lg font-semibold">Tuton Subjects &amp; Scan</div>
           </div>
-          <div className="flex items-center gap-2">
-            <Input
-              aria-label="Cari matkul"
-              size="sm"
-              placeholder="Cari matkul…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") loadSubjects(); }}
-              className="w-[260px]"
-              startContent={<Search className="h-4 w-4 text-foreground-500" />}
-            />
-            <Button size="sm" variant="flat" onPress={loadSubjects} isDisabled={loadingSubjects}>
-              {loadingSubjects ? <Spinner size="sm" /> : "Cari"}
-            </Button>
-          </div>
+          {/* Kita pindahkan pencarian ke card "Daftar Matkul" agar lebih kontekstual */}
         </CardHeader>
 
         <CardBody className="flex flex-col gap-6">
-          {/* ===== SUBJECT LIST ===== */}
-          <Card className="border rounded-xl">
-            <CardHeader className="flex items-center justify-between">
-              <div className="font-medium">Daftar Matkul</div>
-              <div className="flex items-center gap-3">
-                <Select
-                  aria-label="Per halaman (subjects)"
-                  label="Per halaman"
-                  labelPlacement="outside-left"
-                  selectedKeys={new Set([String(subjectPageSize)])}
-                  onSelectionChange={(k) => {
-                    const n = Number(Array.from(k as Set<string>)[0] || SUBJECT_PAGE_SIZE_DEFAULT);
-                    setSubjectPageSize(n);
-                    setSubjectPage(1);
-                  }}
-                  className="w-[160px]"
-                  size="sm"
-                >
-                  {[10, 20, 50, 100].map((n) => (
-                    <SelectItem key={String(n)} textValue={String(n)}>
-                      {n} / halaman
-                    </SelectItem>
-                  ))}
-                </Select>
-              </div>
-            </CardHeader>
-            <CardBody className="pt-0">
-              <Table aria-label="subjects" removeWrapper isStriped>
-                <TableHeader>
-                  <TableColumn>Matkul</TableColumn>
-                  <TableColumn className="w-[120px] text-center">Total</TableColumn>
-                  <TableColumn className="w-[140px] text-center">Conflict</TableColumn>
-                  <TableColumn className="w-[200px] text-right">Aksi</TableColumn>
-                </TableHeader>
-                <TableBody
-                  isLoading={loadingSubjects}
-                  emptyContent="Belum ada matkul."
-                >
-                  {subjectsSlice.map((s) => (
-                    <TableRow key={s.matkul}>
-                      <TableCell className="font-medium">{s.matkul}</TableCell>
-                      <TableCell className="text-center">
-                        <Chip size="sm" variant="flat">{s.totalCourses}</Chip>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Chip size="sm" color={s.isConflict ? "warning" : "default"} variant="flat">
-                          {s.isConflict ? "Ya" : "Tidak"}
-                        </Chip>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="flat"
-                            startContent={<Filter className="h-4 w-4" />}
-                            onPress={() => handleQuickScan(s.matkul)}
-                          >
-                            Scan sesi
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-
-              <div className="mt-3 flex items-center justify-between">
-                <ResultRange total={subjects.length} page={subjectPage} pageSize={subjectPageSize} />
-                {subjectTotalPages > 1 && (
-                  <Pagination
-                    showControls
-                    page={subjectPage}
-                    total={subjectTotalPages}
-                    onChange={setSubjectPage}
-                  />
-                )}
-              </div>
-            </CardBody>
-          </Card>
-
-          <Divider />
-
-          {/* ===== SCAN PANEL ===== */}
-          <Card className="border rounded-xl">
+          {/* ===== SCAN PANEL — dipindah ke ATAS ===== */}
+          <Card className="border rounded-xl bg-content1">
+            <div className="h-0.5 w-full bg-gradient-to-r from-sky-500 to-indigo-500" />
             <CardHeader className="flex items-center justify-between">
               <div className="font-medium">Scan &amp; Filter</div>
               {scan && (
                 <div className="flex flex-wrap items-center gap-2">
-                  {matkul && <Chip size="sm" variant="flat">{matkul}</Chip>}
-                  <Chip size="sm" variant="flat">{jenis}</Chip>
-                  <Chip size="sm" variant="flat">Sesi {sesi}</Chip>
-                  <Chip size="sm" color={status === "BELUM" ? "warning" : "success"} variant="flat">{status}</Chip>
+                  {matkul && <Chip size="sm" variant="flat" className="bg-content2">{matkul}</Chip>}
+                  <Chip size="sm" variant="flat" className="bg-content2">{jenis}</Chip>
+                  <Chip size="sm" variant="flat" className="bg-content2">Sesi {sesi}</Chip>
+                  <Chip
+                    size="sm"
+                    color={status === "BELUM" ? "warning" : "success"}
+                    variant="flat"
+                  >
+                    {status}
+                  </Chip>
                 </div>
               )}
             </CardHeader>
@@ -328,6 +238,7 @@ export default function TutonSubjects() {
                     variant="flat"
                     onPress={() => applyFiltersToQuery({ resetPage: true })}
                     isDisabled={scanLoading}
+                    className="bg-gradient-to-r from-sky-500 to-indigo-500 text-white"
                   >
                     {scanLoading ? <Spinner size="sm" /> : "Scan"}
                   </Button>
@@ -363,7 +274,18 @@ export default function TutonSubjects() {
                 {scan && <ResultRange total={scan.meta.total} page={page} pageSize={pageSize} />}
               </div>
 
-              <Table aria-label="scan result" removeWrapper isStriped>
+              <Table
+                aria-label="scan result"
+                removeWrapper
+                isStriped
+                className="rounded-xl border border-default-200 bg-content1"
+                classNames={{
+                  th: "bg-content2 text-foreground-500 font-semibold",
+                  td: "text-foreground",
+                  tr: "data-[hover=true]:bg-default-50 dark:data-[hover=true]:bg-content2",
+                  tbody: "bg-transparent",
+                }}
+              >
                 <TableHeader>
                   <TableColumn className="w-[80px]">ItemID</TableColumn>
                   <TableColumn>Customer</TableColumn>
@@ -381,7 +303,7 @@ export default function TutonSubjects() {
                     <TableRow key={r.itemId}>
                       <TableCell><code>{r.itemId}</code></TableCell>
                       <TableCell>
-                        <a className="text-indigo-600 hover:underline" href={`/customers/${r.customerId}`}>
+                        <a className="text-primary hover:underline" href={`/customers/${r.customerId}`}>
                           {r.customerName}
                         </a>
                       </TableCell>
@@ -416,9 +338,116 @@ export default function TutonSubjects() {
                         pageSize: String(pageSize),
                       });
                     }}
+                    classNames={{ cursor: "bg-gradient-to-r from-sky-500 to-indigo-500 text-white" }}
                   />
                 </div>
               )}
+            </CardBody>
+          </Card>
+
+          <Divider />
+
+          {/* ===== SUBJECT LIST — kini di bawah ===== */}
+          <Card className="border rounded-xl bg-content1">
+            <div className="h-0.5 w-full bg-gradient-to-r from-emerald-400 via-sky-500 to-indigo-600" />
+            <CardHeader className="flex items-center justify-between">
+              <div className="font-medium">Daftar Matkul</div>
+              <div className="flex items-center gap-2">
+                <Input
+                  aria-label="Cari matkul"
+                  size="sm"
+                  placeholder="Cari matkul…"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") loadSubjects(); }}
+                  className="w-[240px]"
+                  startContent={<Search className="h-4 w-4 text-foreground-500" />}
+                />
+                <Button size="sm" variant="flat" onPress={loadSubjects} isDisabled={loadingSubjects}>
+                  {loadingSubjects ? <Spinner size="sm" /> : "Cari"}
+                </Button>
+
+                <Select
+                  aria-label="Per halaman (subjects)"
+                  selectedKeys={new Set([String(subjectPageSize)])}
+                  onSelectionChange={(k) => {
+                    const n = Number(Array.from(k as Set<string>)[0] || SUBJECT_PAGE_SIZE_DEFAULT);
+                    setSubjectPageSize(n);
+                    setSubjectPage(1);
+                  }}
+                  className="w-[140px]"
+                  size="sm"
+                >
+                  {[10, 20, 50, 100].map((n) => (
+                    <SelectItem key={String(n)} textValue={String(n)}>
+                      {n} / halaman
+                    </SelectItem>
+                  ))}
+                </Select>
+              </div>
+            </CardHeader>
+
+            <CardBody className="pt-0">
+              <Table
+                aria-label="subjects"
+                removeWrapper
+                isStriped
+                className="rounded-xl border border-default-200 bg-content1"
+                classNames={{
+                  th: "bg-content2 text-foreground-500 font-semibold",
+                  td: "text-foreground",
+                  tr: "data-[hover=true]:bg-default-50 dark:data-[hover=true]:bg-content2",
+                  tbody: "bg-transparent",
+                }}
+              >
+                <TableHeader>
+                  <TableColumn>Matkul</TableColumn>
+                  <TableColumn className="w-[120px] text-center">Total</TableColumn>
+                  <TableColumn className="w-[140px] text-center">Conflict</TableColumn>
+                  <TableColumn className="w-[200px] text-right">Aksi</TableColumn>
+                </TableHeader>
+                <TableBody isLoading={loadingSubjects} emptyContent="Belum ada matkul.">
+                  {subjectsSlice.map((s) => (
+                    <TableRow key={s.matkul}>
+                      <TableCell className="font-medium">{s.matkul}</TableCell>
+                      <TableCell className="text-center">
+                        <Chip size="sm" variant="flat" className="bg-content2">{s.totalCourses}</Chip>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Chip size="sm" color={s.isConflict ? "warning" : "default"} variant="flat">
+                          {s.isConflict ? "Ya" : "Tidak"}
+                        </Chip>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            size="sm"
+                            variant="flat"
+                            startContent={<Filter className="h-4 w-4" />}
+                            onPress={() => handleQuickScan(s.matkul)}
+                            className="bg-default-100 dark:bg-content2"
+                          >
+                            Scan sesi
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              <div className="mt-3 flex items-center justify-between">
+                <ResultRange total={subjects.length} page={subjectPage} pageSize={subjectPageSize} />
+                {subjectTotalPages > 1 && (
+                  <Pagination
+                    showControls
+                    page={subjectPage}
+                    total={subjectTotalPages}
+                    onChange={setSubjectPage}
+                    classNames={{ cursor: "bg-gradient-to-r from-emerald-400 via-sky-500 to-indigo-600 text-white" }}
+                  />
+                )}
+              </div>
             </CardBody>
           </Card>
         </CardBody>

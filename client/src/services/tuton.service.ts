@@ -1,4 +1,6 @@
+// client/src/services/tuton.service.ts
 import httpClient from "../lib/httpClient";
+import { pingWorkActivity, ensureWorkActiveBeforeMutate } from "../utils/workActivity";
 
 /** FE enums sinkron dgn BE */
 export type StatusTugas = "BELUM" | "SELESAI";
@@ -13,6 +15,11 @@ export type TutonCourseResponse = {
   totalItems: number;
   completedItems: number;
 };
+
+export type UpdateCoursePayload = Partial<{
+  matkul: string;
+  resetItems: boolean;
+}>;
 
 /** ITEMS */
 export type TutonItemResponse = {
@@ -72,19 +79,36 @@ export type ScanResponse = {
   rows: ScanRow[];
 };
 
-/* -------------------- Courses -------------------- */
+/* -------------------- Courses (mutasi) -------------------- */
 export async function addCourse(customerId: number, payload: AddCoursePayload) {
+  const ok = await ensureWorkActiveBeforeMutate({ feature: "menambah matkul" });
+  if (!ok) throw new Error("Mulai jam kerja dulu.");
   const { data } = await httpClient.post<{ data: TutonCourseResponse }>(
     `/api/customers/${customerId}/tuton-courses`,
     payload
   );
+  pingWorkActivity();
+  return data.data;
+}
+
+export async function updateCourse(courseId: number, payload: UpdateCoursePayload) {
+  const ok = await ensureWorkActiveBeforeMutate({ feature: "mengubah matkul" });
+  if (!ok) throw new Error("Mulai jam kerja dulu.");
+  const { data } = await httpClient.patch<{ data: TutonCourseResponse }>(
+    `/api/tuton-courses/${courseId}`,
+    payload
+  );
+  pingWorkActivity();
   return data.data;
 }
 
 export async function deleteCourse(courseId: number) {
+  const ok = await ensureWorkActiveBeforeMutate({ feature: "menghapus matkul" });
+  if (!ok) throw new Error("Mulai jam kerja dulu.");
   const { data } = await httpClient.delete<{ data: { deleted: true } }>(
     `/api/tuton-courses/${courseId}`
   );
+  pingWorkActivity();
   return data.data;
 }
 
@@ -97,38 +121,51 @@ export async function listItems(courseId: number) {
 }
 
 export async function updateItem(itemId: number, payload: UpdateTutonItemPayload) {
+  const ok = await ensureWorkActiveBeforeMutate({ feature: "mengubah item Tuton" });
+  if (!ok) throw new Error("Mulai jam kerja dulu.");
   const { data } = await httpClient.patch<{ data: TutonItemResponse }>(
     `/api/tuton-items/${itemId}`,
     payload
   );
+  pingWorkActivity();
   return data.data;
 }
 
 export async function updateItemStatus(itemId: number, status: StatusTugas) {
+  const ok = await ensureWorkActiveBeforeMutate({ feature: "mengubah status item" });
+  if (!ok) throw new Error("Mulai jam kerja dulu.");
   const { data } = await httpClient.patch<{ data: TutonItemResponse }>(
     `/api/tuton-items/${itemId}/status`,
     { status }
   );
+  pingWorkActivity();
   return data.data;
 }
 
 export async function updateItemNilai(itemId: number, nilai: number | null) {
+  const ok = await ensureWorkActiveBeforeMutate({ feature: "mengubah nilai" });
+  if (!ok) throw new Error("Mulai jam kerja dulu.");
   const { data } = await httpClient.patch<{ data: TutonItemResponse }>(
     `/api/tuton-items/${itemId}/nilai`,
     { nilai }
   );
+  pingWorkActivity();
   return data.data;
 }
 
 export async function initItems(courseId: number, overwrite = false) {
+  const ok = await ensureWorkActiveBeforeMutate({ feature: "inisialisasi item" });
+  if (!ok) throw new Error("Mulai jam kerja dulu.");
   const { data } = await httpClient.post<{
     data: { courseId: number; created: boolean; totalItems: number; completedItems: number };
   }>(`/api/tuton-courses/${courseId}/items/init`, { overwrite });
+  pingWorkActivity();
   return data.data;
 }
 
 export async function bulkUpdateStatus(courseId: number, payload: BulkStatusRequest) {
-  // JAGA: kirim hanya item yang valid
+  const ok = await ensureWorkActiveBeforeMutate({ feature: "bulk update status" });
+  if (!ok) throw new Error("Mulai jam kerja dulu.");
   const safe = {
     items: (payload.items || []).filter(
       (it) => typeof it.itemId === "number" && (it.status === "BELUM" || it.status === "SELESAI")
@@ -138,14 +175,18 @@ export async function bulkUpdateStatus(courseId: number, payload: BulkStatusRequ
     `/api/tuton-courses/${courseId}/items/bulk-status`,
     safe
   );
-  return data.data; // { updated }
+  pingWorkActivity();
+  return data.data;
 }
 
 export async function bulkUpdateNilai(courseId: number, payload: BulkNilaiRequest) {
+  const ok = await ensureWorkActiveBeforeMutate({ feature: "bulk update nilai" });
+  if (!ok) throw new Error("Mulai jam kerja dulu.");
   const { data } = await httpClient.post<{ data: { updated: number } }>(
     `/api/tuton-courses/${courseId}/items/bulk-nilai`,
     payload
   );
+  pingWorkActivity();
   return data.data;
 }
 
@@ -230,10 +271,6 @@ export async function scanTuton(filters: ScanFilters) {
 }
 
 /* -------------------- Helpers untuk skor per jenis -------------------- */
-
-/**
- * Ambil semua item pada suatu course untuk jenis tertentu.
- */
 export async function listItemsByJenis(
   courseId: number,
   jenis: Exclude<JenisTugas, "ABSEN"> | JenisTugas
@@ -243,9 +280,6 @@ export async function listItemsByJenis(
   return all.filter((it) => (it.jenis || "").toString().toUpperCase() === j);
 }
 
-/**
- * Ambil semua item SELESAI pada jenis tertentu.
- */
 export async function listCompletedItemsByJenis(
   courseId: number,
   jenis: Exclude<JenisTugas, "ABSEN"> | JenisTugas
@@ -254,19 +288,16 @@ export async function listCompletedItemsByJenis(
   return items.filter((it) => (it.status || "").toString().toUpperCase() === "SELESAI");
 }
 
-/**
- * Set skor (0–100) untuk SEMUA item SELESAI pada jenis tertentu (DISKUSI/TUGAS).
- * - score = null untuk menghapus skor.
- * - Menggunakan bulkUpdateNilai untuk efisiensi.
- */
 export async function setScoreForJenis(
   courseId: number,
-  jenis: Exclude<JenisTugas, "ABSEN">, // skor hanya untuk Diskusi/Tugas
+  jenis: Exclude<JenisTugas, "ABSEN">,
   score: number | null
 ) {
   const targets = await listCompletedItemsByJenis(courseId, jenis);
   if (!targets.length) return { updated: 0 };
-  return await bulkUpdateNilai(courseId, {
+  const res = await bulkUpdateNilai(courseId, {
     items: targets.map((it) => ({ itemId: it.id, nilai: score })),
   });
+  pingWorkActivity();
+  return res;
 }

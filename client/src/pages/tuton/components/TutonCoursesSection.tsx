@@ -1,12 +1,13 @@
+// client/src/pages/customers/components/TutonCoursesSection.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
-  Card, CardHeader, CardBody, Input, Button, Tooltip, Chip, Progress
+  Card, CardHeader, CardBody, Input, Button, Tooltip, Chip, Progress,
 } from "@heroui/react";
 import { BookOpen, Plus, Trash2, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   addCourse, deleteCourse, getCourseSummary,
-  type TutonCourseResponse, type CourseSummaryResponse
+  type TutonCourseResponse, type CourseSummaryResponse,
 } from "../../../services/tuton.service";
 import { showApiError, showLoading, closeAlert, showSuccess } from "../../../utils/alert";
 import Swal from "sweetalert2";
@@ -45,7 +46,7 @@ export default function TutonCoursesSection({ customerId, courses = [], onChange
       .filter((c) => !!c.id) as Array<{ id: number; matkul: string; totalItems: number; completedItems: number }>;
   }, [courses]);
 
-  // fetch summary-by-course untuk progress akurat (optional, aman tanpa error)
+  // fetch ringkas per matkul (opsional)
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -56,7 +57,7 @@ export default function TutonCoursesSection({ customerId, courses = [], onChange
           if (!alive) return;
           next[c.id] = sum;
         } catch {
-          // abaikan
+          /* ignore */
         }
       }
       if (alive) setSummaries(next);
@@ -111,13 +112,20 @@ export default function TutonCoursesSection({ customerId, courses = [], onChange
   };
 
   return (
-    <Card className="mt-5 rounded-2xl border border-slate-200 shadow-md overflow-hidden">
+    <Card className="mt-5 rounded-2xl border border-default-200 bg-content1 shadow-md overflow-hidden">
       <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-indigo-500 to-fuchsia-500" />
+
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <BookOpen className="h-4 w-4 text-slate-500" />
-          <div className="text-[16px] font-semibold tracking-tight text-slate-900">TUTON — Courses</div>
-          <Chip size="sm" variant="flat" className="ml-1 bg-slate-50 border border-slate-200">
+          <BookOpen className="h-4 w-4 text-foreground-500" />
+          <div className="text-[16px] font-semibold tracking-tight text-foreground">
+            TUTON — Courses
+          </div>
+          <Chip
+            size="sm"
+            variant="flat"
+            className="ml-1 bg-content2 text-foreground ring-1 ring-default-200"
+          >
             {normalized.length} matkul
           </Chip>
         </div>
@@ -147,7 +155,7 @@ export default function TutonCoursesSection({ customerId, courses = [], onChange
 
       <CardBody className="pb-6">
         {normalized.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-600">
+          <div className="rounded-xl border border-dashed border-default-200 bg-content2 p-6 text-sm text-foreground-500">
             Belum ada matkul. Tambahkan di atas.
           </div>
         ) : (
@@ -161,15 +169,15 @@ export default function TutonCoursesSection({ customerId, courses = [], onChange
                 <div
                   key={c.id}
                   className={[
-                    "group rounded-2xl border bg-white p-4 transition-all",
-                    "border-slate-200 hover:shadow-lg hover:border-slate-300",
-                    isDone ? "ring-1 ring-emerald-200" : "",
+                    "group rounded-2xl border p-4 transition-all",
+                    "border-default-200 bg-content1 hover:bg-content2 hover:shadow-lg",
+                    isDone ? "ring-1 ring-emerald-400/40 dark:ring-emerald-500/30" : "",
                   ].join(" ")}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-[15px] font-medium text-slate-900">{c.matkul}</div>
-                      <div className="mt-1 text-xs text-slate-500">
+                      <div className="text-[15px] font-medium text-foreground">{c.matkul}</div>
+                      <div className="mt-1 text-xs text-foreground-500">
                         {(sum?.completedItems ?? c.completedItems)}/{(sum?.totalItems ?? c.totalItems)} selesai
                       </div>
                     </div>
@@ -179,7 +187,7 @@ export default function TutonCoursesSection({ customerId, courses = [], onChange
                         <Chip
                           size="sm"
                           variant="flat"
-                          className="bg-emerald-50 text-emerald-700 border border-emerald-200"
+                          className="bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-400/30"
                           startContent={<Sparkles className="h-3.5 w-3.5" />}
                         >
                           100%
@@ -191,7 +199,7 @@ export default function TutonCoursesSection({ customerId, courses = [], onChange
                           to={`/tuton-courses/${c.id}`}
                           size="sm"
                           variant="flat"
-                          className="bg-slate-50"
+                          className="bg-default-100 text-foreground-700 hover:opacity-90 dark:bg-content2 dark:text-foreground"
                         >
                           Kelola
                         </Button>
@@ -201,7 +209,7 @@ export default function TutonCoursesSection({ customerId, courses = [], onChange
                           size="sm"
                           isIconOnly
                           variant="flat"
-                          className="bg-rose-50 text-rose-600"
+                          className="bg-rose-50 text-rose-600 hover:opacity-90 dark:bg-rose-500/15 dark:text-rose-300 dark:ring-1 dark:ring-rose-400/30"
                           onPress={() => onDeleteCourse(c.id)}
                           isLoading={busyDelete === c.id}
                         >
@@ -213,7 +221,9 @@ export default function TutonCoursesSection({ customerId, courses = [], onChange
 
                   <div className="mt-3 flex items-center gap-3">
                     <Progress aria-label="progress" value={pct} className="w-full" />
-                    <Chip size="sm" variant="flat" className="bg-slate-50">{pct}%</Chip>
+                    <Chip size="sm" variant="flat" className="bg-content2 text-foreground ring-1 ring-default-200">
+                      {pct}%
+                    </Chip>
                   </div>
                 </div>
               );

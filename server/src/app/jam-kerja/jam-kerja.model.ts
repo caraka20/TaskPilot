@@ -113,3 +113,11 @@ export interface OwnerSummaryResponse {
   };
   users: OwnerUserSummary[];
 }
+
+export interface UpdateJamKerjaRequest {
+  jamMulai?: string | Date;
+  jamSelesai?: string | Date | null;
+  status?: "AKTIF" | "JEDA" | "SELESAI";
+  /** default true: hitung ulang totalJam & adjust agregat user secara delta */
+  recalcGaji?: boolean;
+}

@@ -286,9 +286,11 @@ static async findDetailById(id: number) {
   }
 
   /** ⬅️ UPDATE: teruskan jenis ke buildWhereForList */
+// Ubah list(query)
   static async list(query: CustomerListQuery) {
     const where = this.buildWhereForList(query.q, query.jenis);
 
+    // query page (items) + total count untuk pagination
     const [rows, total] = await Promise.all([
       prismaClient.customer.findMany({
         where,
@@ -313,6 +315,165 @@ static async findDetailById(id: number) {
       prismaClient.customer.count({ where }),
     ]);
 
-    return { rows, total };
+    // ⬇️ agregat GLOBAL (sesuai filter)
+    const [sumAgg, countNoMK] = await Promise.all([
+      prismaClient.customer.aggregate({
+        where,
+        _sum: { totalBayar: true, sudahBayar: true, sisaBayar: true },
+      }),
+      prismaClient.customer.count({
+        where: { ...where, tutonCourses: { none: {} } }, // tidak punya matkul
+      }),
+    ]);
+
+    const totalsGlobal = {
+      totalBayar: sumAgg._sum.totalBayar ?? 0,
+      sudahBayar: sumAgg._sum.sudahBayar ?? 0,
+      sisaBayar: sumAgg._sum.sisaBayar ?? 0,
+    };
+
+    return {
+      rows,
+      total,
+      // ➕ NEW
+      totalsGlobal,
+      countNoMKGlobal: countNoMK,
+      totalCustomers: total,
+    };
   }
+
+  static async findByNimBasic(nim: string) {
+    return prismaClient.customer.findUnique({
+      where: { nim },
+      select: {
+        id: true,
+        nim: true,
+        namaCustomer: true,
+        jurusan: true,
+        jenis: true,
+      },
+    });
+  }
+
+  /** List courses milik customer (dipakai public self view) */
+  static async listCoursesByCustomer(customerId: number) {
+    return prismaClient.tutonCourse.findMany({
+      where: { customerId },
+      select: {
+        id: true,
+        matkul: true,
+        totalItems: true,
+        completedItems: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: [{ createdAt: "asc" }],
+    });
+  }
+
+  static async listFilteredItemsForCourses(courseIds: number[]) {
+    if (courseIds.length === 0) return [];
+
+    return prismaClient.tutonItem.findMany({
+      where: {
+        courseId: { in: courseIds },
+        OR: [
+          { jenis: "DISKUSI", sesi: { gte: 1, lte: 8 } },
+          { jenis: "TUGAS",   sesi: { in: [3, 5, 7] } },
+          { jenis: "ABSEN",   sesi: { gte: 1, lte: 8 } },
+        ],
+      },
+      select: {
+        courseId: true,
+        jenis: true,
+        sesi: true,
+        status: true,
+        nilai: true,
+        selesaiAt: true,
+        deskripsi: true,
+        copasSoal: true,
+      },
+      orderBy: [{ jenis: "asc" }, { sesi: "asc" }],
+    });
+  }
+
+  static async updateBasic(id: number, data: {
+    namaCustomer?: string;
+    noWa?: string;
+    nim?: string;
+    password?: string;
+    jurusan?: string;
+    jenis?: Customer["jenis"];
+  }) {
+    const updated = await prismaClient.customer.update({
+      where: { id },
+      data: {
+        ...(data.namaCustomer !== undefined ? { namaCustomer: data.namaCustomer } : {}),
+        ...(data.noWa !== undefined ? { noWa: data.noWa } : {}),
+        ...(data.nim !== undefined ? { nim: data.nim } : {}),
+        ...(data.password !== undefined ? { password: data.password } : {}),
+        ...(data.jurusan !== undefined ? { jurusan: data.jurusan } : {}),
+        ...(data.jenis !== undefined ? { jenis: data.jenis } : {}),
+      },
+    });
+    return updated;
+  }
+
+// ⬇️ Tambahkan method baru ini di dalam class CustomerRepository
+static async createWithInitialPayment(data: {
+  namaCustomer: string
+  noWa: string
+  nim: string
+  password: string
+  jurusan: string
+  jenis: Customer["jenis"]
+  totalBayar?: number
+  sudahBayar?: number
+  initNote?: string
+  initTanggal?: Date
+}) {
+  const total = data.totalBayar ?? 0
+  const initialPaid = Math.trunc(Number(data.sudahBayar ?? 0))
+
+  return prismaClient.$transaction(async (tx) => {
+    // 1) buat customer dengan baseline 0
+    const created = await tx.customer.create({
+      data: {
+        namaCustomer: data.namaCustomer,
+        noWa: data.noWa,
+        nim: data.nim,
+        password: data.password,
+        jurusan: data.jurusan,
+        jenis: data.jenis,
+        totalBayar: total,
+        sudahBayar: 0,
+        sisaBayar: total,
+      },
+    })
+
+    // 2) jika ada pembayaran awal -> insert payment + update denormalisasi
+    if (initialPaid > 0) {
+      await tx.customerPayment.create({
+        data: {
+          customerId: created.id,
+          amount: initialPaid,
+          catatan: data.initNote ?? "Pembayaran awal saat pembuatan customer",
+          tanggalBayar: data.initTanggal ?? new Date(),
+        },
+      })
+
+      const sisaBaru = Math.max(total - initialPaid, 0)
+      await tx.customer.update({
+        where: { id: created.id },
+        data: { sudahBayar: initialPaid, sisaBayar: sisaBaru },
+      })
+    }
+
+    // 3) kembalikan data terbaru
+    const fresh = await tx.customer.findUnique({ where: { id: created.id } })
+    return fresh!
+  })
 }
+
+}
+

@@ -6,7 +6,8 @@ export const SUCCESS_MESSAGES = {
   UPDATED: {
     USER: 'User successfully updated',
     GAJI: 'Gaji successfully updated',
-    JEDA_OTOMATIS : "Jeda-Otomatis successfully updated"
+    JEDA_OTOMATIS : "Jeda-Otomatis successfully updated",
+    JAM_KERJA : "Jam Kerja successfully updated"
   },
   DELETED: {
     USER: 'User successfully deleted',

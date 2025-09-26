@@ -215,5 +215,37 @@ export class TutonRepository {
       select: { id: true, totalItems: true, completedItems: true },
     })
   }
+
+  // Ambil course termasuk customerId untuk validasi unik saat rename
+  static async findCourseWithCustomerId(courseId: number) {
+    return prismaClient.tutonCourse.findUnique({
+      where: { id: courseId },
+      select: { id: true, matkul: true, customerId: true },
+    });
+  }
+
+  // Cek duplikasi (customerId + matkul) selain courseId yg sedang diedit
+  static async existsMatkulForCustomerExcept(
+    customerId: number,
+    matkul: string,
+    exceptCourseId: number,
+  ) {
+    const dup = await prismaClient.tutonCourse.findUnique({
+      where: { customerId_matkul: { customerId, matkul } },
+      select: { id: true },
+    });
+    return !!dup && dup.id !== exceptCourseId;
+  }
+
+  static async updateCourseMatkul(courseId: number, matkul: string) {
+    return prismaClient.tutonCourse.update({
+      where: { id: courseId },
+      data: { matkul },
+    });
+  }
+
+  static async deleteItemsByCourse(courseId: number) {
+    await prismaClient.tutonItem.deleteMany({ where: { courseId } });
+  }
   
 }

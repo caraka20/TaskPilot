@@ -1,3 +1,4 @@
+// client/src/services/customer.service.ts
 import httpClient from "../lib/httpClient";
 import { apiGet, apiPost, apiPatch, apiDelete } from "../lib/http";
 import type {
@@ -14,6 +15,11 @@ import type {
 
 const base = "/api/customers";
 
+/** Payload update: hanya field dasar (tidak menyentuh invoice/payment) */
+export type UpdateCustomerPayload = Partial<
+  Pick<CreateCustomerPayload, "namaCustomer" | "noWa" | "nim" | "password" | "jurusan" | "jenis">
+>;
+
 export function createCustomer(payload: CreateCustomerPayload) {
   return apiPost<CustomerItem, CreateCustomerPayload>(httpClient, base, payload);
 }
@@ -28,14 +34,21 @@ export function getCustomers(params: Partial<ListParams> = {}) {
     sortDir: params.sortDir,
   };
 
-  // Filter jenis — kirim hanya jika dipilih (TUTON | KARIL | TK)
-  if (params.jenis) query.jenis = params.jenis;
+  // Filter jenis — support single atau multi (CSV), sesuai validasi BE (array/CSV)
+  if (params.jenis) {
+    query.jenis = Array.isArray(params.jenis) ? params.jenis.join(",") : params.jenis;
+  }
 
   return apiGet<CustomerListResponse>(httpClient, base, query);
 }
 
 export function getCustomerById(id: string | number) {
   return apiGet<CustomerDetail>(httpClient, `${base}/${id}`);
+}
+
+/** UPDATE data dasar customer (PATCH /api/customers/:id) */
+export function updateCustomer(id: string | number, payload: UpdateCustomerPayload) {
+  return apiPatch<CustomerItem, UpdateCustomerPayload>(httpClient, `${base}/${id}`, payload);
 }
 
 export function deleteCustomer(id: string | number) {
@@ -48,7 +61,11 @@ export function addCustomerPayment(id: string | number, payload: AddPaymentPaylo
 }
 
 export function listCustomerPayments(id: string | number, params: PaymentsListParams) {
-  return apiGet<PaymentsListResponse>(httpClient, `${base}/${id}/payments`, params as Record<string, unknown>);
+  return apiGet<PaymentsListResponse>(
+    httpClient,
+    `${base}/${id}/payments`,
+    params as Record<string, unknown>
+  );
 }
 
 export function updateInvoiceTotal(id: string | number, payload: { totalBayar: number }) {

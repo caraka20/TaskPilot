@@ -1,4 +1,4 @@
-import { Customer, JenisUT, TutonCourse, KarilDetail } from "../../generated/prisma"
+import { Customer, JenisUT, TutonCourse, KarilDetail, StatusTugas } from "../../generated/prisma"
 /** Request body untuk create customer */
 export interface CreateCustomerRequest {
   namaCustomer: string
@@ -237,3 +237,75 @@ export type CustomerListQueryRaw = {
   sortBy?: 'namaCustomer' | 'nim' | 'createdAt'
   sortDir?: 'asc' | 'desc'
 }
+
+// === PUBLIC SELF VIEW (by NIM) ===
+export type PublicItemView = {
+  jenis: "DISKUSI" | "TUGAS" | "ABSEN";
+  sesi: number;
+  status: StatusTugas | string;
+  nilai?: number | null;
+  selesaiAt?: Date | null;
+  deskripsi?: string | null;
+  copasSoal: boolean;
+};
+
+export type PublicCourseView = {
+  courseId: number;
+  matkul: string;
+  items: {
+    DISKUSI: PublicItemView[]; // sesi 1–8
+    TUGAS: PublicItemView[];   // sesi 3,5,7
+    ABSEN: PublicItemView[];   // sesi 1–7
+  };
+  // ringkasannya sekalian biar enak dilihat
+  totalItems: number;
+  completedItems: number;
+  progress: number; // 0..1
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type PublicCustomerSelfViewResponse = {
+  nim: string;
+  namaCustomer: string;
+  jurusan: string;
+  jenis: JenisUT;
+  totalCourses: number;
+  totalItems: number;
+  totalCompleted: number;
+  overallProgress: number; // 0..1
+  courses: PublicCourseView[];
+};
+
+export interface UpdateCustomerRequest {
+  namaCustomer?: string;
+  noWa?: string;
+  nim?: string;          // jika diubah: harus unik
+  password?: string;     // tetap disimpan apa adanya (plain) sesuai kebutuhan UT
+  jurusan?: string;
+  jenis?: JenisUT;
+}
+
+export interface MoneyTotals {
+  totalBayar: number;
+  sudahBayar: number;
+  sisaBayar: number;
+}
+
+export interface CustomerListExtras {
+  /** Agregat GLOBAL (mengikuti filter q/jenis, semua halaman) */
+  totalsGlobal: MoneyTotals;
+  /** Jumlah customer yang TIDAK memiliki matkul (global, mengikuti filter lain) */
+  countNoMKGlobal: number;
+  /** Agregat untuk ITEM DI HALAMAN SAAT INI (sesuai pagination) */
+  totalsPage: MoneyTotals;
+  /** Jumlah yang tidak punya matkul pada halaman saat ini */
+  countNoMKPage: number;
+  /** Total customer setelah filter (untuk badge head, beda dengan pagination.total kalau nanti diubah) */
+  totalCustomers: number;
+  /** Opsional: rekap per jenis (TUTON/KARIL/TK) */
+  totalsByJenis?: Partial<Record<JenisUT, MoneyTotals>>;
+}
+
+/** Response list + extras */
+export type CustomerListResponse = Paginated<CustomerListItem> & CustomerListExtras;

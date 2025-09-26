@@ -47,3 +47,8 @@ export interface ConflictGroupResponse {
   total: number
   customers: ConflictCustomerEntry[]
 }
+
+export interface UpdateCourseRequest {
+  matkul?: string;           // rename matakuliah
+  resetItems?: boolean;      // jika true: hapus semua item & seed default 19 item lagi
+}

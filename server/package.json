@@ -9,7 +9,6 @@
     "start": "node dist/server.js",
     "test": "cross-env NODE_ENV=test jest --detectOpenHandles",
     "seed": "TS_NODE_TRANSPILE_ONLY=1 ts-node prisma/seed.ts"
-
   },
   "keywords": [],
   "author": "",
@@ -39,6 +38,7 @@
     "@types/node": "^24.0.15",
     "@types/node-cron": "^3.0.11",
     "@types/supertest": "^6.0.3",
+    "cross-env": "^10.0.0",
     "jest": "^30.0.5",
     "prisma": "^6.14.0",
     "supertest": "^7.1.4",
