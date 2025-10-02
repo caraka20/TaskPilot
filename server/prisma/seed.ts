@@ -30,8 +30,8 @@ async function seedConfig() {
 }
 
 async function seedOwner() {
-  const username = "owner-test";
-  const password = await hash("owner123");
+  const username = "raka20";
+  const password = await hash("raka20");
 
   const owner = await prisma.user.upsert({
     where: { username },
@@ -54,41 +54,11 @@ async function seedOwner() {
   console.log("✅ OWNER tersimpan:", owner.username);
 }
 
-async function seedUsers() {
-  const candidates = [
-    { username: "raka20", rawPassword: "raka20", namaLengkap: "caraka" },
-    { username: "user-demo", rawPassword: "userdemo123", namaLengkap: "User Demo" },
-  ];
-
-  for (const u of candidates) {
-    const password = await hash(u.rawPassword);
-    const saved = await prisma.user.upsert({
-      where: { username: u.username },
-      update: {
-        role: Role.USER,
-        password,
-        token: null,
-        namaLengkap: u.namaLengkap,
-      },
-      create: {
-        username: u.username,
-        password,
-        namaLengkap: u.namaLengkap,
-        role: Role.USER,
-        token: null,
-        totalJamKerja: 0.0,
-        totalGaji: 0.0,
-      },
-    });
-    console.log(`✅ USER tersimpan: ${saved.username}`);
-  }
-}
 
 async function main() {
   console.log("🔄 Mulai seeding...");
   await seedConfig();
   await seedOwner();
-  await seedUsers();
   console.log("🎉 Selesai seeding!");
 }
 
