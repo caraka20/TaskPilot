@@ -11,7 +11,7 @@ export default function CustomerTutonSection({ show, summary, customerId, onChan
   if (!show || !summary) return null;
 
   return (
-    <div className="mt-6 flex flex-col gap-4">
+    <div className="flex flex-col gap-4">
       {/* Selalu tampilkan matrix; input tambah matkul ada di header matrix */}
       <TutonMatrixTable
         customerId={customerId}           // ✅ penting untuk add matkul

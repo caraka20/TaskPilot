@@ -1,3 +1,4 @@
+// client/src/pages/customers/components/matrix/MatrixTable.tsx
 import { useEffect, useRef, useState, useMemo, memo } from "react";
 import {
   Table,
@@ -47,7 +48,7 @@ type Props = {
 
 type Column = { key: string; label: React.ReactNode; sesi?: number };
 
-/** Tombol salin dengan Tooltip & badge “Disalin” — dirapikan alignment */
+/** Tombol salin */
 const CopyMatkulButton = memo(function CopyMatkulButton({
   rowId,
   text,
@@ -123,9 +124,8 @@ export default function MatrixTable({
   toggleCopas,
   copyMatkul,
   markDirty,
-  isOwner = false,
 }: Props) {
-  // ====== State untuk modal Edit ======
+  // ====== State modal Edit ======
   const [editOpen, setEditOpen] = useState(false);
   const [editBusy, setEditBusy] = useState(false);
   const [editCourseId, setEditCourseId] = useState<number | null>(null);
@@ -167,7 +167,10 @@ export default function MatrixTable({
         showConfirmButton: false,
       });
       setEditOpen(false);
+
+      // ✅ reload data
       markDirty();
+      window.location.reload();
     } catch (e: any) {
       await Swal.fire({
         icon: "error",
@@ -179,7 +182,6 @@ export default function MatrixTable({
     }
   };
 
-  // ====== Hapus course ======
   const onDeleteCourse = async (courseId: number, matkul: string) => {
     const ok = await Swal.fire({
       icon: "warning",
@@ -200,7 +202,10 @@ export default function MatrixTable({
         timer: 1000,
         showConfirmButton: false,
       });
+
+      // ✅ reload data
       markDirty();
+      window.location.reload();
     } catch (e: any) {
       await Swal.fire({
         icon: "error",
@@ -210,17 +215,14 @@ export default function MatrixTable({
     }
   };
 
-  // Normalisasi untuk pembanding yang konsisten (fallback by name)
+  // ====== Conflict normalize ======
   const norm = (s: string) => (s || "").trim().replace(/\s+/g, " ").toUpperCase();
-
-  // Fallback set nama matkul (jika conflictIds belum tersedia)
   const conflictKeySet = useMemo(() => {
     const arr = Array.from(conflicts ?? new Set<string>());
     return new Set(arr.map(norm));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conflicts, conflicts?.size, ...Array.from(conflicts ?? [])]);
+  }, [conflicts, pairsVersion]);
 
-  // Lebar kolom
+  // ====== Columns ======
   const W_MATKUL = "w-[360px]";
   const W_NARROW = "w-[56px] md:w-[64px]";
   const W_NORMAL = "w-[92px] md:w-[108px]";
@@ -254,7 +256,6 @@ export default function MatrixTable({
     }),
   ];
 
-  // util class untuk baris conflict (strong highlight + dark)
   const conflictClasses = "tuton-conflict-bg tuton-conflict-ring tuton-conflict-cell tuton-conflict-hover";
 
   return (
@@ -300,7 +301,6 @@ export default function MatrixTable({
 
           <TableBody items={normalized} emptyContent="Belum ada course">
             {(c) => {
-              // PRIORITAS: conflictIds → hanya duplikat yang merah
               const isConflictRow =
                 (conflictIds?.has(c.id) ?? false) ||
                 (!conflictIds && conflictKeySet.has(norm(c.matkul)));
@@ -308,9 +308,8 @@ export default function MatrixTable({
               return (
                 <TableRow key={c.id}>
                   {(columnKey) => {
-                    // === Kolom MATKUL — STICKY kiri + blok horizontal scroll di dalam sel ===
                     if (columnKey === "MATKUL") {
-                      const stickyBg = isConflictRow ? "" : "bg-content1"; // hormati dark di conflict
+                      const stickyBg = isConflictRow ? "" : "bg-content1";
 
                       return (
                         <TableCell
@@ -319,20 +318,13 @@ export default function MatrixTable({
                             "sticky left-0 z-20",
                             stickyBg,
                             "shadow-[inset_-1px_0_0_0_rgba(0,0,0,0.06)]",
-                            // ⬇️ KUNCI: cegah horizontal scroll/drag di dalam sel sticky
                             "overflow-x-hidden overscroll-x-none touch-pan-y",
                             W_MATKUL,
                             isConflictRow ? `${conflictClasses} tuton-conflict-accent` : "",
                           ].join(" ")}
                         >
-                          {/* badge kecil di pojok kanan atas */}
-                          {isConflictRow && (
-                            <span className="tuton-conflict-badge select-none">Konflik</span>
-                          )}
 
-                          {/* Satu baris: judul + toolbar aksi */}
                           <div className="flex items-center justify-between gap-3">
-                            {/* Judul (truncate + tooltip) */}
                             <div className="min-w-0 flex-1">
                               <Tooltip content={c.matkul} placement="top-start" offset={6} showArrow>
                                 <div
@@ -344,9 +336,7 @@ export default function MatrixTable({
                               </Tooltip>
                             </div>
 
-                            {/* Toolbar aksi — hanya untuk OWNER */}
                             <div className="flex items-center gap-1.5 shrink-0">
-                              {isOwner && (
                                 <>
                                   <Tooltip content="Edit matkul" placement="top">
                                     <Button
@@ -374,7 +364,6 @@ export default function MatrixTable({
                                     </Button>
                                   </Tooltip>
                                 </>
-                              )}
 
                               <CopyMatkulButton
                                 rowId={c.id}
@@ -389,7 +378,6 @@ export default function MatrixTable({
                       );
                     }
 
-                    // === Kolom sesi S1..Sx ===
                     const sesiMatch = String(columnKey).match(/^S(\d+)$/i);
                     const sesiNum = sesiMatch ? parseInt(sesiMatch[1], 10) : NaN;
                     const arr: Pair[] = pairsByCourse[c.id] ?? [];

@@ -1,3 +1,4 @@
+// client/src/pages/customers/components/CustomerDetailCard.tsx
 import { useMemo, useState } from "react";
 import {
   Card,
@@ -14,14 +15,24 @@ import type { CustomerDetail } from "../../../utils/customer";
 import { fmtRp } from "../../../utils/customer";
 import { useAuthStore } from "../../../store/auth.store";
 import CustomerUpdateModal from "./CustomerUpdateModal";
+import { User, Copy } from "lucide-react";
 
 /* ================= Helpers ================= */
-
-function Row({ label, value }: { label: string; value?: React.ReactNode }) {
+function Row({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value?: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div className="flex items-center justify-between py-1.5 text-sm">
       <span className="text-foreground-500">{label}</span>
-      <span className="font-medium">{value ?? "—"}</span>
+      <span className={`font-semibold ${className || "text-foreground"}`}>
+        {value ?? "—"}
+      </span>
     </div>
   );
 }
@@ -56,113 +67,67 @@ function formatHariTglBln(input: string | number | Date): string {
   return `${hari}, ${dd}/${mm}`;
 }
 
-/** Tile besar untuk NIM / Password */
-function MegaTile(props: {
+/** Chip khusus untuk NIM/Password */
+function DataChip({
+  label,
+  value,
+  color,
+  copyHint,
+  justCopied,
+  onCopied,
+}: {
   label: string;
   value: string;
-  masked?: boolean;
-  onToggleMask?: () => void;
-  copyHint?: string;
-  disabled?: boolean;
-  onCopied?: () => void;
-  justCopied?: boolean;
-  copiedText?: string;
+  color: string;
+  copyHint: string;
+  justCopied: boolean;
+  onCopied: () => void;
 }) {
-  const {
-    label,
-    value,
-    masked,
-    onToggleMask,
-    copyHint = "Salin",
-    disabled,
-    onCopied,
-    justCopied,
-    copiedText = "Disalin!",
-  } = props;
-
-  const display =
-    masked && value ? "•".repeat(Math.max(10, Math.min(18, value.length))) : value || "—";
-
   const copy = async () => {
-    if (disabled || !value) return;
     try {
       await navigator.clipboard.writeText(value);
-      onCopied?.();
+      onCopied();
     } catch (err) {
-      if (import.meta?.env?.MODE !== "production") {
-        // eslint-disable-next-line no-console
-        console.error("[Clipboard] gagal menyalin:", err);
-      }
+      console.error("Gagal salin:", err);
     }
   };
 
   return (
-    <div className="relative rounded-3xl border border-default-200 bg-gradient-to-b from-content1 to-content2/60 p-[1.5px] shadow-lg">
-      <div className="rounded-3xl bg-content1 p-5">
-        <div className="absolute inset-x-0 -top-px h-1 rounded-t-3xl bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500" />
-        <div className="mb-2 text-[11px] uppercase tracking-[0.12em] text-foreground-500">
-          {label}
-        </div>
+    <Chip
+      variant="flat"
+      color={color as any}
+      className="flex items-center gap-1 px-3 py-2 text-xs sm:text-sm font-mono"
+      endContent={
+      <Tooltip content={copyHint}>
+        <Button isIconOnly size="sm" variant="light" onPress={copy}>
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
+      </Tooltip>
 
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-2xl sm:text-3xl font-bold tracking-wide text-foreground">
-            {display}
-          </span>
-
-          {/* show/hide */}
-          {onToggleMask && (
-            <Tooltip content={masked ? "Tampilkan" : "Sembunyikan"}>
-              <Button isIconOnly size="sm" variant="light" onPress={onToggleMask}>
-                {masked ? (
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path d="M3 3l18 18" />
-                    <path d="M10.6 10.6a3 3 0 0 0 4.24 4.24" />
-                    <path d="M9.88 4.62A10.73 10.73 0 0 1 12 5c7 0 11 7 11 7a18.6 18.6 0 0 1-4.24 4.69" />
-                    <path d="M6.24 6.24A18.6 18.6 0 0 0 1 12s4 7 11 7a10.8 10.8 0 0 0 2.12-.22" />
-                  </svg>
-                )}
-              </Button>
-            </Tooltip>
-          )}
-
-          {/* copy */}
-          <div className="relative">
-            {justCopied && (
-              <div className="absolute right-0 -top-2 rounded-full bg-emerald-500 px-2.5 py-1 text-[11px] font-semibold text-white shadow ring-1 ring-emerald-600/50">
-                {copiedText}
-              </div>
-            )}
-            <Tooltip content={copyHint}>
-              <Button isIconOnly size="sm" variant="light" isDisabled={disabled} onPress={copy}>
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <rect x="9" y="9" width="11" height="11" rx="2" />
-                  <rect x="4" y="4" width="11" height="11" rx="2" />
-                </svg>
-              </Button>
-            </Tooltip>
-          </div>
-        </div>
-      </div>
-    </div>
+      }
+    >
+      <span className="font-semibold">{label}:</span> {value || "—"}
+      {justCopied && (
+        <span className="ml-2 text-[10px] text-emerald-500 font-semibold">✔</span>
+      )}
+    </Chip>
   );
 }
 
 /* ================= Component ================= */
-
 type Props = {
   data: CustomerDetail;
   password?: string;
-  showBilling?: boolean; // tetap dipakai, tapi disembunyikan untuk non-OWNER
+  showBilling?: boolean;
   onUpdated?: () => void;
 };
 
-export default function CustomerDetailCard({ data, password, showBilling, onUpdated }: Props) {
-  const [showPass, setShowPass] = useState(false);
+export default function CustomerDetailCard({
+  data,
+  password,
+  showBilling,
+  onUpdated,
+}: Props) {
   const [copied, setCopied] = useState<"nim" | "pass" | "wa" | null>(null);
   const [showUpdate, setShowUpdate] = useState(false);
 
@@ -170,14 +135,21 @@ export default function CustomerDetailCard({ data, password, showBilling, onUpda
   const isOwner = (role || "").toUpperCase() === "OWNER";
 
   const passValue =
-    typeof (data as any).password === "string" ? (data as any).password : password ?? "";
+    typeof (data as any).password === "string"
+      ? (data as any).password
+      : password ?? "";
 
-  const createdAtLabel = useMemo(() => formatHariTglBln(data.createdAt), [data.createdAt]);
+  const createdAtLabel = useMemo(
+    () => formatHariTglBln(data.createdAt),
+    [data.createdAt]
+  );
 
   const total = data.totalBayar ?? 0;
   const sudah = data.sudahBayar ?? 0;
   const sisa = data.sisaBayar ?? Math.max(total - sudah, 0);
   const progress = total > 0 ? Math.min(100, (sudah / total) * 100) : 0;
+
+  const jenisLabel = data.jenis || (data.hasKaril ? "KARIL" : "TUTON");
 
   const copyWa = async () => {
     if (!data.noWa) return;
@@ -186,175 +158,136 @@ export default function CustomerDetailCard({ data, password, showBilling, onUpda
       setCopied("wa");
       setTimeout(() => setCopied(null), 1200);
     } catch (err) {
-      if (import.meta?.env?.MODE !== "production") {
-        // eslint-disable-next-line no-console
-        console.error("[Clipboard] gagal menyalin nomor WA:", err);
-      }
+      console.error("[Clipboard] gagal salin WA:", err);
     }
   };
 
   return (
     <>
-      <Card className="overflow-hidden border border-default-200 bg-content1 shadow-md">
-        {/* top gradient line */}
-        <div className="h-1 w-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500" />
+      <div className="mt-6 mb-2 text-2xl font-bold bg-gradient-to-r from-sky-600 to-indigo-600 dark:from-sky-400 dark:to-indigo-400 bg-clip-text text-transparent">
+        Detail Customer
+      </div>
 
-        <CardHeader className="flex flex-col gap-4 pt-5">
-          {/* Header row */}
-          <div className="flex w-full flex-col gap-4 md:flex-row md:items-start md:justify-between">
-            <div className="flex items-center gap-3">
-              <Avatar
-                name={data.namaCustomer || "?"}
-                className="h-14 w-14 text-lg font-semibold"
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Card Info Akun */}
+        <Card className="overflow-hidden border border-default-200 dark:border-neutral-800 bg-content1 dark:bg-neutral-900 shadow-md">
+          <div className="h-1 w-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500" />
+
+          <CardHeader className="flex flex-col gap-3 pt-4">
+            <div className="flex items-center gap-3 justify-between w-full">
+              <div className="flex items-center gap-3">
+                <Avatar
+                  icon={<User className="h-6 w-6 text-white" />}
+                  className="h-14 w-14 text-lg font-semibold bg-gradient-to-r from-sky-500 to-indigo-500"
+                />
+                <div>
+                  <div className="text-xl font-semibold tracking-tight">
+                    <span className="bg-gradient-to-r from-sky-600 to-indigo-600 dark:from-sky-400 dark:to-indigo-400 bg-clip-text text-transparent">
+                      {data.namaCustomer}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-2">
+                    {data.jurusan && <Chip size="sm">{data.jurusan}</Chip>}
+                    <Chip size="sm" color="secondary">
+                      {jenisLabel}
+                    </Chip>
+                  </div>
+                </div>
+              </div>
+
+              {isOwner && (
+                <Button
+                  color="primary"
+                  variant="shadow"
+                  className="bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow"
+                  onPress={() => setShowUpdate(true)}
+                >
+                  Update Customer
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+
+          <CardBody>
+            {/* NIM & Password Chips */}
+            <div className="flex flex-wrap gap-3 mb-4">
+              <DataChip
+                label="NIM"
+                value={String(data.nim ?? "")}
                 color="primary"
+                copyHint={copied === "nim" ? "Disalin!" : "Salin NIM"}
+                justCopied={copied === "nim"}
+                onCopied={() => {
+                  setCopied("nim");
+                  setTimeout(() => setCopied(null), 1200);
+                }}
               />
-              <div>
-                <div className="text-2xl font-semibold tracking-tight">
-                  <span className="bg-gradient-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent dark:from-sky-400 dark:to-indigo-400">
-                    {data.namaCustomer}
-                  </span>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  <Chip size="sm" variant="flat" color="primary">
-                    TUTON: {data.tutonCourseCount ?? 0}
-                  </Chip>
-                  {data.jurusan && (
-                    <Chip size="sm" variant="flat" className="bg-content2 text-foreground">
-                      {data.jurusan}
-                    </Chip>
-                  )}
-                  <Chip size="sm" variant="flat" color={data.hasKaril ? "success" : "default"}>
-                    KARIL: {data.hasKaril ? "Ya" : "Tidak"}
-                  </Chip>
-                  {data.jenis && (
-                    <Chip size="sm" variant="flat" className="bg-content2 text-foreground">
-                      {data.jenis}
-                    </Chip>
-                  )}
-                </div>
-              </div>
+              <DataChip
+                label="Password"
+                value={passValue}
+                color="secondary"
+                copyHint={copied === "pass" ? "Disalin!" : "Salin Password"}
+                justCopied={copied === "pass"}
+                onCopied={() => {
+                  setCopied("pass");
+                  setTimeout(() => setCopied(null), 1200);
+                }}
+              />
             </div>
 
-            {/* Action (OWNER only) */}
-            {isOwner && (
-              <div className="flex items-center gap-2">
-                <Tooltip content="Update data customer">
-                  <Button
-                    color="primary"
-                    variant="shadow"
-                    className="bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-lg"
-                    onPress={() => setShowUpdate(true)}
-                  >
-                    Update Customer
-                  </Button>
-                </Tooltip>
-              </div>
-            )}
-          </div>
+            <Divider className="my-3" />
 
-          {/* NIM & Password — selalu tampil, big highlight */}
-          <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
-            <MegaTile
-              label="NIM"
-              value={String(data.nim ?? "")}
-              copyHint={copied === "nim" ? "Disalin!" : "Salin NIM"}
-              onCopied={() => {
-                setCopied("nim");
-                setTimeout(() => setCopied(null), 1200);
-              }}
-              justCopied={copied === "nim"}
-              copiedText="NIM disalin!"
-            />
-            <MegaTile
-              label="PASSWORD (E-LEARNING)"
-              value={passValue}
-              masked={!showPass}
-              onToggleMask={() => setShowPass((s) => !s)}
-              copyHint={copied === "pass" ? "Disalin!" : "Salin Password"}
-              disabled={!passValue}
-              onCopied={() => {
-                setCopied("pass");
-                setTimeout(() => setCopied(null), 1200);
-              }}
-              justCopied={copied === "pass"}
-              copiedText="Password disalin!"
-            />
-          </div>
-        </CardHeader>
-
-        <CardBody className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          {/* ====== OWNER ONLY: Info Akun ====== */}
-          {isOwner && (
-            <div className="rounded-2xl border border-default-200 bg-content1 p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <div className="text-sm font-semibold text-primary">Info Akun</div>
-                <div className="rounded-full bg-content2 px-3 py-1 text-xs text-foreground-500">
-                  Dibuat: {createdAtLabel}
-                </div>
-              </div>
-
-              {/* No. WA */}
-              <div className="flex items-center justify-between py-1.5 text-sm">
-                <span className="text-foreground-500">No. WA</span>
+            {/* ==== No. WA dengan logo ==== */}
+            <div className="flex items-center justify-between py-1 text-sm">
+              <span className="text-foreground-500">No. WA</span>
+              {data.noWa ? (
                 <div className="flex items-center gap-2">
-                  {data.noWa ? (
-                    <a
-                      href={buildWaLink(data.noWa, data.namaCustomer) || "#"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium text-emerald-600 hover:underline dark:text-emerald-400"
-                      title="Buka WhatsApp"
+                  <a
+                    href={buildWaLink(data.noWa, data.namaCustomer) || "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 font-medium hover:underline text-emerald-600 dark:text-emerald-400"
+                  >
+                    {/* Logo WA hijau */}
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                      className="h-4 w-4 text-[#25D366]"
                     >
-                      {data.noWa}
-                    </a>
-                  ) : (
-                    <span className="font-medium">—</span>
-                  )}
+                      <path d="M12 0C5.373 0 0 5.373 0 12c0 2.113.551 4.174 1.598 5.986L0 24l6.227-1.634A11.947 11.947 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zM12 22a9.93 9.93 0 01-5.091-1.387l-.364-.217-3.694.97.987-3.649-.238-.374A9.94 9.94 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10zm5.094-7.256c-.273-.137-1.616-.797-1.867-.887-.251-.09-.434-.137-.616.137-.182.273-.707.887-.866 1.07-.159.182-.318.205-.591.068-.273-.137-1.154-.425-2.197-1.352-.812-.724-1.361-1.618-1.52-1.891-.159-.273-.017-.421.12-.558.123-.123.273-.318.41-.477.137-.159.182-.273.273-.455.091-.182.046-.341-.023-.477-.068-.137-.616-1.489-.844-2.043-.228-.545-.457-.47-.616-.479l-.525-.009c-.182 0-.477.068-.727.341-.25.273-.955.933-.955 2.273s.977 2.637 1.113 2.818c.137.182 1.923 2.935 4.655 4.113.651.282 1.159.45 1.555.575.653.207 1.246.178 1.716.108.523-.078 1.616-.659 1.844-1.296.228-.637.228-1.182.159-1.296-.068-.114-.25-.182-.523-.319z" />
+                    </svg>
+                    {data.noWa}
+                  </a>
 
-                  {data.noWa && (
-                    <>
-                      <Tooltip content="Chat di WhatsApp">
-                        <Button
-                          as="a"
-                          href={buildWaLink(data.noWa, data.namaCustomer) || "#"}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          isIconOnly
-                          size="sm"
-                          variant="flat"
-                          className="bg-emerald-50 dark:bg-emerald-500/15"
-                        >
-                          <svg viewBox="0 0 24 24" className="h-4 w-4 text-[#25D366]" fill="currentColor">
-                            <path d="M20.52 3.48A11.86 11.86 0 0 0 12.04 0C5.5 0 .2 5.3.2 11.85a11.64 11.64 0 0 0 1.62 5.98L0 24l6.37-1.67a11.8 11.8 0 0 0 5.67 1.45h0c6.54 0 11.85-5.3 11.85-11.85 0-3.17-1.24-6.15-3.37-8.28Zm-8.48 18.3h0a9.8 9.8 0 0 1-4.95-1.36l-.35-.21-3.78 1 .99-3.69-.23-.38a9.84 9.84 0 0 1-1.5-5.23C2.22 6.4 6.4 2.22 11.86 2.22a9.62 9.62 0 0 1 6.83 2.83 9.62 9.62 0 0 1 2.83 6.83c0 5.46-4.18 9.74-9.48 9.9Zm5.44-7.35c-.3-.15-1.78-.88-2.06-.98-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.18-.18.2-.35.23-.65.08-.3-.15-1.26-.46-2.4-1.47-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.46-.53.15-.18.2-.3.3-.5.1-.2.05-.38-.03-.53-.08-.15-.67-1.6-.92-2.19-.24-.58-.49-.5-.67-.5h-.57c-.2 0-.53.08-.81.38-.27.3-1.06 1.04-1.06 2.53s1.08 2.93 1.23 3.13c.15.2 2.12 3.23 5.16 4.53.72.31 1.28.49 1.72.63.72.23 1.38.2 1.9.12.58-.09 1.78-.73 2.03-1.44.25-.7.25-1.3.18-1.44-.07-.15-.27-.23-.57-.38Z" />
-                          </svg>
-                        </Button>
-                      </Tooltip>
-
-                      <Tooltip content={copied === "wa" ? "Disalin!" : "Salin nomor"}>
-                        <Button isIconOnly size="sm" variant="light" onPress={copyWa}>
-                          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-                            <rect x="9" y="9" width="11" height="11" rx="2" />
-                            <rect x="4" y="4" width="11" height="11" rx="2" />
-                          </svg>
-                        </Button>
-                      </Tooltip>
-                    </>
-                  )}
+                  <Tooltip content={copied === "wa" ? "Disalin!" : "Salin nomor"}>
+                    <Button isIconOnly size="sm" variant="light" onPress={copyWa}>
+                      <Copy className="h-4 w-4 text-foreground" />
+                    </Button>
+                  </Tooltip>
                 </div>
-              </div>
-
-              <Row label="Jenis" value={data.jenis} />
-              <Divider className="my-4" />
+              ) : (
+                <span className="font-medium">—</span>
+              )}
             </div>
-          )}
 
-          {/* ====== OWNER ONLY: Ringkasan Tagihan ====== */}
-          {isOwner && showBilling && (
-            <div className="rounded-2xl border border-default-200 bg-content1 p-4">
-              <div className="mb-3 text-sm font-semibold text-primary">Ringkasan Tagihan</div>
-              <Row label="Total Bayar" value={fmtRp(total)} />
-              <Row label="Sudah Bayar" value={fmtRp(sudah)} />
-              <Row label="Sisa Bayar" value={fmtRp(sisa)} />
+            <Row label="Dibuat" value={createdAtLabel} />
+          </CardBody>
+        </Card>
+
+        {/* Card Ringkasan Tagihan */}
+        {isOwner && showBilling && (
+          <Card className="overflow-hidden border border-default-200 dark:border-neutral-800 bg-content1 dark:bg-neutral-900 shadow-md">
+            <div className="h-1 w-full bg-gradient-to-r from-fuchsia-500 via-purple-500 to-indigo-500" />
+            <CardHeader>
+              <div className="text-lg font-semibold text-foreground">
+                Ringkasan Tagihan
+              </div>
+            </CardHeader>
+            <CardBody>
+              <Row label="Total Bayar" value={fmtRp(total)} className="text-primary" />
+              <Row label="Sudah Bayar" value={fmtRp(sudah)} className="text-success" />
+              <Row label="Sisa Bayar" value={fmtRp(sisa)} className="text-danger" />
 
               <div className="mt-3">
                 <Progress
@@ -367,12 +300,11 @@ export default function CustomerDetailCard({ data, password, showBilling, onUpda
                   {progress.toFixed(0)}%
                 </div>
               </div>
-            </div>
-          )}
-        </CardBody>
-      </Card>
+            </CardBody>
+          </Card>
+        )}
+      </div>
 
-      {/* Modal Update (OWNER only) */}
       {isOwner && (
         <CustomerUpdateModal
           open={showUpdate}

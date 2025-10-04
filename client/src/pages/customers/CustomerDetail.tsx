@@ -57,7 +57,7 @@ function CustomerDetailInner({ idNum }: { idNum: number }) {
 
   return (
     // Full width, tanpa max-w; pakai token warna supaya otomatis dark mode
-    <div className="w-full text-foreground py-2 md:py-4">
+    <div className="w-full text-foreground">
       <CustomerHeaderBar
         data={data}
         jenisNormalized={jenisNormalized}
@@ -68,12 +68,6 @@ function CustomerDetailInner({ idNum }: { idNum: number }) {
       />
 
       <div className="mt-4">
-      <CustomerDetailCard
-        data={data}
-        password={(data as any).password}
-        showBilling={isOwner}
-        onUpdated={refresh}           // ⬅️ tambahkan ini
-      />
 
         <CustomerTutonSection
           show={showTutonMatrix}
@@ -88,6 +82,13 @@ function CustomerDetailInner({ idNum }: { idNum: number }) {
           isOwner={true}
           onManage={() => setOpenKarilModal(true)}
           label={karilLabel}
+        />
+
+        <CustomerDetailCard
+          data={data}
+          password={(data as any).password}
+          showBilling={isOwner}
+          onUpdated={refresh}           // ⬅️ tambahkan ini
         />
       </div>
 

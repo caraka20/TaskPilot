@@ -3,7 +3,7 @@ import Swal from "sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
 
 export const WORK_ACTIVITY_EVENT = "work-activity";
-export const WORK_STARTED_EVENT  = "work-started";
+export const WORK_STARTED_EVENT = "work-started";
 
 type Status = "AKTIF" | "JEDA" | "TIDAK_AKTIF";
 type WorkState = {
@@ -12,10 +12,10 @@ type WorkState = {
   resumeTargetId: number | null;
 };
 
-type StartNowFn      = () => Promise<void> | void;
-type ResumeNowFn     = (id: number) => Promise<void> | void;
-type GetStateFn      = () => WorkState;          // baca cepat dari store (tanpa re-render)
-type GetFreshStateFn = () => Promise<WorkState>; // cek server (terbaru)
+type StartNowFn = () => Promise<void> | void;
+type ResumeNowFn = (id: number) => Promise<void> | void;
+type GetStateFn = () => WorkState;
+type GetFreshStateFn = () => Promise<WorkState>;
 
 let __startNow: StartNowFn | null = null;
 let __resumeNow: ResumeNowFn | null = null;
@@ -29,9 +29,9 @@ export function initWorkActivityAutoStart(
   getState: GetStateFn,
   getFreshState?: GetFreshStateFn
 ) {
-  __startNow     = startNow;
-  __resumeNow    = resumeNow;
-  __getState     = getState;
+  __startNow = startNow;
+  __resumeNow = resumeNow;
+  __getState = getState;
   __getFreshState = getFreshState ?? null;
 
   return () => {
@@ -48,7 +48,6 @@ export function pingWorkActivity() {
       window.dispatchEvent(new CustomEvent(WORK_ACTIVITY_EVENT));
     }
   } catch (_err) {
-    // lingkungan non-DOM / event gagal publish tidak kritis
     void _err;
   }
 }
@@ -74,12 +73,48 @@ function modalFail(title: string, text?: string) {
  * - AKTIF  -> lanjut true
  * - JEDA   -> tanya "Lanjutkan", lalu panggil resume (ambil targetId dari state atau refresh server)
  * - OFF    -> tanya "Mulai sekarang", lalu panggil start
+ * - OWNER  -> bebas tanpa jam kerja
  */
 export async function ensureWorkActiveBeforeMutate(opts?: {
   feature?: string;
   throwOnCancel?: boolean;
 }): Promise<boolean> {
   const feature = opts?.feature || "melakukan perubahan";
+
+  // ✅ 0) OWNER bebas jam kerja
+  try {
+    let role = "";
+
+    // cek langsung di root localStorage
+    role = localStorage.getItem("role")?.toUpperCase() || "";
+
+    // jika tidak ada, cek key lain (mis. client-auth)
+    if (!role) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+        try {
+          const raw = localStorage.getItem(k);
+          if (!raw) continue;
+          const obj = JSON.parse(raw);
+          const candidate =
+            obj?.role ?? obj?.state?.role ?? obj?.user?.role ?? obj?.auth?.role;
+          if (candidate) {
+            role = String(candidate).toUpperCase();
+            break;
+          }
+        } catch {
+          /* abaikan parsing gagal */
+        }
+      }
+    }
+
+    if (role === "OWNER") {
+      return true; // skip jam kerja untuk OWNER
+    }
+  } catch {
+    /* abaikan error localStorage */
+  }
 
   // 1) baca state cepat
   let st: WorkState =
@@ -94,7 +129,6 @@ export async function ensureWorkActiveBeforeMutate(opts?: {
     try {
       st = await __getFreshState();
     } catch (_err) {
-      // kalau gagal refresh, pakai state lokal saja
       void _err;
     }
   }
@@ -105,24 +139,19 @@ export async function ensureWorkActiveBeforeMutate(opts?: {
     return true;
   }
 
-  // 4) JEDA -> tawarkan LANJUTKAN, cari targetId dgn tegas
+  // 4) JEDA -> tawarkan LANJUTKAN, cari targetId
   if (st.status === "JEDA") {
-    // cari id untuk resume: prefer resumeTargetId, lalu activeSessionId
     let targetId = st.resumeTargetId ?? st.activeSessionId ?? null;
-
-    // kalau belum ketemu, refresh dulu ke server (strong guarantee)
     if (!targetId && __getFreshState) {
       try {
         const fresh = await __getFreshState();
         targetId = fresh.resumeTargetId ?? fresh.activeSessionId ?? null;
       } catch (_err) {
-        // jika gagal, tetap lanjut dengan targetId saat ini (mungkin null)
         void _err;
       }
     }
 
     if (!targetId) {
-      // fallback darurat: informasikan user
       await modalFail(
         "Tidak bisa lanjutkan",
         "ID sesi jeda tidak ditemukan. Coba muat ulang halaman."
