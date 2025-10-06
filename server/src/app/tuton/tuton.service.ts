@@ -116,6 +116,8 @@ export class TutonService {
     status?: StatusTugas
     page?: number
     pageSize?: number
+    /** opsional dari FE: "copas" → kolom DB: copasSoal */
+    copas?: boolean
   }) {
     const status = filters.status ?? StatusTugas.BELUM
     const page = Math.max(1, filters.page ?? 1)
@@ -123,23 +125,24 @@ export class TutonService {
     const skip = (page - 1) * pageSize
     const take = pageSize
 
-    // ⬇️ cast hasil Promise.all jadi tuple tegas [ScanRow[], number]
-    const [rows, total] = (await Promise.all([
+    const [rows, total] = await Promise.all([
       TutonItemRepository.scanByFilters({
         matkul: filters.matkul,
-        jenis: filters.jenis,
-        sesi:  filters.sesi,
+        jenis:  filters.jenis,
+        sesi:   filters.sesi,
         status,
         skip,
         take,
+        copas:  filters.copas,           // <-- diteruskan
       }),
       TutonItemRepository.countScanByFilters({
         matkul: filters.matkul,
         jenis:  filters.jenis,
         sesi:   filters.sesi,
         status,
+        copas:  filters.copas,           // <-- diteruskan
       }),
-    ])) as [ScanRow[], number]
+    ]) as [ScanRow[], number]
 
     const data = rows.map(r => ({
       itemId: r.id,
@@ -163,6 +166,7 @@ export class TutonService {
       rows: data,
     }
   }
+
 
   static async updateCourse(courseId: number, payload: UpdateCourseRequest) {
     const found = await TutonRepository.findCourseWithCustomerId(courseId);

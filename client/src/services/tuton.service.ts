@@ -1,4 +1,3 @@
-// client/src/services/tuton.service.ts
 import httpClient from "../lib/httpClient";
 import { pingWorkActivity, ensureWorkActiveBeforeMutate } from "../utils/workActivity";
 
@@ -60,6 +59,8 @@ export type ScanFilters = {
   status?: StatusTugas;
   page?: number;
   pageSize?: number;
+  /** Baru: filter copas. true=YA, false=TIDAK, undefined=SEMUA */
+  copas?: boolean;
 };
 
 export type ScanRow = {
@@ -163,7 +164,7 @@ export async function initItems(courseId: number, overwrite = false) {
   return data.data;
 }
 
-export async function bulkUpdateStatus(courseId: number, payload: BulkStatusRequest) {
+export async function bulkUpdateStatus(courseId: number, payload: { items: { itemId: number; status: StatusTugas }[] }) {
   const ok = await ensureWorkActiveBeforeMutate({ feature: "bulk update status" });
   if (!ok) throw new Error("Mulai jam kerja dulu.");
   const safe = {
@@ -179,7 +180,7 @@ export async function bulkUpdateStatus(courseId: number, payload: BulkStatusRequ
   return data.data;
 }
 
-export async function bulkUpdateNilai(courseId: number, payload: BulkNilaiRequest) {
+export async function bulkUpdateNilai(courseId: number, payload: { items: Array<{ itemId: number; nilai: number | null }> }) {
   const ok = await ensureWorkActiveBeforeMutate({ feature: "bulk update nilai" });
   if (!ok) throw new Error("Mulai jam kerja dulu.");
   const { data } = await httpClient.post<{ data: { updated: number } }>(
@@ -264,7 +265,7 @@ export async function listSubjects(q?: string) {
 }
 
 export async function scanTuton(filters: ScanFilters) {
-  const { data } = await httpClient.get<{ data: ScanResponse }>(`/api/tuton/scan`, {
+  const { data } = await httpClient.get<{ data: any }>(`/api/tuton/scan`, {
     params: filters,
   });
   return data.data;

@@ -1,4 +1,3 @@
-// client/src/pages/tuton/Subjects.tsx
 import { useEffect, useMemo, useState } from "react";
 import {
   Card, CardBody, CardHeader,
@@ -13,8 +12,14 @@ import {
 } from "../../services/tuton.service";
 import { Filter, Search } from "lucide-react";
 
+/** Tetap: pilihan jenis & status */
 const JENIS_OPTIONS: JenisTugas[] = ["ABSEN", "DISKUSI", "TUGAS"];
 const STATUS_OPTIONS: StatusTugas[] = ["BELUM", "SELESAI"];
+
+/** Baru: pilihan Copas */
+const COPAS_OPTIONS = ["SEMUA", "YA", "TIDAK"] as const;
+type CopasFilter = (typeof COPAS_OPTIONS)[number];
+
 const DEFAULT_PAGE_SIZE = 10;
 const SUBJECT_PAGE_SIZE_DEFAULT = 10;
 
@@ -46,6 +51,12 @@ export default function TutonSubjects() {
   const [status, setStatus] = useState<StatusTugas>((searchParams.get("status") as StatusTugas) || "BELUM");
   const [page, setPage] = useState<number>(Number(searchParams.get("page") || 1));
   const [pageSize, setPageSize] = useState<number>(Number(searchParams.get("pageSize") || DEFAULT_PAGE_SIZE));
+  const [copas, setCopas] = useState<CopasFilter>(() => {
+    const p = (searchParams.get("copas") || "").toUpperCase();
+    if (["YA", "TRUE", "1"].includes(p)) return "YA";
+    if (["TIDAK", "FALSE", "0"].includes(p)) return "TIDAK";
+    return "SEMUA";
+  });
 
   const [scanLoading, setScanLoading] = useState(false);
   const [scan, setScan] = useState<ScanResponse | null>(null);
@@ -86,6 +97,11 @@ export default function TutonSubjects() {
     const pStatus = (searchParams.get("status") as StatusTugas) || "BELUM";
     const pPage = Number(searchParams.get("page") || 1);
     const pPageSize = Number(searchParams.get("pageSize") || DEFAULT_PAGE_SIZE);
+    const pCopasRaw = (searchParams.get("copas") || "").toUpperCase();
+    const pCopas: CopasFilter =
+      ["YA", "TRUE", "1"].includes(pCopasRaw) ? "YA"
+      : ["TIDAK", "FALSE", "0"].includes(pCopasRaw) ? "TIDAK"
+      : "SEMUA";
 
     setMatkul(pMatkul);
     setJenis(pJenis);
@@ -93,6 +109,7 @@ export default function TutonSubjects() {
     setStatus(pStatus);
     setPage(pPage);
     setPageSize(pPageSize);
+    setCopas(pCopas);
 
     (async () => {
       if (!pJenis || !pSesi || !pStatus) {
@@ -108,6 +125,8 @@ export default function TutonSubjects() {
           status: pStatus,
           page: pPage,
           pageSize: pPageSize,
+          // Jika "SEMUA" → kirim undefined (biar BE tidak memfilter)
+          copas: pCopas === "SEMUA" ? undefined : pCopas === "YA",
         });
         setScan(data);
       } finally {
@@ -127,19 +146,22 @@ export default function TutonSubjects() {
       pageSize: String(pageSize),
     };
     if (matkul) params.matkul = matkul;
+    if (copas !== "SEMUA") params.copas = copas;
     setSearchParams(params);
   };
 
   // quick scan from a subject row
   const handleQuickScan = (subjectMatkul: string) => {
-    setSearchParams({
+    const params: Record<string, string> = {
       matkul: subjectMatkul,
       jenis,
       sesi: String(sesi),
       status,
       page: "1",
       pageSize: String(pageSize),
-    });
+    };
+    if (copas !== "SEMUA") params.copas = copas;
+    setSearchParams(params);
   };
 
   // reset filters
@@ -150,6 +172,7 @@ export default function TutonSubjects() {
     setStatus("BELUM");
     setPage(1);
     setPageSize(DEFAULT_PAGE_SIZE);
+    setCopas("SEMUA");
     setSearchParams({ jenis: "DISKUSI", sesi: "1", status: "BELUM", page: "1", pageSize: String(DEFAULT_PAGE_SIZE) });
   };
 
@@ -162,11 +185,10 @@ export default function TutonSubjects() {
           <div className="flex items-center gap-3">
             <div className="text-lg font-semibold">Tuton Subjects &amp; Scan</div>
           </div>
-          {/* Kita pindahkan pencarian ke card "Daftar Matkul" agar lebih kontekstual */}
         </CardHeader>
 
         <CardBody className="flex flex-col gap-6">
-          {/* ===== SCAN PANEL — dipindah ke ATAS ===== */}
+          {/* ===== SCAN PANEL ===== */}
           <Card className="border rounded-xl bg-content1">
             <div className="h-0.5 w-full bg-gradient-to-r from-sky-500 to-indigo-500" />
             <CardHeader className="flex items-center justify-between">
@@ -183,12 +205,15 @@ export default function TutonSubjects() {
                   >
                     {status}
                   </Chip>
+                  {copas !== "SEMUA" && (
+                    <Chip size="sm" variant="flat" className="bg-content2">Copas: {copas}</Chip>
+                  )}
                 </div>
               )}
             </CardHeader>
 
             <CardBody className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
                 <Input
                   aria-label="Matkul"
                   label="Matkul (opsional)"
@@ -198,6 +223,8 @@ export default function TutonSubjects() {
                   onChange={(e) => setMatkul(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") applyFiltersToQuery({ resetPage: true }); }}
                 />
+
+                {/* Jenis */}
                 <Select
                   label="Jenis"
                   selectedKeys={new Set([jenis])}
@@ -208,6 +235,8 @@ export default function TutonSubjects() {
                     <SelectItem key={j} textValue={j}>{j}</SelectItem>
                   ))}
                 </Select>
+
+                {/* Sesi */}
                 <Select
                   label="Sesi"
                   selectedKeys={new Set([String(sesi)])}
@@ -223,6 +252,8 @@ export default function TutonSubjects() {
                     );
                   })}
                 </Select>
+
+                {/* Status */}
                 <Select
                   label="Status"
                   selectedKeys={new Set([status])}
@@ -233,6 +264,20 @@ export default function TutonSubjects() {
                     <SelectItem key={s} textValue={s}>{s}</SelectItem>
                   ))}
                 </Select>
+
+                {/* Baru: Copas */}
+                <Select
+                  label="Copas"
+                  selectedKeys={new Set([copas])}
+                  onSelectionChange={(k) => setCopas(Array.from(k as Set<string>)[0] as CopasFilter)}
+                  labelPlacement="outside"
+                >
+                  {COPAS_OPTIONS.map((c) => (
+                    <SelectItem key={c} textValue={c}>{c}</SelectItem>
+                  ))}
+                </Select>
+
+                {/* Tombol */}
                 <div className="flex items-end gap-2">
                   <Button
                     variant="flat"
@@ -254,14 +299,16 @@ export default function TutonSubjects() {
                   onSelectionChange={(k) => {
                     const n = Number(Array.from(k as Set<string>)[0] || DEFAULT_PAGE_SIZE);
                     setPageSize(n);
-                    setSearchParams({
+                    const params: Record<string, string> = {
                       ...(matkul ? { matkul } : {}),
                       jenis,
                       sesi: String(sesi),
                       status,
                       page: "1",
                       pageSize: String(n),
-                    });
+                    };
+                    if (copas !== "SEMUA") params.copas = copas;
+                    setSearchParams(params);
                   }}
                   className="w-[160px]"
                 >
@@ -329,14 +376,16 @@ export default function TutonSubjects() {
                     total={Math.max(1, Math.ceil(scan.meta.total / pageSize))}
                     onChange={(p) => {
                       setPage(p);
-                      setSearchParams({
+                      const params: Record<string, string> = {
                         ...(matkul ? { matkul } : {}),
                         jenis,
                         sesi: String(sesi),
                         status,
                         page: String(p),
                         pageSize: String(pageSize),
-                      });
+                      };
+                      if (copas !== "SEMUA") params.copas = copas;
+                      setSearchParams(params);
                     }}
                     classNames={{ cursor: "bg-gradient-to-r from-sky-500 to-indigo-500 text-white" }}
                   />
@@ -347,7 +396,7 @@ export default function TutonSubjects() {
 
           <Divider />
 
-          {/* ===== SUBJECT LIST — kini di bawah ===== */}
+          {/* ===== SUBJECT LIST ===== */}
           <Card className="border rounded-xl bg-content1">
             <div className="h-0.5 w-full bg-gradient-to-r from-emerald-400 via-sky-500 to-indigo-600" />
             <CardHeader className="flex items-center justify-between">

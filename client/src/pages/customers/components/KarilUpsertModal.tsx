@@ -1,8 +1,6 @@
-// client/src/pages/customers/components/KarilUpsertModal.tsx
 import { Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, Button } from "@heroui/react";
 import KarilForm from "./KarilForm";
-import type { KarilDetail as KarilDetailType } from "../../../services/karil.service";
-import type { UpsertKarilPayload } from "../../../services/karil.service";
+import type { KarilDetail as KarilDetailType, UpsertKarilPayload } from "../../../services/karil.service";
 
 type Props = {
   open: boolean;
@@ -16,6 +14,7 @@ type Props = {
 export default function KarilUpsertModal({
   open, onOpenChange, label, saving, initial, onSubmit,
 }: Props) {
+  // ❗️Tidak pakai key dinamis sama sekali — biar tidak remount tiap render
   return (
     <Modal isOpen={open} onOpenChange={onOpenChange} size="2xl" placement="center">
       <ModalContent>

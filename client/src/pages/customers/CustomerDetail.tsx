@@ -1,4 +1,3 @@
-// client/src/pages/customers/CustomerDetail.tsx
 import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
@@ -15,19 +14,13 @@ import NotFoundCard from "./components/NotFoundCard";
 
 import { useCustomerDetail } from "./hooks/useCustomerDetail";
 
-// ===== Wrapper: cek ID dulu (tanpa hook) =====
 export default function CustomerDetail() {
   const { id } = useParams();
   const idNum = useMemo(() => Number(id), [id]);
-
-  if (!Number.isFinite(idNum)) {
-    return <InvalidIdCard />;
-  }
-
+  if (!Number.isFinite(idNum)) return <InvalidIdCard />;
   return <CustomerDetailInner idNum={idNum} />;
 }
 
-// ===== Inner: semua hook dipanggil di sini, TIDAK conditional =====
 function CustomerDetailInner({ idNum }: { idNum: number }) {
   const [openKarilModal, setOpenKarilModal] = useState(false);
 
@@ -56,8 +49,7 @@ function CustomerDetailInner({ idNum }: { idNum: number }) {
   if (!data) return <NotFoundCard />;
 
   return (
-    // Full width, tanpa max-w; pakai token warna supaya otomatis dark mode
-    <div className="w-full text-foreground">
+    <div className="w-full text-foreground py-2 md:py-4">
       <CustomerHeaderBar
         data={data}
         jenisNormalized={jenisNormalized}
@@ -68,7 +60,6 @@ function CustomerDetailInner({ idNum }: { idNum: number }) {
       />
 
       <div className="mt-4">
-
         <CustomerTutonSection
           show={showTutonMatrix}
           summary={summary}
@@ -88,7 +79,7 @@ function CustomerDetailInner({ idNum }: { idNum: number }) {
           data={data}
           password={(data as any).password}
           showBilling={isOwner}
-          onUpdated={refresh}           // ⬅️ tambahkan ini
+          onUpdated={refresh}
         />
       </div>
 
@@ -102,8 +93,11 @@ function CustomerDetailInner({ idNum }: { idNum: number }) {
           onOpenChange={setOpenKarilModal}
           label={karilLabel}
           saving={savingKaril}
-          initial={karil}
-          onSubmit={saveKaril}
+          initial={karil ?? null}
+          onSubmit={async (payload) => {
+            await saveKaril(payload);
+            // kalau mau langsung tutup: setOpenKarilModal(false);
+          }}
         />
       )}
     </div>

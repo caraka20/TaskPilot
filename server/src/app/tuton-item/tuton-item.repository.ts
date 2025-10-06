@@ -129,7 +129,8 @@ export class TutonItemRepository {
     })
   }
 
-  // ===== NEW: scan untuk dashboard pengecekan sesi =====
+  
+// ===== NEW: scan untuk dashboard pengecekan sesi =====
   static async scanByFilters(params: {
     matkul?: string
     jenis?: JenisTugas
@@ -137,25 +138,22 @@ export class TutonItemRepository {
     status: StatusTugas
     skip: number
     take: number
+    /** FE: copas → DB: copasSoal */
+    copas?: boolean
   }): Promise<ScanRow[]> {
-    const { matkul, jenis, sesi, status, skip, take } = params
+    const { matkul, jenis, sesi, status, skip, take, copas } = params
 
     return prismaClient.tutonItem.findMany({
       where: {
         status,
-        ...(typeof jenis !== "undefined" ? { jenis } : {}),
-        ...(typeof sesi  !== "undefined" ? { sesi }  : {}),
+        ...(typeof jenis  !== "undefined" ? { jenis }  : {}),
+        ...(typeof sesi   !== "undefined" ? { sesi }   : {}),
+        ...(typeof copas  !== "undefined" ? { copasSoal: copas } : {}), // <-- kolom sesuai schema
         ...(matkul
-          // ⬇️ tidak pakai `is:`; langsung WhereInput di field relasi
-          ? { course: { matkul: { contains: matkul } } }
+          ? { course: { matkul: { contains: matkul } } }                // <-- tanpa "mode"
           : {}),
       },
-      select: {
-        id: true,
-        courseId: true,
-        jenis: true,
-        sesi: true,
-        status: true,
+      include: {                                                       // <-- pakai include agar 'course' ikut
         course: {
           select: {
             id: true,
@@ -175,26 +173,28 @@ export class TutonItemRepository {
     })
   }
 
-  /** Counter untuk scan; bentuk where harus sama */
   static async countScanByFilters(params: {
     matkul?: string
     jenis?: JenisTugas
     sesi?: number
     status: StatusTugas
+    copas?: boolean
   }): Promise<number> {
-    const { matkul, jenis, sesi, status } = params
+    const { matkul, jenis, sesi, status, copas } = params
 
     return prismaClient.tutonItem.count({
       where: {
         status,
-        ...(typeof jenis !== "undefined" ? { jenis } : {}),
-        ...(typeof sesi  !== "undefined" ? { sesi }  : {}),
+        ...(typeof jenis  !== "undefined" ? { jenis }  : {}),
+        ...(typeof sesi   !== "undefined" ? { sesi }   : {}),
+        ...(typeof copas  !== "undefined" ? { copasSoal: copas } : {}), // <-- kolom sesuai schema
         ...(matkul
-          ? { course: { matkul: { contains: matkul } } }
+          ? { course: { matkul: { contains: matkul } } }                // <-- tanpa "mode"
           : {}),
       },
     })
   }
+
 
 }
 
