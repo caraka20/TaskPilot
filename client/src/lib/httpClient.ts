@@ -2,10 +2,10 @@ import axios from "axios";
 import { useAuthStore } from "../store/auth.store";
 
 /**
- * Axios instance global
+ * Global Axios instance
  */
 const httpClient = axios.create({
-  withCredentials: false, // ganti true kalau pakai cookie
+  withCredentials: false, // set true kalau pakai cookie session
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -26,11 +26,10 @@ function getAuth() {
 httpClient.interceptors.request.use((config) => {
   const { token, baseUrl } = getAuth();
 
-  // baseURL prioritas: ENV (biar nggak terkunci ke store yang lama)
+  // Prioritaskan .env
   const envUrl = import.meta.env.VITE_API_BASE_URL;
   config.baseURL = envUrl || baseUrl;
 
-  // Debug log (lihat di console browser)
   console.log("👉 BASE URL dipakai:", config.baseURL);
   console.log("👉 ENV URL:", envUrl);
   console.log("👉 STORE URL:", baseUrl);
@@ -48,8 +47,7 @@ httpClient.interceptors.request.use((config) => {
 });
 
 /**
- * Response Interceptor
- * - Auto logout kalau 401
+ * Global Response Interceptor
  */
 httpClient.interceptors.response.use(
   (res) => res,

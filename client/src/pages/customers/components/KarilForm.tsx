@@ -1,13 +1,6 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Button, Progress, Chip, Divider, Tooltip } from "@heroui/react";
-import type { KarilDetail, UpsertKarilPayload } from "../../../services/karil.service";
-
-/**
- * Anti-reset FINAL:
- * - Judul & Keterangan: pure uncontrolled (defaultValue + ref), NO state, NO useEffect.
- * - Checkbox: controlled ringan (boolean) untuk progress.
- * - Submit: baca nilai teks langsung dari ref.
- */
+import type { UpsertKarilPayload, KarilDetail } from "../../../services/karil.service";
 
 type Props = {
   initial?: KarilDetail | null;
@@ -16,56 +9,35 @@ type Props = {
 };
 
 export default function KarilForm({ initial, onSubmit, busy }: Props) {
-  // ====== refs untuk field teks (UNCONTROLLED) ======
-  const judulRef = useRef<HTMLInputElement | null>(null);
-  const ketRef = useRef<HTMLTextAreaElement | null>(null);
-
-  // ====== checkbox (CONTROLLED ringan) ======
+  // ✅ pakai state full controlled
+  const [judul, setJudul] = useState(initial?.judul ?? "");
+  const [keterangan, setKeterangan] = useState(initial?.keterangan ?? "");
   const [t1, setT1] = useState(!!initial?.tugas1);
   const [t2, setT2] = useState(!!initial?.tugas2);
   const [t3, setT3] = useState(!!initial?.tugas3);
   const [t4, setT4] = useState(!!initial?.tugas4);
 
-  // ====== derived ======
   const totalDone = useMemo(() => [t1, t2, t3, t4].filter(Boolean).length, [t1, t2, t3, t4]);
   const progress = useMemo(() => (totalDone / 4) * 100, [totalDone]);
   const progressInt = Math.round(progress);
   const progressTone = progressInt >= 100 ? "success" : progressInt > 0 ? "primary" : "default";
 
-  // disable tombol kalau kosong atau busy
-  const judulNow = () => (judulRef.current?.value ?? "").trim();
-  const disabled = busy || !judulNow();
+  const disabled = busy || !judul.trim();
 
-  // ====== submit ======
   const handleSubmit = async () => {
     const payload: UpsertKarilPayload = {
-      judul: judulNow(),
+      judul: judul.trim(),
       tugas1: t1,
       tugas2: t2,
       tugas3: t3,
       tugas4: t4,
-      keterangan: (() => {
-        const k = (ketRef.current?.value ?? "").trim();
-        return k || undefined;
-      })(),
+      keterangan: keterangan.trim() || null,
     };
+    console.log("[KarilForm] SUBMIT payload:", payload);
     await onSubmit(payload);
   };
 
-  // ====== UI helpers ======
-  const SectionCard: React.FC<{ children: React.ReactNode; title?: string; hint?: string }> = ({ children, title, hint }) => (
-    <div className="rounded-2xl border border-default-200 bg-content1 p-4">
-      {title && <div className="mb-2 text-sm font-semibold text-foreground">{title}</div>}
-      {hint && <div className="mb-3 text-xs text-foreground-500">{hint}</div>}
-      {children}
-    </div>
-  );
-
-  const CheckItem: React.FC<{
-    label: string;
-    checked: boolean;
-    onChange: (v: boolean) => void;
-  }> = ({ label, checked, onChange }) => (
+  const CheckItem = ({ label, checked, onChange }: any) => (
     <label
       className={[
         "flex cursor-pointer select-none items-center gap-2 rounded-xl border border-default-200 bg-content2 px-3 py-2 transition",
@@ -85,73 +57,59 @@ export default function KarilForm({ initial, onSubmit, busy }: Props) {
 
   return (
     <div className="overflow-hidden rounded-2xl border border-default-200 bg-content1 shadow-md">
-      {/* Accent */}
+      {/* Accent bar */}
       <div
         className={[
           "h-1 w-full bg-gradient-to-r from-violet-500 via-indigo-500 to-sky-500",
           progressInt >= 100 ? "from-emerald-400 via-teal-500 to-emerald-600" : "",
         ].join(" ")}
       />
-
       <div className="grid grid-cols-1 gap-6 p-5 md:grid-cols-2">
-        {/* Kiri: Judul + Keterangan (UNCONTROLLED) */}
+        {/* Kiri: input teks */}
         <div className="flex flex-col gap-4">
-          <SectionCard title="Judul KARIL" hint="Isi dengan judul karya ilmiah.">
-            <div className="relative">
-              <input
-                ref={judulRef}
-                type="text"
-                placeholder="cth: Analisis Sistem Informasi"
-                className="w-full rounded-xl border border-default-200 bg-content1 px-3 py-2 text-foreground outline-none ring-0 focus:border-default-300 focus:ring-2 focus:ring-indigo-400/30"
-                disabled={busy}
-                defaultValue={initial?.judul ?? ""}
-                // autofocus lembut: biarkan browser handle; atau:
-                // autoFocus
-              />
-            </div>
-          </SectionCard>
+          <div className="rounded-2xl border border-default-200 bg-content1 p-4">
+            <div className="mb-2 text-sm font-semibold text-foreground">Judul KARIL</div>
+            <input
+              type="text"
+              placeholder="cth: Analisis Sistem Informasi"
+              className="w-full rounded-xl border border-default-200 bg-content1 px-3 py-2 text-foreground outline-none ring-0 focus:border-default-300 focus:ring-2 focus:ring-indigo-400/30"
+              disabled={busy}
+              value={judul}
+              onChange={(e) => setJudul(e.target.value)}
+            />
+          </div>
 
-          <SectionCard title="Keterangan" hint="Catatan tambahan (opsional).">
-            <div className="relative">
-              <textarea
-                ref={ketRef}
-                placeholder="Catatan tambahan…"
-                rows={6}
-                className="w-full resize-y rounded-xl border border-default-200 bg-content1 px-3 py-2 text-foreground outline-none ring-0 focus:border-default-300 focus:ring-2 focus:ring-indigo-400/30"
-                disabled={busy}
-                defaultValue={initial?.keterangan ?? ""}
-              />
-            </div>
-          </SectionCard>
+          <div className="rounded-2xl border border-default-200 bg-content1 p-4">
+            <div className="mb-2 text-sm font-semibold text-foreground">Keterangan</div>
+            <textarea
+              placeholder="Catatan tambahan…"
+              rows={6}
+              className="w-full resize-y rounded-xl border border-default-200 bg-content1 px-3 py-2 text-foreground outline-none ring-0 focus:border-default-300 focus:ring-2 focus:ring-indigo-400/30"
+              disabled={busy}
+              value={keterangan}
+              onChange={(e) => setKeterangan(e.target.value)}
+            />
+          </div>
         </div>
 
-        {/* Kanan: Tugas + Progress (CONTROLLED ringan) */}
+        {/* Kanan: checklist & progress */}
         <div className="flex flex-col gap-4">
-          <SectionCard>
+          <div className="rounded-2xl border border-default-200 bg-content1 p-4">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-foreground">Progress Tugas</div>
-              <Chip
-                size="sm"
-                variant="flat"
-                className={[
-                  "border",
-                  progressInt >= 100
-                    ? "bg-success-50 text-success-700 border-success-200 dark:bg-success-500/10 dark:text-success-300 dark:border-success-400/20"
-                    : "bg-content2 text-foreground-600 border-default-200",
-                ].join(" ")}
-              >
+              <Chip size="sm" variant="flat">
                 {totalDone} / 4 selesai
               </Chip>
             </div>
 
             <div className="mt-3">
-              <Progress aria-label="Progress tugas KARIL" value={progress} color={progressTone} className="w-full" />
-              <div
-                className={[
-                  "mt-1 text-right text-xs",
-                  progressInt >= 100 ? "text-success-600 font-medium dark:text-success-400" : "text-foreground-500",
-                ].join(" ")}
-              >
+              <Progress
+                aria-label="Progress tugas KARIL"
+                value={progress}
+                color={progressTone}
+                className="w-full"
+              />
+              <div className="mt-1 text-right text-xs text-foreground-500">
                 {progressInt}%
               </div>
             </div>
@@ -166,7 +124,10 @@ export default function KarilForm({ initial, onSubmit, busy }: Props) {
             </div>
 
             <div className="mt-4 flex justify-end">
-              <Tooltip content={busy ? "Sedang menyimpan…" : !judulNow() ? "Judul wajib diisi" : "Simpan perubahan"}>
+              <Tooltip
+                isDisabled={busy || !judul.trim()}
+                content={!judul.trim() ? "Judul wajib diisi" : "Simpan perubahan"}
+              >
                 <Button
                   color="primary"
                   className="bg-gradient-to-r from-violet-500 to-sky-500 text-white shadow-sm"
@@ -178,7 +139,7 @@ export default function KarilForm({ initial, onSubmit, busy }: Props) {
                 </Button>
               </Tooltip>
             </div>
-          </SectionCard>
+          </div>
         </div>
       </div>
     </div>
