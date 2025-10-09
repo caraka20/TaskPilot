@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Button, Progress, Chip, Divider, Tooltip } from "@heroui/react";
 import type { UpsertKarilPayload, KarilDetail } from "../../../services/karil.service";
 
