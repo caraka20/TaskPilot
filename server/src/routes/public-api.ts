@@ -1,0 +1,147 @@
+import express from 'express'
+import { Role } from '../generated/prisma'
+import { authMiddleware } from '../middleware/auth-middleware'
+import { requireRole } from '../middleware/require-role'
+import { UserController } from '../app/user/user.controller'
+import { GajiController } from '../app/gaji/gaji.controller'
+import { JamKerjaController } from '../app/jam-kerja/jam-kerja.controller'
+import { KonfigurasiController } from '../app/konfigurasi/konfigurasi.controller'
+import DashboardController from '../app/dashboard/dashboard.controller'
+import { CustomerController } from '../app/customer/customer.controller'
+import TutonController from '../app/tuton/tuton.controller'
+import { KarilController } from '../app/karil/karil.controller'
+import TutonItemController from '../app/tuton-item/tuton-item.controller'
+import { prismaClient } from '../config/database'
+
+export const route = express.Router()
+
+// HEALTH
+route.get('/health', (_req, res) => res.status(200).json({ status: 'ok' }))
+route.get('/health/db', async (_req, res) => {
+  try {
+    await prismaClient.$queryRaw`SELECT 1`
+    res.status(200).json({ status: 'ok', database: 'connected' })
+  } catch {
+    res.status(503).json({ status: 'error', database: 'disconnected' })
+  }
+})
+
+// USER
+route.post("/api/users/login", UserController.login);
+route.post("/api/users/register", authMiddleware, requireRole(Role.OWNER), UserController.register);
+route.get("/api/users", authMiddleware, requireRole(Role.OWNER), UserController.getAllUsers);
+route.get("/api/users/:username/everything", authMiddleware, requireRole(Role.OWNER, Role.USER), UserController.getUserEverything);
+route.get("/api/users/:username", authMiddleware, UserController.getUserDetail);
+route.patch("/api/users/:username/jeda-otomatis", authMiddleware, requireRole(Role.OWNER), UserController.setJedaOtomatisUser);
+route.post("/api/users/logout", authMiddleware, UserController.logout);
+
+
+// GAJI
+route.post('/api/gaji', authMiddleware, requireRole(Role.OWNER), GajiController.createGaji)
+route.get('/api/gaji', authMiddleware, requireRole(Role.OWNER), GajiController.getAllGaji)
+route.patch('/api/gaji/:id', authMiddleware, requireRole(Role.OWNER), GajiController.updateGaji)
+route.delete('/api/gaji/:id', authMiddleware, requireRole(Role.OWNER), GajiController.deleteGaji)
+route.get('/api/gaji/me', authMiddleware, requireRole(Role.USER), GajiController.getMyGaji)
+route.get('/api/gaji/me/summary', authMiddleware,requireRole(Role.USER), GajiController.getMySummary)
+
+// ✅ NEW: Ringkasan gaji untuk OWNER
+route.get('/api/gaji/summary', authMiddleware, requireRole(Role.OWNER), GajiController.getSummary)
+
+
+// JAM KERJA
+route.post('/api/jam-kerja/start', authMiddleware, requireRole(Role.USER, Role.OWNER), JamKerjaController.start);
+route.patch('/api/jam-kerja/:id/end', authMiddleware, requireRole(Role.USER, Role.OWNER), JamKerjaController.end);
+route.post('/api/jam-kerja/:id/pause', authMiddleware, requireRole(Role.USER, Role.OWNER), JamKerjaController.pause);
+route.post('/api/jam-kerja/:id/resume', authMiddleware, requireRole(Role.USER, Role.OWNER), JamKerjaController.resume);
+
+route.get('/api/jam-kerja', authMiddleware, requireRole(Role.OWNER, Role.USER), JamKerjaController.getHistory);
+route.get('/api/jam-kerja/rekap', authMiddleware, requireRole(Role.OWNER, Role.USER), JamKerjaController.rekap);
+route.get('/api/jam-kerja/aktif', authMiddleware, requireRole(Role.OWNER, Role.USER), JamKerjaController.getActive);
+
+route.get('/api/jam-kerja/summary', authMiddleware, requireRole(Role.OWNER, Role.USER), JamKerjaController.ownerSummary);
+route.get('/api/jam-kerja/user-summary', authMiddleware, requireRole(Role.OWNER, Role.USER), JamKerjaController.userSummary);
+route.patch('/api/jam-kerja/:id', authMiddleware, requireRole(Role.OWNER), JamKerjaController.update);
+
+
+// KONFIGURASI
+route.get('/api/konfigurasi', authMiddleware, requireRole(Role.OWNER), KonfigurasiController.get)
+route.put('/api/konfigurasi', authMiddleware, requireRole(Role.OWNER), KonfigurasiController.update)
+route.get('/api/konfigurasi/effective', authMiddleware, requireRole(Role.OWNER, Role.USER), KonfigurasiController.getEffective)
+route.put('/api/konfigurasi/override/:username', authMiddleware, requireRole(Role.OWNER), KonfigurasiController.putOverride)
+route.delete('/api/konfigurasi/override/:username', authMiddleware, requireRole(Role.OWNER), KonfigurasiController.deleteOverride)
+
+// DASHBOARD
+route.get('/api/dashboard/summary', authMiddleware, requireRole(Role.OWNER), DashboardController.summary)
+
+// CUSTOMER (MVP CRUD)
+route.post('/api/customers', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.create)
+route.get('/api/customers/export/excel', authMiddleware, requireRole(Role.OWNER), CustomerController.exportExcel)
+route.get('/api/customers/:id', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.detail)
+route.patch('/api/customers/:id', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.update);
+// Tambah pembayaran customer (OWNER only)
+route.post('/api/customers/:id/payments',authMiddleware, requireRole(Role.OWNER), CustomerController.addPayment)
+// Update total tagihan/invoice (OWNER only)
+route.patch('/api/customers/:id/invoice',authMiddleware, requireRole(Role.OWNER),CustomerController.updateInvoice )
+// List histori pembayaran customer (OWNER only; ubah jika mau buka untuk USER)
+route.get('/api/customers/:id/payments',authMiddleware, requireRole(Role.OWNER),CustomerController.listPayments )
+route.delete('/api/customers/:id', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.remove)
+route.get('/api/customers', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.list)
+route.get("/api/public/customers/:nim/tuton", CustomerController.publicSelfByNim);
+
+
+// TUTON (create / update / delete)
+route.post(  '/api/customers/:id/tuton-courses',  authMiddleware, requireRole(Role.OWNER, Role.USER), TutonController.addCourse);
+route.patch( '/api/tuton-courses/:courseId',      authMiddleware, requireRole(Role.OWNER, Role.USER), TutonController.updateCourse);
+route.delete('/api/tuton-courses/:courseId',      authMiddleware, requireRole(Role.OWNER, Role.USER), TutonController.deleteCourse);
+
+
+// OWNER mengelola KARIL
+route.put("/api/customers/:id/karil", authMiddleware, requireRole(Role.OWNER, Role.USER), KarilController.upsert)
+// GET detail KARIL by customerId (OWNER; ubah jika mau expose ke USER)
+route.get("/api/customers/:id/karil", authMiddleware, requireRole(Role.OWNER, Role.USER), KarilController.detail)
+// GET semua KARIL (OWNER)
+route.get("/api/karil", authMiddleware, requireRole(Role.OWNER, Role.USER), KarilController.list)
+
+// TUTON ITEMS
+route.get(   '/api/tuton-courses/:courseId/items',            authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.listByCourse)
+route.patch( '/api/tuton-items/:itemId',                      authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.update)
+route.patch( '/api/tuton-items/:itemId/status',               authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.updateStatus)
+route.patch( '/api/tuton-items/:itemId/nilai',                authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.updateNilai)
+route.patch( '/api/tuton-items/:itemId/copas',                authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.updateCopas) // opsional
+route.post(  '/api/tuton-courses/:courseId/items/init',       authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.initForCourse)
+route.post(  '/api/tuton-courses/:courseId/items/bulk-status',authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.bulkUpdateStatus)
+route.post(  '/api/tuton-courses/:courseId/items/bulk-nilai', authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.bulkUpdateNilai)
+// SUMMARY & CONFLICTS
+route.get('/api/tuton-courses/:courseId/summary',
+  authMiddleware, requireRole(Role.OWNER, Role.USER),
+  TutonController.summary
+);
+
+route.get('/api/tuton-courses/conflicts',
+  authMiddleware, requireRole(Role.OWNER, Role.USER),
+  TutonController.getConflicts
+);
+
+route.get('/api/tuton-courses/conflicts/:matkul',
+  authMiddleware, requireRole(Role.OWNER, Role.USER),
+  TutonController.getConflictByMatkul
+);
+
+route.get('/api/tuton/subjects',
+  authMiddleware, requireRole(Role.OWNER, Role.USER),
+  TutonController.listSubjects
+)
+
+route.get('/api/tuton/scan',
+  authMiddleware, requireRole(Role.OWNER, Role.USER),
+  TutonController.scan
+)
+
+
+
+// // CONFLICTS (matkul duplikat lintas customer)
+route.get('/api/tuton-courses/conflicts', authMiddleware, requireRole(Role.OWNER, Role.USER), TutonController.getConflicts)
+route.get('/api/tuton-courses/conflicts/:matkul', authMiddleware, requireRole(Role.OWNER, Role.USER), TutonController.getConflictByMatkul)
+
+// // CUSTOMER TUTON SUMMARY
+route.get('/api/customers/:id/tuton-summary', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.getTutonSummary)

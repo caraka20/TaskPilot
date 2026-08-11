@@ -1,0 +1,246 @@
+// =====================
+// Prisma configuration
+// =====================
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============
+// Base models
+// ============
+model User {
+  username    String  @id @db.VarChar(100)
+  password    String
+  role        Role    @default(USER)
+  namaLengkap String  @db.VarChar(100)
+  token       String? @db.Text
+
+  totalJamKerja Float   @default(0.0)
+  totalGaji     Float   @default(0.0)
+  jedaOtomatis  Boolean @default(true)
+
+  konfigurasiOverride KonfigurasiOverride?
+
+  // relations
+  jamKerja   JamKerja[]
+  tutonItems TutonItem[] @relation("TutonItemUser") // ⬅ back-relation TUNGGAL & JELAS
+
+  riwayatGaji Salary[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Role {
+  USER
+  OWNER
+}
+
+enum JenisUT {
+  TUTON
+  KARIL
+  TK
+}
+
+enum JenisTugas {
+  DISKUSI
+  TUGAS
+  ABSEN
+}
+
+enum StatusTugas {
+  BELUM
+  SELESAI
+}
+
+model Customer {
+  id           Int     @id @default(autoincrement())
+  namaCustomer String
+  noWa         String
+  nim          String  @unique @db.VarChar(191)
+  password     String
+  jurusan      String
+  jenis        JenisUT
+
+  totalBayar Float @default(0.0)
+  sudahBayar Float @default(0.0)
+  sisaBayar  Float @default(0.0)
+
+  tutonCourses TutonCourse[]
+  karil        KarilDetail?  @relation("CustomerToKaril")
+
+  payments CustomerPayment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CustomerPayment {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  amount       Float
+  tanggalBayar DateTime @default(now())
+  catatan      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([customerId])
+}
+
+model KarilDetail {
+  id         Int      @id @default(autoincrement())
+  customerId Int      @unique
+  customer   Customer @relation("CustomerToKaril", fields: [customerId], references: [id])
+
+  judul  String
+  tugas1 Boolean @default(false)
+  tugas2 Boolean @default(false)
+  tugas3 Boolean @default(false)
+  tugas4 Boolean @default(false)
+
+  keterangan String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model TutonCourse {
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  matkul         String @db.VarChar(191)
+  totalItems     Int    @default(19)
+  completedItems Int    @default(0)
+
+  items TutonItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([customerId, matkul])
+  @@index([matkul])
+}
+
+model TutonItem {
+  id       Int         @id @default(autoincrement())
+  courseId Int
+  course   TutonCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  jenis  JenisTugas
+  sesi   Int
+  status StatusTugas @default(BELUM)
+
+  nilai Float?
+
+  // user penanggung jawab (opsional)
+  username String? @db.VarChar(100)
+  user     User?   @relation("TutonItemUser", fields: [username], references: [username], onDelete: SetNull)
+
+  deskripsi String?
+  selesaiAt DateTime?
+
+  // persist flag copas untuk DISKUSI/TUGAS
+  copasSoal Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseId, jenis, sesi])
+  @@index([username])
+}
+
+/**
+ * ========================
+ * JAM KERJA (segmen tunggal)
+ * ========================
+ */
+model JamKerja {
+  id       Int    @id @default(autoincrement())
+  username String @db.VarChar(100)
+
+  /**
+   * tanggal untuk pengelompokan (isi start-of-day WIB/locale)
+   */
+  tanggal DateTime @default(now())
+
+  /**
+   * segmen berjalan
+   */
+  jamMulai   DateTime
+  jamSelesai DateTime?
+
+  /**
+   * total durasi segmen ini (jam desimal) – boleh jadi derived, tetap dipertahankan
+   */
+  totalJam Float @default(0.0)
+
+  /**
+   * status terakhir segmen
+   */
+  status StatusKerja @default(AKTIF)
+
+  /**
+   * flag segmen masih terbuka (AKTIF) atau sudah ditutup (JEDA/SELESAI)
+   */
+  isOpen Boolean @default(true)
+
+  user User @relation(fields: [username], references: [username], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([username])
+  @@index([username, isOpen])
+  @@index([tanggal])
+}
+
+enum StatusKerja {
+  AKTIF
+  JEDA
+  SELESAI
+}
+
+model Salary {
+  id           Int      @id @default(autoincrement())
+  username     String   @db.VarChar(100)
+  tanggalBayar DateTime @default(now())
+  jumlahBayar  Float
+  catatan      String?
+
+  user User @relation(fields: [username], references: [username], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([username])
+}
+
+model Konfigurasi {
+  id                Int     @id @default(1)
+  batasJedaMenit    Int     @default(5)
+  jedaOtomatisAktif Boolean @default(true)
+  gajiPerJam        Float   @default(14285.71)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model KonfigurasiOverride {
+  username String @id @db.VarChar(100)
+  user     User   @relation(fields: [username], references: [username], onDelete: Cascade)
+
+  gajiPerJam        Float?
+  batasJedaMenit    Int?
+  jedaOtomatisAktif Boolean?
+
+  updatedAt DateTime @updatedAt
+}

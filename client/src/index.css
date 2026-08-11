@@ -1,0 +1,349 @@
+@import "tailwindcss";
+
+/* aktifkan plugin HeroUI (via file hero.ts di root) */
+@plugin "./hero.ts";
+
+/* scan class dari paket HeroUI */
+@source "../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}";
+
+/* (opsional) tema warna project */
+@theme {
+  --color-primary: #4F46E5;
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-danger:  #F43F5E;
+}
+
+/* ===== Base font & sizing ===== */
+:root {
+  --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --app-bg: #f7f8fc;
+  --app-surface: #ffffff;
+  --app-surface-muted: #f1f3f9;
+  --app-border: rgba(108, 124, 151, 0.22);
+  --app-text: #172033;
+  --app-text-muted: #667085;
+  --app-brand: #5b5ce2;
+  --app-brand-strong: #4f46d2;
+  --app-accent-cyan: #0891b2;
+  --app-accent-emerald: #0f9f7f;
+  --app-accent-amber: #d98207;
+  --app-radius-sm: 10px;
+  --app-radius-md: 14px;
+  --app-radius-lg: 20px;
+  --app-radius-xl: 28px;
+  --app-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -20px rgba(15, 23, 42, 0.22);
+  --app-shadow-md: 0 18px 50px -32px rgba(15, 23, 42, 0.32);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+html.dark {
+  --app-bg: #080d19;
+  --app-surface: #101827;
+  --app-surface-muted: #162033;
+  --app-border: rgba(126, 145, 177, 0.22);
+  --app-text: #e8edf7;
+  --app-text-muted: #9aa8bd;
+  --app-brand: #818cf8;
+  --app-brand-strong: #9aa5ff;
+  --app-accent-cyan: #22d3ee;
+  --app-accent-emerald: #34d399;
+  --app-accent-amber: #fbbf24;
+  --app-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24), 0 12px 28px -22px rgba(0, 0, 0, 0.7);
+  --app-shadow-md: 0 22px 60px -34px rgba(0, 0, 0, 0.8);
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+html {
+  min-height: 100%;
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  font-family: var(--font-ui);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: rgba(99, 102, 241, 0.22);
+}
+
+/* ===== hint native theme (scrollbar/form) ===== */
+html { color-scheme: light; }
+html.dark { color-scheme: dark; }
+
+/* ===== Default background/text: light & dark (dipakai yang navy) ===== */
+body {
+  background:
+    radial-gradient(circle at 8% -5%, rgba(91, 92, 226, 0.10), transparent 32rem),
+    radial-gradient(circle at 96% 12%, rgba(8, 145, 178, 0.075), transparent 26rem),
+    var(--app-bg);
+  color: var(--app-text);
+}
+html.dark body {
+  background:
+    radial-gradient(circle at 8% -5%, rgba(99, 102, 241, 0.16), transparent 34rem),
+    radial-gradient(circle at 96% 10%, rgba(6, 182, 212, 0.10), transparent 28rem),
+    radial-gradient(circle at 60% 110%, rgba(52, 211, 153, 0.055), transparent 30rem),
+    var(--app-bg);
+  color: var(--app-text);
+}
+
+/* Scrollbar tenang dan konsisten untuk tabel, drawer, serta konten panjang. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 116, 139, 0.45) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.42);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(79, 70, 229, 0.55);
+  background-clip: padding-box;
+}
+
+/* Pola dasar reusable untuk menjaga seluruh halaman terasa satu produk. */
+.app-surface {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-lg);
+  background: color-mix(in srgb, var(--app-surface) 97%, transparent);
+  box-shadow: var(--app-shadow-sm);
+}
+
+.app-surface-elevated {
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-xl);
+  background: color-mix(in srgb, var(--app-surface) 97%, transparent);
+  box-shadow: var(--app-shadow-md);
+}
+
+/* Surface beraksen untuk section penting tanpa membuat halaman terasa ramai. */
+.app-surface-accent {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--app-brand) 18%, var(--app-border));
+  border-radius: var(--app-radius-lg);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--app-brand) 6%, var(--app-surface)), var(--app-surface) 48%),
+    var(--app-surface);
+  box-shadow: var(--app-shadow-sm);
+}
+
+.app-surface-accent::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--app-brand), var(--app-accent-cyan));
+}
+
+.app-status-glow {
+  box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.taskpilot-alert {
+  border: 1px solid var(--app-border) !important;
+  border-radius: 1.25rem !important;
+  box-shadow: var(--app-shadow-md) !important;
+}
+
+.taskpilot-alert-button {
+  min-height: 2.75rem !important;
+  border-radius: 0.75rem !important;
+  padding-inline: 1.1rem !important;
+  font-weight: 700 !important;
+}
+
+/* Seluruh dialog SweetAlert lama ikut konsisten, termasuk yang belum memakai helper baru. */
+.swal2-popup {
+  border: 1px solid var(--app-border) !important;
+  border-radius: 1.25rem !important;
+  background: var(--app-surface) !important;
+  color: var(--app-text) !important;
+  box-shadow: var(--app-shadow-md) !important;
+}
+
+.swal2-title,
+.swal2-html-container {
+  color: var(--app-text) !important;
+}
+
+.swal2-actions button {
+  min-height: 2.75rem;
+  border-radius: 0.75rem !important;
+  font-weight: 700 !important;
+}
+
+.app-grid-background {
+  background-image:
+    linear-gradient(to right, rgba(148, 163, 184, 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.055) 1px, transparent 1px);
+  background-size: 28px 28px;
+  background-position: center top;
+}
+
+.interactive-lift {
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.interactive-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--app-shadow-md);
+}
+
+@keyframes app-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.app-page-enter {
+  animation: app-enter 220ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+*:focus-visible {
+  outline-color: #6366f1;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 639px) {
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+}
+
+/* (opsional) transisi halus saat ganti tema */
+.theme-transition, .theme-transition * {
+  transition:
+    background-color .28s cubic-bezier(.2,.8,.2,1),
+    color .28s cubic-bezier(.2,.8,.2,1),
+    border-color .28s cubic-bezier(.2,.8,.2,1),
+    box-shadow .28s cubic-bezier(.2,.8,.2,1);
+}
+
+/* (opsional) token supaya komponen HeroUI ikut nyesuaiin surface */
+html.dark [data-customers-shell] {
+  --nextui-background: #0B1220;
+  --nextui-content1:   #0E1626;  /* kartu/section */
+  --nextui-content2:   #0C1422;  /* surface lebih gelap */
+  --nextui-foreground: #E8EDF6;
+}
+
+/* =========================
+   Tuton Matrix conflict row
+   ========================= */
+/* Versi lebih tegas */
+.tuton-conflict-bg {
+  /* light */
+  --tc-bg: rgb(255 228 230); /* rose-100 */
+  background-color: var(--tc-bg) !important;
+}
+.dark .tuton-conflict-bg {
+  /* dark: lebih kontras */
+  --tc-bg: rgba(159, 18, 57, 0.30); /* rose-700/30 */
+  background-color: var(--tc-bg) !important;
+}
+
+.tuton-conflict-ring {
+  /* ring terlihat baik di dua mode */
+  box-shadow: 0 0 0 1px rgba(244, 63, 94, 0.55) inset !important;  /* rose-500/55 */
+}
+.dark .tuton-conflict-ring {
+  box-shadow: 0 0 0 1px rgba(251, 113, 133, 0.50) inset !important;/* rose-400/50 */
+}
+
+/* hindari clipping */
+.tuton-conflict-cell {
+  position: relative;
+  overflow: visible;
+}
+
+/* accent bar di kiri cell MATKUL */
+.tuton-conflict-accent { position: relative; }
+.tuton-conflict-accent::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  bottom: -1px;
+  width: 6px;
+  border-top-left-radius: 10px;
+  border-bottom-left-radius: 10px;
+  background: linear-gradient(180deg, #fb7185 0%, #f43f5e 100%); /* rose-400 → rose-500 */
+  box-shadow: 0 0 0 1px rgba(244, 63, 94, .35);
+}
+.dark .tuton-conflict-accent::before {
+  background: linear-gradient(180deg, #fb7185cc 0%, #f43f5ecc 100%);
+  box-shadow: 0 0 0 1px rgba(251, 113, 133, .35);
+}
+
+/* badge kecil “Konflik” di pojok kanan atas cell MATKUL */
+.tuton-conflict-badge {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #f43f5e;   /* rose-500 */
+  color: white;
+  letter-spacing: .2px;
+  box-shadow: 0 1px 0 rgba(0,0,0,.06);
+}
+.dark .tuton-conflict-badge {
+  background: #fb7185;   /* rose-400 */
+  color: #0B1220;        /* kontras di dark navy */
+}
+
+/* hover glow halus untuk baris konflik */
+.tuton-conflict-hover:hover {
+  box-shadow: 0 0 0 2px rgba(244, 63, 94, .18) inset !important;
+}
+.dark .tuton-conflict-hover:hover {
+  box-shadow: 0 0 0 2px rgba(251, 113, 133, .18) inset !important;
+}
