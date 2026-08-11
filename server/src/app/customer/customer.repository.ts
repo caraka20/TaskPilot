@@ -1,5 +1,5 @@
 import { prismaClient } from "../../config/database"
-import { Customer, Prisma } from "@prisma/client"
+import { Customer, Prisma } from "../../generated/prisma"
 import { CustomerDetailRow, CustomerListQuery, CustomerListRow, hitungSisaBayar } from "./customer.model"
 
 export class CustomerRepository {

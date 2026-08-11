@@ -1,7 +1,7 @@
 import { prismaClient } from "../src/config/database";
 import bcrypt from "bcrypt"
 import { generateToken } from "../src/utils/jwt";
-import { JenisTugas, JenisUT, Role, StatusKerja, StatusTugas } from "@prisma/client";
+import { JenisTugas, JenisUT, Role, StatusKerja, StatusTugas } from "../src/generated/prisma";
 
 export class UserTest {
     static async create () {

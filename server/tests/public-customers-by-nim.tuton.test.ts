@@ -1,7 +1,7 @@
 import supertest from "supertest"
 import app from "../src/app"
 import { prismaClient } from "../src/config/database"
-import { JenisTugas, StatusTugas } from "@prisma/client"
+import { JenisTugas, StatusTugas } from "../src/generated/prisma"
 import { CustomerTest, TutonTest, UserTest } from "./test-util"
 
 // --- Hard cleanup biar nggak ada sisa data antar test (hindari NIM duplicate)

@@ -1,6 +1,6 @@
 import supertest from "supertest"
 import app from "../src/app"
-import { JenisTugas, StatusTugas } from "@prisma/client"
+import { JenisTugas, StatusTugas } from "../src/generated/prisma"
 import { CustomerTest, TutonTest, UserTest } from "./test-util"
 
 describe("GET /api/customers/:id/tuton-summary", () => {

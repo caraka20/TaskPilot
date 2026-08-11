@@ -2,7 +2,7 @@ import supertest from "supertest"
 import app from "../src/app"
 import { CustomerTest, TutonTest, UserTest } from "./test-util"
 import { prismaClient } from "../src/config/database"
-import { JenisTugas } from "@prisma/client"
+import { JenisTugas } from "../src/generated/prisma"
 
 describe("GET /api/tuton-courses/:courseId/items", () => {
   let ownerToken: string
