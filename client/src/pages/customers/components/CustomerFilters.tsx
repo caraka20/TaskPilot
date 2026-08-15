@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Input, Button, Select, SelectItem, Kbd, Tooltip, Chip } from "@heroui/react";
-import type { ListParams, CustomerJenis } from "../../../utils/customer";
-import { CUSTOMER_JENIS_OPTIONS } from "../../../utils/customer";
+import { useEffect, useRef, useState } from "react";
+import { Input, Button, Select, SelectItem, Chip } from "@heroui/react";
+import { RotateCcw, Search, SlidersHorizontal } from "lucide-react";
+import type { ListParams, CustomerLayanan } from "../../../utils/customer";
+import { CUSTOMER_LAYANAN_LABEL, CUSTOMER_LAYANAN_OPTIONS } from "../../../utils/customer";
 
 type Props = {
   initial?: Partial<ListParams>; // jenis optional (single value) → kalau kosong = semua
@@ -17,24 +18,26 @@ export default function CustomerFilters({
   debounceMs = 450,
 }: Props) {
   const [q, setQ] = useState<string>(initial?.q ?? "");
-  const [jenis, setJenis] = useState<CustomerJenis | "">(
-    ((Array.isArray(initial?.jenis) ? initial?.jenis[0] : initial?.jenis) as CustomerJenis) ?? ""
+  const [layanan, setLayanan] = useState<CustomerLayanan | "">(
+    ((Array.isArray(initial?.layanan) ? initial?.layanan[0] : initial?.layanan) as CustomerLayanan) ?? ""
   );
 
   const didMount = useRef(false);
 
   const apply = () => {
     const val = q.trim();
-    const payload: any = { page: 1 };
-    if (val) payload.q = val;
-    if (jenis) payload.jenis = jenis; // single value
+    const payload: any = {
+      page: 1,
+      q: val || undefined,
+      layanan: layanan || undefined,
+    };
     onChange(payload);
   };
 
   const reset = () => {
     setQ("");
-    setJenis("");
-    onChange({ q: undefined, page: 1, jenis: undefined });
+    setLayanan("");
+    onChange({ q: undefined, page: 1, layanan: undefined });
   };
 
   useEffect(() => {
@@ -46,21 +49,12 @@ export default function CustomerFilters({
     const t = setTimeout(apply, debounceMs);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q, jenis, autoSearch, debounceMs]);
-
-  const enterHint = useMemo(
-    () => (
-      <span className="hidden md:inline text-foreground-400">
-        Tekan <Kbd>Enter</Kbd> untuk terapkan cepat.
-      </span>
-    ),
-    []
-  );
+  }, [q, layanan, autoSearch, debounceMs]);
 
   const ActiveBadge = () => {
     const items: string[] = [];
     if (q.trim()) items.push(`Cari: "${q.trim()}"`);
-    if (jenis) items.push(`Jenis: ${jenis}`);
+    if (layanan) items.push(`Layanan: ${CUSTOMER_LAYANAN_LABEL[layanan]}`);
     if (items.length === 0) return null;
     return (
       <div className="flex flex-wrap items-center gap-2">
@@ -77,71 +71,59 @@ export default function CustomerFilters({
 
   return (
     <div className="w-full">
-      <div className="rounded-2xl border border-default-100 bg-content1 p-3 sm:p-4 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:gap-4">
-          <div className="min-w-0 flex-1">
-            <Input
-              label="Cari (nama / NIM)"
-              placeholder="nama / nim"
-              value={q}
-              onValueChange={setQ}
-              onKeyDown={(e) => e.key === "Enter" && apply()}
-              variant="bordered"
-              isClearable
-              onClear={() => setQ("")}
-              startContent={
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-4 w-4 text-foreground-400"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                >
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="m20 20-3.5-3.5" />
-                </svg>
-              }
-            />
-          </div>
-
-          <Select
-            label="Jenis"
-            className="w-full sm:w-[180px]"
-            variant="bordered"
-            isClearable
-            selectedKeys={jenis ? new Set([jenis]) : new Set()}
-            onSelectionChange={(keys) => {
-              const val = (Array.from(keys)[0] as CustomerJenis | undefined) ?? "";
-              setJenis(val);
-            }}
-          >
-            {CUSTOMER_JENIS_OPTIONS.map((k) => (
-              <SelectItem key={k}>{k}</SelectItem>
-            ))}
-          </Select>
-
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
-            <Button
-              color="primary"
-              className="min-h-11 bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-sm sm:min-h-10"
-              onPress={apply}
-            >
-              Terapkan
-            </Button>
-            <Button variant="flat" className="min-h-11 bg-default-100 sm:min-h-10" onPress={reset}>
-              Reset
-            </Button>
-
-            <Tooltip content="Shortcut">
-              <div className="ml-1 hidden lg:block">{enterHint}</div>
-            </Tooltip>
-          </div>
-        </div>
-
-        <div className="mt-3">
-          <ActiveBadge />
+      <div className="mb-4 flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+          <SlidersHorizontal className="h-[18px] w-[18px]" />
+        </span>
+        <div>
+          <h3 className="text-sm font-bold text-foreground">Cari dan saring data</h3>
+          <p className="mt-0.5 text-xs text-foreground-500">Pencarian otomatis diterapkan setelah Anda berhenti mengetik.</p>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(240px,1fr)_minmax(210px,.45fr)_auto] md:items-end">
+        <Input
+          label="Nama atau NIM"
+          labelPlacement="outside"
+          placeholder="Cari customer…"
+          value={q}
+          onValueChange={setQ}
+          onKeyDown={(event) => event.key === "Enter" && apply()}
+          variant="bordered"
+          isClearable
+          onClear={() => setQ("")}
+          startContent={<Search className="h-4 w-4 text-foreground-400" />}
+          classNames={{ inputWrapper: "min-h-11 rounded-xl bg-default-50 shadow-none" }}
+        />
+
+        <Select
+          label="Jenis layanan"
+          labelPlacement="outside"
+          variant="bordered"
+          isClearable
+          selectedKeys={layanan ? new Set([layanan]) : new Set()}
+          onSelectionChange={(keys) => {
+            const value = (Array.from(keys)[0] as CustomerLayanan | undefined) ?? "";
+            setLayanan(value);
+          }}
+          classNames={{ trigger: "min-h-11 rounded-xl bg-default-50 shadow-none" }}
+        >
+          {CUSTOMER_LAYANAN_OPTIONS.map((item) => (
+            <SelectItem key={item}>{CUSTOMER_LAYANAN_LABEL[item]}</SelectItem>
+          ))}
+        </Select>
+
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <Button color="primary" className="min-h-11 rounded-xl px-6 font-semibold shadow-sm" startContent={<Search className="h-4 w-4" />} onPress={apply}>
+            Terapkan
+          </Button>
+          <Button isIconOnly aria-label="Reset filter" variant="bordered" className="min-h-11 min-w-11 rounded-xl bg-content1" onPress={reset}>
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="mt-3"><ActiveBadge /></div>
     </div>
   );
 }

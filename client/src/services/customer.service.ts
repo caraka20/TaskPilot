@@ -47,7 +47,7 @@ export async function exportCustomersExcel() {
 
 /** Payload update: hanya field dasar (tidak menyentuh invoice/payment) */
 export type UpdateCustomerPayload = Partial<
-  Pick<CreateCustomerPayload, "namaCustomer" | "noWa" | "nim" | "password" | "jurusan" | "jenis">
+  Pick<CreateCustomerPayload, "namaCustomer" | "noWa" | "nim" | "password" | "jurusan" | "jenis" | "layanan">
 >;
 
 export function createCustomer(payload: CreateCustomerPayload) {
@@ -67,6 +67,9 @@ export function getCustomers(params: Partial<ListParams> = {}) {
   // Filter jenis — support single atau multi (CSV), sesuai validasi BE (array/CSV)
   if (params.jenis) {
     query.jenis = Array.isArray(params.jenis) ? params.jenis.join(",") : params.jenis;
+  }
+  if (params.layanan) {
+    query.layanan = Array.isArray(params.layanan) ? params.layanan.join(",") : params.layanan;
   }
 
   return apiGet<CustomerListResponse>(httpClient, base, query);
@@ -88,6 +91,10 @@ export function deleteCustomer(id: string | number) {
 /* ===== payments ===== */
 export function addCustomerPayment(id: string | number, payload: AddPaymentPayload) {
   return apiPost<CustomerItem, AddPaymentPayload>(httpClient, `${base}/${id}/payments`, payload);
+}
+
+export function settleCustomerPayment(id: string | number) {
+  return apiPost<CustomerItem, Record<string, never>>(httpClient, `${base}/${id}/payments/settle`, {});
 }
 
 export function listCustomerPayments(id: string | number, params: PaymentsListParams) {

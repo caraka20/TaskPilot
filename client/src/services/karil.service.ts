@@ -1,15 +1,12 @@
 import httpClient from "../lib/httpClient";
+import { apiGet as apiGetRequest, apiPut as apiPutRequest } from "../lib/http";
 
 async function apiGet<T>(url: string, params?: any): Promise<T> {
-  const res = await httpClient.get(url, { params });
-  return res.data?.data as T;
+  return apiGetRequest<T>(httpClient, url, params);
 }
 
 async function apiPut<T, B>(url: string, body: B): Promise<T> {
-  console.log("[karil.service] PUT", url, "payload:", body);
-  const res = await httpClient.put(url, body);
-  console.log("[karil.service] response:", res.status, res.data);
-  return res.data?.data as T;
+  return apiPutRequest<T, B>(httpClient, url, body);
 }
 
 export type UpsertKarilPayload = {
@@ -26,6 +23,7 @@ export type KarilListParams = {
   page?: number;
   limit?: number;
   progress?: "all" | "complete" | "incomplete";
+  tugasBelum?: "all" | "1" | "2" | "3" | "4";
   sortBy?: "updatedAt" | "createdAt" | "namaCustomer" | "nim";
   sortDir?: "asc" | "desc";
 };

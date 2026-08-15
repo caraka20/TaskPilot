@@ -2,6 +2,8 @@ import express from 'express'
 import { Role } from '../generated/prisma'
 import { authMiddleware } from '../middleware/auth-middleware'
 import { requireRole } from '../middleware/require-role'
+import { requireCustomerBillingAccess } from '../middleware/require-customer-billing-access'
+import { requireTutonWorkAccess } from '../middleware/require-tuton-work-access'
 import { UserController } from '../app/user/user.controller'
 import { GajiController } from '../app/gaji/gaji.controller'
 import { JamKerjaController } from '../app/jam-kerja/jam-kerja.controller'
@@ -10,6 +12,7 @@ import DashboardController from '../app/dashboard/dashboard.controller'
 import { CustomerController } from '../app/customer/customer.controller'
 import TutonController from '../app/tuton/tuton.controller'
 import { KarilController } from '../app/karil/karil.controller'
+import { MetodePenelitianController } from '../app/metode-penelitian/metode-penelitian.controller'
 import TutonItemController from '../app/tuton-item/tuton-item.controller'
 import { prismaClient } from '../config/database'
 
@@ -33,6 +36,9 @@ route.get("/api/users", authMiddleware, requireRole(Role.OWNER), UserController.
 route.get("/api/users/:username/everything", authMiddleware, requireRole(Role.OWNER, Role.USER), UserController.getUserEverything);
 route.get("/api/users/:username", authMiddleware, UserController.getUserDetail);
 route.patch("/api/users/:username/jeda-otomatis", authMiddleware, requireRole(Role.OWNER), UserController.setJedaOtomatisUser);
+route.patch("/api/users/:username/customer-billing-access", authMiddleware, requireRole(Role.OWNER), UserController.setCustomerBillingAccess);
+route.patch("/api/users/:username/tuton-work-exemption", authMiddleware, requireRole(Role.OWNER), UserController.setTutonWorkExemption);
+route.patch("/api/users/:username/status", authMiddleware, requireRole(Role.OWNER), UserController.setActive);
 route.post("/api/users/logout", authMiddleware, UserController.logout);
 
 
@@ -78,21 +84,20 @@ route.post('/api/customers', authMiddleware, requireRole(Role.OWNER, Role.USER),
 route.get('/api/customers/export/excel', authMiddleware, requireRole(Role.OWNER), CustomerController.exportExcel)
 route.get('/api/customers/:id', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.detail)
 route.patch('/api/customers/:id', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.update);
-// Tambah pembayaran customer (OWNER only)
-route.post('/api/customers/:id/payments',authMiddleware, requireRole(Role.OWNER), CustomerController.addPayment)
-// Update total tagihan/invoice (OWNER only)
-route.patch('/api/customers/:id/invoice',authMiddleware, requireRole(Role.OWNER),CustomerController.updateInvoice )
-// List histori pembayaran customer (OWNER only; ubah jika mau buka untuk USER)
-route.get('/api/customers/:id/payments',authMiddleware, requireRole(Role.OWNER),CustomerController.listPayments )
+// OWNER atau USER yang diberi hak akses tagihan dapat melihat dan mengelola pembayaran.
+route.post('/api/customers/:id/payments', authMiddleware, requireCustomerBillingAccess, CustomerController.addPayment)
+route.post('/api/customers/:id/payments/settle', authMiddleware, requireCustomerBillingAccess, CustomerController.settlePayment)
+route.patch('/api/customers/:id/invoice', authMiddleware, requireCustomerBillingAccess, CustomerController.updateInvoice)
+route.get('/api/customers/:id/payments', authMiddleware, requireCustomerBillingAccess, CustomerController.listPayments)
 route.delete('/api/customers/:id', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.remove)
 route.get('/api/customers', authMiddleware, requireRole(Role.OWNER, Role.USER), CustomerController.list)
 route.get("/api/public/customers/:nim/tuton", CustomerController.publicSelfByNim);
 
 
 // TUTON (create / update / delete)
-route.post(  '/api/customers/:id/tuton-courses',  authMiddleware, requireRole(Role.OWNER, Role.USER), TutonController.addCourse);
-route.patch( '/api/tuton-courses/:courseId',      authMiddleware, requireRole(Role.OWNER, Role.USER), TutonController.updateCourse);
-route.delete('/api/tuton-courses/:courseId',      authMiddleware, requireRole(Role.OWNER, Role.USER), TutonController.deleteCourse);
+route.post(  '/api/customers/:id/tuton-courses',  authMiddleware, requireRole(Role.OWNER, Role.USER), requireTutonWorkAccess, TutonController.addCourse);
+route.patch( '/api/tuton-courses/:courseId',      authMiddleware, requireRole(Role.OWNER, Role.USER), requireTutonWorkAccess, TutonController.updateCourse);
+route.delete('/api/tuton-courses/:courseId',      authMiddleware, requireRole(Role.OWNER, Role.USER), requireTutonWorkAccess, TutonController.deleteCourse);
 
 
 // OWNER mengelola KARIL
@@ -102,15 +107,20 @@ route.get("/api/customers/:id/karil", authMiddleware, requireRole(Role.OWNER, Ro
 // GET semua KARIL (OWNER)
 route.get("/api/karil", authMiddleware, requireRole(Role.OWNER, Role.USER), KarilController.list)
 
+// METODE PENELITIAN — bentuknya setara KARIL, tetapi data dan filternya terpisah.
+route.put("/api/customers/:id/metode-penelitian", authMiddleware, requireRole(Role.OWNER, Role.USER), MetodePenelitianController.upsert)
+route.get("/api/customers/:id/metode-penelitian", authMiddleware, requireRole(Role.OWNER, Role.USER), MetodePenelitianController.detail)
+route.get("/api/metode-penelitian", authMiddleware, requireRole(Role.OWNER, Role.USER), MetodePenelitianController.list)
+
 // TUTON ITEMS
 route.get(   '/api/tuton-courses/:courseId/items',            authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.listByCourse)
-route.patch( '/api/tuton-items/:itemId',                      authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.update)
-route.patch( '/api/tuton-items/:itemId/status',               authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.updateStatus)
-route.patch( '/api/tuton-items/:itemId/nilai',                authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.updateNilai)
-route.patch( '/api/tuton-items/:itemId/copas',                authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.updateCopas) // opsional
-route.post(  '/api/tuton-courses/:courseId/items/init',       authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.initForCourse)
-route.post(  '/api/tuton-courses/:courseId/items/bulk-status',authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.bulkUpdateStatus)
-route.post(  '/api/tuton-courses/:courseId/items/bulk-nilai', authMiddleware, requireRole(Role.OWNER, Role.USER), TutonItemController.bulkUpdateNilai)
+route.patch( '/api/tuton-items/:itemId',                      authMiddleware, requireRole(Role.OWNER, Role.USER), requireTutonWorkAccess, TutonItemController.update)
+route.patch( '/api/tuton-items/:itemId/status',               authMiddleware, requireRole(Role.OWNER, Role.USER), requireTutonWorkAccess, TutonItemController.updateStatus)
+route.patch( '/api/tuton-items/:itemId/nilai',                authMiddleware, requireRole(Role.OWNER, Role.USER), requireTutonWorkAccess, TutonItemController.updateNilai)
+route.patch( '/api/tuton-items/:itemId/copas',                authMiddleware, requireRole(Role.OWNER, Role.USER), requireTutonWorkAccess, TutonItemController.updateCopas) // opsional
+route.post(  '/api/tuton-courses/:courseId/items/init',       authMiddleware, requireRole(Role.OWNER, Role.USER), requireTutonWorkAccess, TutonItemController.initForCourse)
+route.post(  '/api/tuton-courses/:courseId/items/bulk-status',authMiddleware, requireRole(Role.OWNER, Role.USER), requireTutonWorkAccess, TutonItemController.bulkUpdateStatus)
+route.post(  '/api/tuton-courses/:courseId/items/bulk-nilai', authMiddleware, requireRole(Role.OWNER, Role.USER), requireTutonWorkAccess, TutonItemController.bulkUpdateNilai)
 // SUMMARY & CONFLICTS
 route.get('/api/tuton-courses/:courseId/summary',
   authMiddleware, requireRole(Role.OWNER, Role.USER),

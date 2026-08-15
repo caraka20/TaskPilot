@@ -39,7 +39,8 @@ export class CustomerController {
   static async detail(req: UserRequest, res: Response, next: NextFunction) {
     try {
       const { id } = CustomerValidation.PARAMS_ID.parse(req.params)
-      const data = await CustomerService.detail(id)
+      const includeBilling = req.user?.role === "OWNER" || Boolean(req.user?.canViewCustomerBilling)
+      const data = await CustomerService.detail(id, includeBilling)
       return ResponseHandler.success(res, data)
     } catch (err) {
       next(err)
@@ -58,6 +59,20 @@ export class CustomerController {
 
       const data = await CustomerService.addPayment(Number(id), body)
       return ResponseHandler.success(res, data, 'Pembayaran tercatat & saldo diperbarui')
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  static async settlePayment(
+    req: ERequest<IdParam>,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const { id } = Validation.validate(CustomerValidation.ID_PARAM, req.params)
+      const data = await CustomerService.settlePayment(Number(id))
+      return ResponseHandler.success(res, data, data.alreadyPaid ? "Customer sudah lunas" : "Pelunasan customer berhasil dicatat")
     } catch (err) {
       next(err)
     }
@@ -120,7 +135,8 @@ export class CustomerController {
   static async list(req: UserRequest, res: Response, next: NextFunction) {
     try {
       const query = await Validation.validate(CustomerValidation.LIST_QUERY, req.query as any)
-      const result = await CustomerService.list(query)
+      const includeBilling = req.user?.role === "OWNER" || Boolean(req.user?.canViewCustomerBilling)
+      const result = await CustomerService.list(query, includeBilling)
       return ResponseHandler.success(res, result)
     } catch (err) {
       next(err)

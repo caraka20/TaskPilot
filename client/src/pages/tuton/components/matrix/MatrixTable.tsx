@@ -1,5 +1,6 @@
 // client/src/pages/customers/components/matrix/MatrixTable.tsx
 import { useEffect, useRef, useState, useMemo, memo } from "react";
+import { flushSync } from "react-dom";
 import {
   Table,
   TableHeader,
@@ -20,7 +21,7 @@ import {
 import { Clipboard, Pencil, Trash2 } from "lucide-react";
 import Swal from "sweetalert2";
 
-import { SESSIONS, isTugas } from "./constants";
+import { SESSIONS } from "./constants";
 import SessionsCell from "./SessionsCell";
 import type { MinimalCourse, Pair } from "./types";
 import type { TutonItemResponse } from "../../../../services/tuton.service";
@@ -47,6 +48,16 @@ type Props = {
 };
 
 type Column = { key: string; label: React.ReactNode; sesi?: number };
+
+const editCourseModalClassNames = {
+  wrapper:
+    "z-[2200] items-stretch justify-stretch p-0 sm:items-center sm:justify-center sm:p-5",
+  backdrop: "bg-slate-950/55 backdrop-blur-[5px]",
+  base:
+    "m-0 flex h-dvh max-h-dvh w-screen max-w-none flex-col overflow-hidden rounded-none border-0 bg-white text-foreground shadow-[0_28px_90px_-24px_rgba(2,12,27,.52)] dark:bg-slate-950 sm:h-auto sm:min-h-0 sm:max-h-[80dvh] sm:w-[36rem] sm:max-w-[calc(100vw-2rem)] sm:rounded-[24px] sm:border sm:border-white/70 dark:sm:border-slate-700/80",
+  closeButton:
+    "right-4 top-4 z-30 grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-slate-500 ring-1 ring-slate-200/80 transition hover:bg-sky-50 hover:text-[#174c6d] dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700 dark:hover:bg-sky-400/10 dark:hover:text-sky-200",
+} as const;
 
 /** Tombol salin */
 const CopyMatkulButton = memo(function CopyMatkulButton({
@@ -86,8 +97,8 @@ const CopyMatkulButton = memo(function CopyMatkulButton({
         role="status"
         aria-live="polite"
         className={[
-          "pointer-events-none absolute -top-3 right-0 z-50 rounded-md",
-          "bg-emerald-600/95 text-white text-[10px] px-2 py-0.5 shadow",
+          "pointer-events-none absolute -top-4 right-0 z-50 rounded-lg",
+          "bg-emerald-600/95 px-2 py-1 text-[9px] font-bold text-white shadow-lg",
           "transition-all duration-200 will-change-transform",
           justCopied ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1",
         ].join(" ")}
@@ -100,7 +111,7 @@ const CopyMatkulButton = memo(function CopyMatkulButton({
           size="sm"
           isIconOnly
           variant="flat"
-          className="min-h-9 min-w-9 bg-default-100 text-foreground-600 cursor-pointer hover:bg-default-200 active:bg-default-300 transition-colors md:min-h-8 md:min-w-8"
+          className="min-h-9 min-w-9 cursor-pointer rounded-xl bg-slate-100 text-slate-500 transition-colors hover:bg-sky-50 hover:text-[#1b5278] active:bg-sky-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-sky-400/10 md:min-h-8 md:min-w-8"
           onPress={doCopy}
           aria-label={`Salin nama matkul ${text}`}
           title="Salin nama matkul"
@@ -127,10 +138,10 @@ export default function MatrixTable({
 }: Props) {
   // ====== State modal Edit ======
   const [editOpen, setEditOpen] = useState(false);
-  const [editBusy, setEditBusy] = useState(false);
   const [editCourseId, setEditCourseId] = useState<number | null>(null);
   const [editMatkul, setEditMatkul] = useState("");
   const [editResetItems, setEditResetItems] = useState(false);
+  const editSaveLock = useRef(false);
 
   const openEdit = (courseId: number, currentMatkul: string) => {
     setEditCourseId(courseId);
@@ -139,46 +150,103 @@ export default function MatrixTable({
     setEditOpen(true);
   };
 
-  const confirmSaveEdit = async () => {
-    if (!editCourseId) return;
-    const { value: ok } = await Swal.fire({
+  const resetEditState = () => {
+    setEditOpen(false);
+    setEditCourseId(null);
+    setEditMatkul("");
+    setEditResetItems(false);
+  };
+
+  const closeEdit = () => {
+    resetEditState();
+  };
+
+  const saveEdit = async (closeHeroModal: () => void) => {
+    if (!editCourseId || editSaveLock.current) return;
+
+    // Simpan nilai terlebih dahulu karena state form akan segera dibersihkan.
+    const courseId = editCourseId;
+    const originalMatkul = editMatkul;
+    const originalResetItems = editResetItems;
+    const payload = {
+      matkul: editMatkul.trim() || undefined,
+      resetItems: editResetItems || undefined,
+    };
+
+    editSaveLock.current = true;
+
+    // Lepaskan focus trap dan overlay HeroUI sebelum membuka SweetAlert.
+    flushSync(() => {
+      resetEditState();
+    });
+    closeHeroModal();
+
+    // Tunggu animasi keluar modal agar klik pertama tidak ditangkap overlay lama.
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 180));
+
+    const confirmation = await Swal.fire({
       icon: "question",
       title: "Simpan perubahan matakuliah?",
       text: editResetItems
-        ? "Item akan direset (hapus semua & buat default 16 item). Lanjutkan?"
-        : "Perubahan nama matkul akan disimpan.",
+        ? "Item akan dibuat ulang menjadi 16 item default. Lanjutkan?"
+        : "Perubahan nama matakuliah akan disimpan.",
       showCancelButton: true,
       confirmButtonText: "Simpan",
       cancelButtonText: "Batal",
-      confirmButtonColor: "#2563eb",
+      confirmButtonColor: "#174c6d",
+      cancelButtonColor: "#64748b",
+      focusConfirm: true,
+      returnFocus: false,
+      allowEnterKey: true,
+      keydownListenerCapture: true,
+      customClass: {
+        container: "taskpilot-swal-layer",
+      },
     });
-    if (!ok) return;
 
-    setEditBusy(true);
-    try {
-      await updateCourse(editCourseId, {
-        matkul: editMatkul.trim() || undefined,
-        resetItems: editResetItems || undefined,
+    if (!confirmation.isConfirmed) {
+      editSaveLock.current = false;
+      flushSync(() => {
+        setEditCourseId(courseId);
+        setEditMatkul(originalMatkul);
+        setEditResetItems(originalResetItems);
+        setEditOpen(true);
       });
+      return;
+    }
+
+    try {
+      await updateCourse(courseId, payload);
+
+      markDirty();
+
+      editSaveLock.current = false;
       await Swal.fire({
+        toast: true,
+        position: "top-end",
         icon: "success",
-        title: "Tersimpan",
-        timer: 1200,
+        title: "Matakuliah diperbarui",
+        timer: 900,
+        timerProgressBar: true,
         showConfirmButton: false,
       });
-      setEditOpen(false);
 
-      // ✅ reload data
-      markDirty();
       window.location.reload();
     } catch (e: any) {
+      editSaveLock.current = false;
       await Swal.fire({
         icon: "error",
         title: "Gagal menyimpan",
         text: e?.response?.data?.message || e?.message || "Terjadi kesalahan",
       });
-    } finally {
-      setEditBusy(false);
+
+      // Kembalikan form agar pengguna dapat memperbaiki lalu mencoba lagi.
+      flushSync(() => {
+        setEditCourseId(courseId);
+        setEditMatkul(originalMatkul);
+        setEditResetItems(originalResetItems);
+        setEditOpen(true);
+      });
     }
   };
 
@@ -226,8 +294,8 @@ export default function MatrixTable({
 
   // ====== Columns ======
   const W_MATKUL = "w-[190px] sm:w-[260px] lg:w-[360px]";
-  const W_NARROW = "w-[56px] md:w-[64px]";
-  const W_NORMAL = "w-[92px] md:w-[108px]";
+  // Seluruh sesi memakai lebar identik agar kolom Diskusi dan Tugas sejajar.
+  const W_SESSION = "w-[76px] md:w-[84px]";
 
   const columns: Column[] = [
     { key: "MATKUL", label: "MATKUL" },
@@ -238,14 +306,16 @@ export default function MatrixTable({
         sesi: s.sesi,
         label: (
           <div className="flex flex-col items-center gap-1">
-            <div className="font-medium">{s.label}</div>
+            <div className="text-xs font-black tracking-wide">{s.label}</div>
             <Button
               size="sm"
               radius="full"
               aria-label={`Toggle absen sesi ${s.sesi}`}
               className={[
-                "min-h-9 px-2 text-[11px] md:h-6 md:min-h-0 md:px-3",
-                isDone ? "bg-emerald-600 text-white" : "bg-default-200 text-foreground-700",
+                "min-h-8 rounded-full px-2.5 text-[10px] font-bold md:h-6 md:min-h-0",
+                isDone
+                  ? "bg-emerald-500 text-white shadow-sm"
+                  : "bg-white/12 text-white/80 ring-1 ring-inset ring-white/20 hover:bg-white/20",
               ].join(" ")}
               onPress={() => onToggleHeaderAbsen(s.sesi)}
               title={isDone ? "Set Absen → BELUM" : "Set Absen → SELESAI"}
@@ -259,11 +329,15 @@ export default function MatrixTable({
   ];
 
   const conflictClasses = "tuton-conflict-bg tuton-conflict-ring tuton-conflict-cell tuton-conflict-hover";
+  // Cell MATKUL tidak memakai `tuton-conflict-cell` karena class tersebut
+  // menetapkan position:relative dan dapat membatalkan perilaku sticky.
+  const stickyConflictClasses = "tuton-conflict-bg tuton-conflict-ring tuton-conflict-hover tuton-conflict-accent !sticky";
 
   return (
     <>
-      <div className="border-b border-default-200 bg-content2/60 px-3 py-2 text-xs text-foreground-500 md:hidden">
-        Geser tabel ke samping untuk melihat semua sesi.
+      <div className="flex items-center justify-between border-b border-slate-200/70 bg-sky-50/60 px-3 py-2 text-[11px] font-medium text-[#1b5278] dark:border-slate-800 dark:bg-sky-400/5 dark:text-sky-300 md:hidden">
+        <span>Geser horizontal untuk melihat seluruh sesi</span>
+        <span aria-hidden="true" className="tracking-[.18em]">↔</span>
       </div>
       <div
         className="max-w-full overflow-x-auto overscroll-x-contain touch-pan-x"
@@ -277,28 +351,25 @@ export default function MatrixTable({
           removeWrapper
           classNames={{
             table:
-              "min-w-[820px] lg:min-w-[1100px] table-fixed text-[13px] border border-default-200 border-separate border-spacing-0",
-            thead: "sticky top-0 z-10 shadow-sm",
-            th: "bg-blue-600 text-white font-medium text-[13px] py-2 px-2 text-center border border-blue-500/70",
-            td: "py-2 px-2 align-middle text-center border border-default-200 overflow-visible",
+              "min-w-[820px] table-fixed border-separate border-spacing-0 text-[13px] lg:min-w-[1100px]",
+            thead: "sticky top-0 z-20 shadow-[0_7px_16px_-14px_rgba(15,23,42,.8)]",
+            th: "border-b border-r border-white/10 bg-[#173f5f] px-2 py-2.5 text-center text-white first:border-l-0 last:border-r-0",
+            tbody: "[&>tr:last-child>td]:border-b-0",
+            tr: "group/row transition-colors hover:bg-sky-50/35 dark:hover:bg-sky-400/[.035]",
+            td: "overflow-visible border-b border-r border-slate-200/70 px-2 py-2.5 text-center align-middle last:border-r-0 dark:border-slate-800/80",
           }}
           selectionMode="none"
         >
           <TableHeader columns={columns}>
             {(column) => {
-              const widthCls =
-                column.key === "MATKUL"
-                  ? W_MATKUL
-                  : column.sesi && isTugas(column.sesi)
-                  ? W_NORMAL
-                  : W_NARROW;
+              const widthCls = column.key === "MATKUL" ? W_MATKUL : W_SESSION;
 
               return (
                 <TableColumn
                   key={column.key}
                   className={[
                     column.key === "MATKUL"
-                      ? "text-left sticky left-0 z-30 shadow-[inset_-1px_0_0_0_rgba(0,0,0,0.06)] bg-blue-600"
+                      ? "sticky left-0 z-30 bg-[#12344d] text-left shadow-[6px_0_16px_-16px_rgba(15,23,42,.9)]"
                       : "text-center",
                     widthCls,
                   ].join(" ")}
@@ -319,26 +390,28 @@ export default function MatrixTable({
                 <TableRow key={c.id}>
                   {(columnKey) => {
                     if (columnKey === "MATKUL") {
-                      const stickyBg = isConflictRow ? "" : "bg-content1";
+                      const stickyBg = isConflictRow
+                        ? ""
+                        : "bg-white group-hover/row:bg-sky-50/80 dark:bg-slate-900 dark:group-hover/row:bg-slate-800";
 
                       return (
                         <TableCell
                           className={[
                             "text-left overflow-visible relative",
-                            "sticky left-0 z-20",
+                            "sticky left-0 z-30 isolate",
                             stickyBg,
-                            "shadow-[inset_-1px_0_0_0_rgba(0,0,0,0.06)]",
+                            "shadow-[6px_0_16px_-16px_rgba(15,23,42,.9)] transition-colors",
                             "overscroll-x-contain",
                             W_MATKUL,
-                            isConflictRow ? `${conflictClasses} tuton-conflict-accent` : "",
+                            isConflictRow ? stickyConflictClasses : "",
                           ].join(" ")}
                         >
 
-                          <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0 flex-1">
                               <Tooltip content={c.matkul} placement="top-start" offset={6} showArrow>
                                 <div
-                                  className="truncate text-[14px] md:text-[15px] font-semibold tracking-[0.015em] text-foreground leading-tight"
+                                  className="truncate text-[13px] font-black leading-tight tracking-[0.01em] text-slate-800 dark:text-slate-100 md:text-sm"
                                   title={c.matkul}
                                 >
                                   {c.matkul}
@@ -346,14 +419,14 @@ export default function MatrixTable({
                               </Tooltip>
                             </div>
 
-                            <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex shrink-0 items-center gap-1">
                                 <>
                                   <Tooltip content="Edit matkul" placement="top">
                                     <Button
                                       size="sm"
                                       isIconOnly
                                       variant="flat"
-                                      className="min-h-9 min-w-9 bg-default-100 text-foreground-600 hover:bg-default-200 rounded-xl md:min-h-8 md:min-w-8"
+                                      className="min-h-9 min-w-9 rounded-xl bg-slate-100 text-slate-500 hover:bg-sky-50 hover:text-[#1b5278] dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-sky-400/10 md:min-h-8 md:min-w-8"
                                       onPress={() => openEdit(c.id, c.matkul)}
                                       aria-label={`Edit ${c.matkul}`}
                                     >
@@ -366,7 +439,7 @@ export default function MatrixTable({
                                       size="sm"
                                       isIconOnly
                                       variant="flat"
-                                      className="min-h-9 min-w-9 bg-default-100 text-danger-600 hover:bg-default-200 rounded-xl md:min-h-8 md:min-w-8"
+                                      className="min-h-9 min-w-9 rounded-xl bg-slate-100 text-rose-500 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-800 dark:text-rose-300 dark:hover:bg-rose-400/10 md:min-h-8 md:min-w-8"
                                       onPress={() => onDeleteCourse(c.id, c.matkul)}
                                       aria-label={`Hapus ${c.matkul}`}
                                     >
@@ -393,14 +466,10 @@ export default function MatrixTable({
                     const arr: Pair[] = pairsByCourse[c.id] ?? [];
                     const p = Number.isFinite(sesiNum) ? arr.find((x) => x.sesi === sesiNum) : undefined;
 
-                    const isNarrow = Number.isFinite(sesiNum) && !isTugas(sesiNum);
-
                     return (
                       <TableCell
                         className={[
-                          Number.isFinite(sesiNum)
-                            ? (isNarrow ? `${W_NARROW} px-1` : `${W_NORMAL} px-2`)
-                            : "",
+                          Number.isFinite(sesiNum) ? `${W_SESSION} px-1` : "",
                           isConflictRow ? conflictClasses : "",
                         ].join(" ")}
                       >
@@ -436,43 +505,87 @@ export default function MatrixTable({
       </div>
 
       {/* ===== Modal Edit Matakuliah ===== */}
-      <Modal isOpen={editOpen} onOpenChange={setEditOpen} size="md" placement="center" backdrop="blur">
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader className="flex flex-col gap-1">Edit Matakuliah</ModalHeader>
-              <ModalBody className="gap-4">
+      <Modal
+        isOpen={editOpen}
+        onOpenChange={(open) => {
+          setEditOpen(open);
+          if (!open) {
+            setEditCourseId(null);
+            setEditMatkul("");
+            setEditResetItems(false);
+          }
+        }}
+        isDismissable
+        size="full"
+        placement="center"
+        backdrop="blur"
+        scrollBehavior="inside"
+        classNames={editCourseModalClassNames}
+      >
+        <ModalContent className="min-h-0">
+          {(closeHeroModal) => (
+            <form
+              className="contents"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void saveEdit(closeHeroModal);
+              }}
+            >
+              <ModalHeader className="relative shrink-0 border-b border-slate-200/70 px-5 py-5 pr-16 dark:border-slate-800 sm:px-6 sm:py-6 sm:pr-16">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#123b5a] text-sky-100 shadow-[0_8px_20px_-12px_rgba(18,59,90,.8)] dark:bg-sky-400/15 dark:text-sky-200 dark:shadow-none">
+                    <Pencil className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase tracking-[.18em] text-teal-600 dark:text-teal-300">Pengaturan matakuliah</p>
+                    <h2 className="mt-1 text-lg font-black tracking-tight text-slate-950 dark:text-white">Edit nama matakuliah</h2>
+                    <p className="mt-1 text-xs font-normal leading-5 text-slate-500 dark:text-slate-400">Perbarui nama atau susun ulang item bawaan matakuliah ini.</p>
+                  </div>
+                </div>
+              </ModalHeader>
+              <ModalBody className="min-h-0 gap-5 overflow-y-auto bg-slate-50/65 px-5 py-5 dark:bg-slate-950 sm:px-6 sm:py-6">
                 <Input
                   label="Nama matakuliah"
+                  labelPlacement="outside"
                   placeholder="Masukkan nama matakuliah"
                   value={editMatkul}
                   onValueChange={setEditMatkul}
-                  isDisabled={editBusy}
+                  variant="bordered"
+                  classNames={{
+                    label: "font-bold text-slate-700 dark:text-slate-200",
+                    inputWrapper: "min-h-12 rounded-xl border-slate-200 bg-white shadow-none group-data-[focus=true]:border-teal-500 dark:border-slate-700 dark:bg-slate-900",
+                    input: "font-semibold text-slate-950 dark:text-white",
+                  }}
                   autoFocus
                 />
-                <div className="flex items-center justify-between">
-                  <div className="text-sm">
-                    <div className="font-medium">Reset items</div>
-                    <div className="text-foreground-500 text-[12px]">
+                <div className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                  <div className="min-w-0 text-sm">
+                    <div className="font-bold text-slate-800 dark:text-slate-100">Buat ulang item default</div>
+                    <div className="mt-1 text-[11px] leading-5 text-slate-500 dark:text-slate-400">
                       Hapus semua item dan buat ulang 16 item default (5 Diskusi, 8 Absen, 3 Tugas).
                     </div>
                   </div>
                   <Switch
                     isSelected={editResetItems}
                     onValueChange={setEditResetItems}
-                    isDisabled={editBusy}
+                    color="success"
+                    className="shrink-0"
                   />
                 </div>
               </ModalBody>
-              <ModalFooter>
-                <Button variant="light" onPress={() => onClose()} isDisabled={editBusy}>
+              <ModalFooter className="shrink-0 border-t border-slate-200/70 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-950 sm:px-6">
+                <Button type="button" variant="flat" className="min-h-10 rounded-xl px-5 font-semibold" onPress={closeEdit}>
                   Batal
                 </Button>
-                <Button color="primary" onPress={confirmSaveEdit} isLoading={editBusy}>
-                  Simpan
+                <Button
+                  type="submit"
+                  className="min-h-10 rounded-xl bg-[#123b5a] px-5 font-bold text-white shadow-[0_8px_18px_-12px_rgba(18,59,90,.8)]"
+                  isDisabled={!editMatkul.trim() && !editResetItems}
+                >
+                  Simpan perubahan
                 </Button>
               </ModalFooter>
-            </>
+            </form>
           )}
         </ModalContent>
       </Modal>

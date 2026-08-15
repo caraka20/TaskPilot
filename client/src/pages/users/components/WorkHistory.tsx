@@ -1,7 +1,7 @@
 // client/src/pages/users/components/WorkHistory.tsx
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Card, CardBody, Tabs, Tab, Chip, Pagination,
+  Card, CardBody, Chip, Pagination,
   Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter,
   Input, Select, SelectItem, Checkbox
 } from "@heroui/react";
@@ -10,6 +10,7 @@ import type { AxiosInstance } from "axios";
 import { toHMS } from "../../../utils/format";
 import { updateJamKerjaStrict, type UpdateJamKerjaPayload } from "../../../services/jamKerja.service";
 import { showApiError, showConfirm, showLoading, closeAlert, showSuccess } from "../../../utils/alert"
+import { operationalModalClassNames } from "../../../components/common/operational-modal.styles";
 
 type Props = {
   items: any[];                   // daftar histori (desc)
@@ -20,14 +21,75 @@ type Props = {
   onUpdated?: () => void | Promise<void>;
 };
 
-function ymd(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+type HistoryPeriod = "TODAY" | "THIS_WEEK" | "LAST_WEEK" | "THIS_MONTH" | "LAST_MONTH" | "ALL";
+
+const PERIOD_OPTIONS: Array<{ key: HistoryPeriod; label: string }> = [
+  { key: "TODAY", label: "Hari ini" },
+  { key: "THIS_WEEK", label: "Minggu ini" },
+  { key: "LAST_WEEK", label: "Minggu lalu" },
+  { key: "THIS_MONTH", label: "Bulan ini" },
+  { key: "LAST_MONTH", label: "Bulan lalu" },
+  { key: "ALL", label: "Semua" },
+];
+
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-function fmtDateTime(x?: string | Date | null) {
+function startOfMonday(d: Date) {
+  const day = startOfDay(d);
+  day.setDate(day.getDate() - ((day.getDay() + 6) % 7));
+  return day;
+}
+
+function periodRange(period: HistoryPeriod, now: Date) {
+  const today = startOfDay(now);
+  if (period === "ALL") return { from: null, to: null };
+  if (period === "TODAY") {
+    const to = new Date(today); to.setDate(to.getDate() + 1);
+    return { from: today, to };
+  }
+  if (period === "THIS_WEEK" || period === "LAST_WEEK") {
+    const currentMonday = startOfMonday(now);
+    const from = new Date(currentMonday);
+    if (period === "LAST_WEEK") from.setDate(from.getDate() - 7);
+    const to = new Date(from); to.setDate(to.getDate() + 7);
+    return { from, to };
+  }
+  const from = period === "LAST_MONTH"
+    ? new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    : new Date(now.getFullYear(), now.getMonth(), 1);
+  const to = new Date(from.getFullYear(), from.getMonth() + 1, 1);
+  return { from, to };
+}
+
+function fmtDayDate(x?: string | Date | null) {
   if (!x) return "-";
   const d = typeof x === "string" ? new Date(x) : x;
-  return d.toLocaleString("id-ID");
+  if (!Number.isFinite(d.getTime())) return "-";
+  return d.toLocaleDateString("id-ID", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function fmtTime(x?: string | Date | null) {
+  if (!x) return "-";
+  const d = typeof x === "string" ? new Date(x) : x;
+  if (!Number.isFinite(d.getTime())) return "-";
+  return d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+function fmtRange(from: Date | null, to: Date | null) {
+  if (!from || !to) return "Seluruh tanggal kerja yang tersimpan";
+  const endInclusive = new Date(to.getTime() - 1);
+  const format: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric" };
+  if (from.toDateString() === endInclusive.toDateString()) {
+    return from.toLocaleDateString("id-ID", { weekday: "long", ...format });
+  }
+  return `${from.toLocaleDateString("id-ID", format)} – ${endInclusive.toLocaleDateString("id-ID", format)}`;
 }
 
 // == helpers datetime-local ==
@@ -52,31 +114,41 @@ function fromInputLocalValue(val: string): string | null {
 
 export default function WorkHistory({
   items = [],
+  serverNow,
   title = "Histori Jam Kerja",
   api,
   canEdit = true,
   onUpdated,
 }: Props) {
-  const [period, setPeriod] = useState<"hari" | "minggu" | "bulan">("hari");
+  const [period, setPeriod] = useState<HistoryPeriod>("TODAY");
   const [page, setPage] = useState(1);
   const perPage = 10;
 
+  const range = useMemo(() => {
+    const parsed = serverNow ? new Date(serverNow) : new Date();
+    return periodRange(period, Number.isFinite(parsed.getTime()) ? parsed : new Date());
+  }, [period, serverNow]);
+
   const filtered = useMemo(() => {
-    const now = new Date();
-    const start =
-      period === "hari"
-        ? ymd(now)
-        : period === "minggu"
-        ? ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7)))
-        : ymd(new Date(now.getFullYear(), now.getMonth(), 1));
+    if (!range.from || !range.to) return items;
     return items.filter((r) => {
-      const t = ymd(new Date((r?.tanggal as any) ?? r?.jamMulai ?? now));
-      return t >= start;
+      const date = new Date(r?.jamMulai ?? r?.tanggal ?? 0);
+      const timestamp = date.getTime();
+      return Number.isFinite(timestamp) && timestamp >= range.from!.getTime() && timestamp < range.to!.getTime();
     });
-  }, [items, period]);
+  }, [items, range]);
+
+  const totalSeconds = useMemo(
+    () => Math.max(0, Math.round(filtered.reduce((sum, row) => sum + Number(row?.totalJam ?? 0), 0) * 3600)),
+    [filtered],
+  );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const pageItems = filtered.slice((page - 1) * perPage, page * perPage);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   // ====== Modal Update state ======
   const [open, setOpen] = useState(false);
@@ -186,27 +258,33 @@ export default function WorkHistory({
               </span>
               <div>
                 <div className="text-lg font-bold text-foreground">{title}</div>
-                <p className="text-xs text-foreground-500">Pantau dan koreksi waktu kerja secara aman.</p>
+                <p className="text-xs text-foreground-500">{fmtRange(range.from, range.to)}</p>
               </div>
             </div>
-            <Tabs
-              size="sm"
-              radius="full"
-              selectedKey={period}
-              onSelectionChange={(k) => {
-                setPage(1);
-                setPeriod(k as any);
-              }}
-              classNames={{
-                tabList: "w-full bg-default-100/80 p-1 rounded-2xl border border-default-200/70 sm:w-auto",
-                cursor: "rounded-xl bg-content1 shadow-sm",
-                tab: "min-h-10 flex-1 px-3 sm:flex-none",
-              }}
-            >
-              <Tab key="hari" title="Hari ini" />
-              <Tab key="minggu" title="Minggu ini" />
-              <Tab key="bulan" title="Bulan ini" />
-            </Tabs>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[230px]">
+              <Select
+                aria-label="Filter periode jam kerja"
+                selectedKeys={[period]}
+                onSelectionChange={(keys) => {
+                  const key = Array.from(keys)[0] as HistoryPeriod | undefined;
+                  if (!key) return;
+                  setPage(1);
+                  setPeriod(key);
+                }}
+                variant="bordered"
+                radius="lg"
+                classNames={{
+                  trigger: "min-h-11 border-default-200 bg-content1 shadow-sm",
+                }}
+              >
+                {PERIOD_OPTIONS.map((option) => (
+                  <SelectItem key={option.key}>{option.label}</SelectItem>
+                ))}
+              </Select>
+              <p className="text-right text-[11px] font-semibold text-indigo-600 dark:text-indigo-300">
+                Total periode: {toHMS(totalSeconds)}
+              </p>
+            </div>
           </div>
 
           <div className="mt-5 grid gap-3 md:hidden">
@@ -232,14 +310,15 @@ export default function WorkHistory({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-foreground-400">Sesi #{r?.id}</p>
-                        <p className="mt-1 text-sm font-semibold text-foreground">{fmtDateTime(mulai)}</p>
+                        <p className="mt-1 text-sm font-semibold capitalize text-foreground">{fmtDayDate(mulai)}</p>
+                        <p className="mt-1 text-xs text-foreground-500">Mulai {fmtTime(mulai)}</p>
                       </div>
                       <Chip size="sm" variant="flat" color={chipColor as any}>{r?.status ?? "-"}</Chip>
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-3">
                       <div className="rounded-xl bg-content1 p-3 shadow-sm dark:bg-content2/80">
                         <p className="text-[11px] text-foreground-400">Selesai</p>
-                        <p className="mt-1 text-xs font-semibold text-foreground-700">{fmtDateTime(selesai)}</p>
+                        <p className="mt-1 text-xs font-semibold text-foreground-700">{fmtTime(selesai)}</p>
                       </div>
                       <div className="rounded-xl bg-content1 p-3 shadow-sm dark:bg-content2/80">
                         <p className="text-[11px] text-foreground-400">Durasi</p>
@@ -265,9 +344,10 @@ export default function WorkHistory({
           </div>
 
           <div className="mt-5 hidden overflow-x-auto rounded-2xl border border-default-200/80 md:block">
-            <table className="min-w-[760px] w-full text-sm">
+            <table className="min-w-[880px] w-full text-sm">
               <thead>
                 <tr className="bg-default-100/80 text-[11px] uppercase tracking-[0.1em] text-foreground-500">
+                  <th className="px-4 py-3 text-left">Hari & tanggal</th>
                   <th className="px-4 py-3 text-left">Mulai</th>
                   <th className="px-4 py-3 text-left">Selesai</th>
                   <th className="px-4 py-3 text-left">Durasi</th>
@@ -278,7 +358,7 @@ export default function WorkHistory({
               <tbody>
                 {pageItems.length === 0 ? (
                   <tr>
-                    <td colSpan={canEdit ? 5 : 4} className="py-12 text-center text-foreground-400">
+                    <td colSpan={canEdit ? 6 : 5} className="py-12 text-center text-foreground-400">
                       Belum ada data.
                     </td>
                   </tr>
@@ -294,8 +374,9 @@ export default function WorkHistory({
                       : "default";
                     return (
                       <tr key={r?.id} className="border-t border-default-100 transition-colors hover:bg-indigo-50/40 dark:hover:bg-indigo-400/5">
-                        <td className="px-4 py-3.5 font-medium">{fmtDateTime(mulai)}</td>
-                        <td className="px-4 py-3.5 text-foreground-600">{fmtDateTime(selesai)}</td>
+                        <td className="px-4 py-3.5 font-semibold capitalize">{fmtDayDate(mulai)}</td>
+                        <td className="px-4 py-3.5 font-medium">{fmtTime(mulai)}</td>
+                        <td className="px-4 py-3.5 text-foreground-600">{fmtTime(selesai)}</td>
                         <td className="px-4 py-3.5 font-semibold text-indigo-600 dark:text-indigo-300">{toHMS(detik)}</td>
                         <td className="px-4 py-3.5">
                           <Chip size="sm" variant="flat" color={chipColor as any}>
@@ -318,7 +399,7 @@ export default function WorkHistory({
           </div>
 
           <div className="mt-4 flex flex-col items-center justify-between gap-3 text-xs text-foreground-400 sm:flex-row">
-            <div>{filtered.length} entri</div>
+            <div>{filtered.length} entri · {toHMS(totalSeconds)}</div>
             <Pagination
               total={totalPages}
               page={page}
@@ -336,19 +417,20 @@ export default function WorkHistory({
         isOpen={open}
         onOpenChange={(v) => (!v ? resetModal() : setOpen(v))}
         isDismissable={!busy}
+        size="full"
         placement="center"
         scrollBehavior="inside"
-        classNames={{ base: "border border-default-200 bg-content1 shadow-2xl", backdrop: "bg-slate-950/55 backdrop-blur-sm" }}
+        classNames={operationalModalClassNames}
       >
-        <ModalContent>
-          <form onSubmit={(event) => { event.preventDefault(); void handleSubmit(); }}>
+        <ModalContent className="min-h-0">
+          <form className="flex min-h-0 flex-1 flex-col" onSubmit={(event) => { event.preventDefault(); void handleSubmit(); }}>
             <ModalHeader className="flex items-center gap-3 border-b border-default-100 px-5 py-4">
               <span className="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-400/10 dark:text-indigo-300">
                 <PencilLine className="h-5 w-5" />
               </span>
               <span className="flex flex-col gap-0.5">
                 <span>{editing ? `Update sesi #${editing.id}` : "Update sesi"}</span>
-                <span className="text-xs font-normal text-foreground-500">Koreksi status dan waktu kerja user.</span>
+                <span className="text-xs font-normal text-foreground-500">Koreksi status, hari, tanggal, dan waktu kerja user.</span>
               </span>
             </ModalHeader>
             <ModalBody className="space-y-4 px-5 py-5">

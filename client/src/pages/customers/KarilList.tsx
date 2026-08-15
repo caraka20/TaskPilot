@@ -1,6 +1,6 @@
 // client/src/pages/customers/KarilList.tsx
 import { useCallback, useEffect, useState } from "react";
-import { Card, CardHeader, CardBody, Chip } from "@heroui/react";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import { showApiError } from "../../utils/alert";
 import {
   listKaril,
@@ -9,16 +9,46 @@ import {
 } from "../../services/karil.service";
 import KarilFilters from "./components/KarilFilters";
 import KarilTable, { KarilTableSkeleton } from "./components/KarilTable";
-import BackButton from "../../components/common/BackButton";
-import { ListChecks } from "lucide-react";
+import { CircleCheckBig, Clock3, FileText, UsersRound } from "lucide-react";
+import WorkspacePageHeader from "../../components/common/WorkspacePageHeader";
+
+const contentGroupVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      delayChildren: 0.14,
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const contentItemVariants: Variants = {
+  hidden: {
+    opacity: 0,
+    y: 12,
+    filter: "blur(2px)",
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: {
+      duration: 0.44,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
 
 export default function KarilList() {
+  const reduceMotion = useReducedMotion();
   const [params, setParams] = useState<KarilListParams>({
     page: 1,
     limit: 10,
     sortBy: "updatedAt",
     sortDir: "desc",
     progress: "all",
+    tugasBelum: "all",
   });
   const [data, setData] = useState<KarilListResponse>();
   const [loading, setLoading] = useState(false);
@@ -45,6 +75,7 @@ export default function KarilList() {
       sortBy: "updatedAt",
       sortDir: "desc",
       progress: "all",
+      tugasBelum: "all",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -53,45 +84,33 @@ export default function KarilList() {
     data?.pagination?.total ??
     (data as any)?.items?.length ??
     0;
+  const visibleItems = data?.items ?? [];
+  const completedOnPage = visibleItems.filter((item) => item.totalTasks > 0 && item.doneTasks >= item.totalTasks).length;
+  const pendingOnPage = Math.max(0, visibleItems.length - completedOnPage);
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="rounded-2xl border border-default-200 shadow-md overflow-hidden bg-content1">
-        <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-indigo-500 to-fuchsia-500" />
+    <div data-workspace-page className="space-y-5 pb-8">
+      <WorkspacePageHeader
+        eyebrow="ARTECH • Layanan akademik"
+        title="Karya Ilmiah"
+        description="Pantau judul, identitas mahasiswa, dan penyelesaian empat tugas Karya Ilmiah secara terstruktur."
+        icon={FileText}
+        metrics={[
+          { label: "Total data", value: `${totalItems} customer`, icon: UsersRound, tone: "violet" },
+          { label: "Selesai di halaman", value: `${completedOnPage} customer`, icon: CircleCheckBig, tone: "emerald" },
+          { label: "Dalam proses", value: `${pendingOnPage} customer`, icon: Clock3, tone: "amber" },
+        ]}
+      />
 
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-4 sm:px-6 bg-gradient-to-r from-content2 to-content1">
-          {/* Kiri: Back + judul */}
-          <div className="flex items-center gap-4">
-            <BackButton variant="flat" tone="sky" tooltip="Kembali" />
-
-            <div className="flex items-center gap-3">
-              <span className="h-9 w-[3px] rounded-full bg-gradient-to-b from-sky-400 to-indigo-500 shadow-[0_0_0_1px_rgba(0,0,0,0.05)]" />
-              <div className="flex flex-col">
-                <div className="text-[17px] sm:text-lg font-semibold tracking-tight text-foreground">
-                  Daftar KARIL / TK
-                </div>
-                <div className="text-[13px] sm:text-sm text-foreground-500">
-                  Pantau progres & kelengkapan tugas untuk peserta KARIL dan TK.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Kanan: ringkas info */}
-          <div className="flex items-center gap-2">
-            <Chip
-              size="sm"
-              variant="flat"
-              className="bg-content1 text-foreground border border-default-200 shadow-[0_1px_0_rgba(0,0,0,0.03)]"
-              startContent={<ListChecks className="h-3.5 w-3.5" />}
-            >
-              Total: <span className="ml-1 font-medium">{totalItems}</span>
-            </Chip>
-          </div>
-        </CardHeader>
-
-        <CardBody className="flex flex-col gap-4 p-4 sm:p-6">
+      <section className="overflow-hidden rounded-[24px] border border-default-200/80 bg-content1 shadow-[0_12px_35px_rgba(15,23,42,.06)]">
+        <motion.div
+          variants={contentGroupVariants}
+          initial={reduceMotion ? false : "hidden"}
+          animate="visible"
+        >
+        <motion.div variants={contentItemVariants} className="border-b border-default-200/70 px-4 py-4 sm:px-6 sm:py-5">
           <KarilFilters
+            label="KARIL"
             initial={params}
             onChange={(next) => {
               const merged = { ...params, ...next, page: next.page ?? 1 };
@@ -99,11 +118,13 @@ export default function KarilList() {
               load(merged);
             }}
           />
-
+        </motion.div>
+        <motion.div variants={contentItemVariants} className="px-4 py-5 sm:px-6">
           {loading ? (
             <KarilTableSkeleton />
           ) : (
             <KarilTable
+              label="KARIL"
               data={data}
               loading={loading}
               page={params.page ?? 1}
@@ -114,8 +135,9 @@ export default function KarilList() {
               }}
             />
           )}
-        </CardBody>
-      </Card>
+        </motion.div>
+        </motion.div>
+      </section>
     </div>
   );
 }

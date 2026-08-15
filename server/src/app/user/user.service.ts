@@ -20,6 +20,8 @@ import { generateToken } from "../../utils/jwt";
 import { UserRequest } from "../../types/user-request";
 import { JamKerjaRepository } from "../jam-kerja/jam-kerja.repository";
 import { GajiRepository } from "../gaji/gaji.repository";
+import { prismaClient } from "../../config/database";
+import { getPayrollSummary } from "../../attendance/services/payroll.service";
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 const round0 = (n: number) => Math.round(n);
@@ -76,6 +78,9 @@ export class UserService {
   static async login(request: LoginRequest): Promise<LoginResponse> {
     const user = await UserRepository.findByUsername(request.username);
     if (!user) throw AppError.fromCode(ERROR_CODE.USER_NOT_FOUND);
+    if (!user.isActive || user.deletedAt) {
+      throw AppError.fromCode(ERROR_CODE.UNAUTHORIZED);
+    }
 
     const isPasswordValid = await bcrypt.compare(
       request.password,
@@ -102,12 +107,30 @@ export class UserService {
 
     const base = toUserDetailResponse(user);
 
-    const ov = await UserRepository.getOverride(request.username);
+    const [ov, payroll] = await Promise.all([
+      UserRepository.getOverride(request.username),
+      getPayrollSummary(prismaClient, user.id),
+    ]);
     const withOverride = ov
       ? { ...base, jedaOtomatis: ov.jedaOtomatisAktif }
       : base;
 
-    return withOverride as UserDetailResponse;
+    return {
+      ...withOverride,
+      unifiedPayroll: {
+        hourlyHours: Number(payroll.hourlyHours),
+        hourlyRate: Number(payroll.hourlyRate),
+        hourlyEarned: Number(payroll.hourlyEarned),
+        hourlySessionCount: Number(payroll.hourlySessionCount),
+        dailyEarned: Number(payroll.dailyEarned),
+        dailyCount: Number(payroll.dailyCount),
+        pieceworkEarned: Number(payroll.pieceworkEarned),
+        pieceworkCount: Number(payroll.pieceworkCount),
+        totalEarned: Number(payroll.totalEarned),
+        totalPaid: Number(payroll.totalPaid),
+        balance: Number(payroll.balance),
+      },
+    } as UserDetailResponse;
   }
 
   static async logout(userReq: UserRequest): Promise<{ loggedOut: true }> {
@@ -119,6 +142,33 @@ export class UserService {
     const user = await UserRepository.findByUsername(username);
     if (!user) throw AppError.fromCode(ERROR_CODE.USER_NOT_FOUND);
     return UserRepository.upsertOverrideJeda(username, payload.aktif);
+  }
+
+  static async setCustomerBillingAccess(username: string, aktif: boolean) {
+    const user = await UserRepository.findByUsername(username)
+    if (!user) throw AppError.fromCode(ERROR_CODE.USER_NOT_FOUND)
+    if (user.role === "OWNER") {
+      return { username, canViewCustomerBilling: true }
+    }
+    return UserRepository.setCustomerBillingAccess(username, aktif)
+  }
+
+  static async setTutonWorkExemption(username: string, aktif: boolean) {
+    const user = await UserRepository.findByUsername(username);
+    if (!user) throw AppError.fromCode(ERROR_CODE.USER_NOT_FOUND);
+    if (user.role === "OWNER") {
+      return { username, canEditTutonWithoutWork: true };
+    }
+    return UserRepository.setTutonWorkExemption(username, aktif);
+  }
+
+  static async setActive(username: string, aktif: boolean) {
+    const user = await UserRepository.findByUsername(username)
+    if (!user) throw AppError.fromCode(ERROR_CODE.USER_NOT_FOUND)
+    if (user.role === "OWNER") {
+      throw AppError.fromCode(ERROR_CODE.BAD_REQUEST, "Akun owner tidak dapat dinonaktifkan dari halaman user")
+    }
+    return UserRepository.setActive(username, aktif)
   }
 
   /* ========= AGREGAT DETAIL LENGKAP ========= */
@@ -201,6 +251,8 @@ export class UserService {
         username: base.username,
         namaLengkap: base.namaLengkap,
         role: base.role,
+        canViewCustomerBilling: base.canViewCustomerBilling,
+        canEditTutonWithoutWork: base.canEditTutonWithoutWork,
         createdAt: base.createdAt,
         updatedAt: base.updatedAt,
         totals: {

@@ -22,6 +22,11 @@ export default function ConfigForm({
   const [gajiPerJam, setGajiPerJam] = useState<number | "">("")
   const [batasJedaMenit, setBatasJedaMenit] = useState<number | "">("")
   const [jedaOtomatisAktif, setJedaOtomatisAktif] = useState(false)
+  const gajiInvalid = gajiPerJam !== "" && (!Number.isFinite(gajiPerJam) || gajiPerJam < 1000)
+  const jedaInvalid = batasJedaMenit !== "" && (
+    !Number.isFinite(batasJedaMenit) || batasJedaMenit < 1 || batasJedaMenit > 120
+  )
+  const formInvalid = gajiPerJam === "" || batasJedaMenit === "" || gajiInvalid || jedaInvalid
 
   useEffect(() => {
     if (!initial) return
@@ -36,10 +41,12 @@ export default function ConfigForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const values: KonfigurasiResponse = {}
-    if (gajiPerJam !== "") values.gajiPerJam = Number(gajiPerJam)
-    if (batasJedaMenit !== "") values.batasJedaMenit = Number(batasJedaMenit)
-    values.jedaOtomatisAktif = Boolean(jedaOtomatisAktif)
+    if (formInvalid) return
+    const values: KonfigurasiResponse = {
+      gajiPerJam: Number(gajiPerJam),
+      batasJedaMenit: Number(batasJedaMenit),
+      jedaOtomatisAktif: Boolean(jedaOtomatisAktif),
+    }
     await onSubmit(values)
   }
 
@@ -55,10 +62,12 @@ export default function ConfigForm({
           label="Gaji per Jam (Rp)"
           value={gajiPerJam === "" ? "" : String(gajiPerJam)}
           onChange={(e) => setGajiPerJam(e.target.value === "" ? "" : Number(e.target.value))}
-          min={0}
+          min={1000}
           inputMode="numeric"
           labelPlacement="outside"
           description="Tarif per jam khusus pengguna."
+          isInvalid={gajiInvalid}
+          errorMessage={gajiInvalid ? "Tarif minimal Rp 1.000 per jam." : undefined}
           classNames={{ inputWrapper: "min-h-12 rounded-2xl" }}
         />
         <Input
@@ -66,10 +75,13 @@ export default function ConfigForm({
           label="Batas Jeda (menit)"
           value={batasJedaMenit === "" ? "" : String(batasJedaMenit)}
           onChange={(e) => setBatasJedaMenit(e.target.value === "" ? "" : Number(e.target.value))}
-          min={0}
+          min={1}
+          max={120}
           inputMode="numeric"
           labelPlacement="outside"
           description="Durasi sebelum jeda otomatis."
+          isInvalid={jedaInvalid}
+          errorMessage={jedaInvalid ? "Batas jeda harus 1–120 menit." : undefined}
           classNames={{ inputWrapper: "min-h-12 rounded-2xl" }}
         />
         <div className="rounded-2xl border border-default-200 bg-default-50 p-4 sm:col-span-2">
@@ -86,7 +98,7 @@ export default function ConfigForm({
           <Button
             type="submit"
             color="primary"
-            isDisabled={loading}
+            isDisabled={loading || formInvalid}
             isLoading={loading}
             className="min-h-11 w-full rounded-2xl sm:w-auto"
             startContent={!loading && <Save className="h-4 w-4" />}

@@ -1,6 +1,7 @@
 // client/src/utils/workActivity.ts
 import Swal from "sweetalert2";
 import "sweetalert2/dist/sweetalert2.min.css";
+import httpClient from "../lib/httpClient";
 
 export const WORK_ACTIVITY_EVENT = "work-activity";
 export const WORK_STARTED_EVENT = "work-started";
@@ -68,6 +69,19 @@ function modalFail(title: string, text?: string) {
   return Swal.fire({ icon: "error", title, text: text || "Terjadi kesalahan" });
 }
 
+async function canEditTutonWithoutActiveWork(): Promise<boolean> {
+  try {
+    const response = await httpClient.get<{
+      user?: { canEditTutonWithoutWork?: boolean };
+    }>("/api/attendance/auth/me");
+    return Boolean(response.data?.user?.canEditTutonWithoutWork);
+  } catch {
+    // Jika profil gagal dimuat, lanjutkan pemeriksaan jam kerja normal. Backend
+    // tetap menjadi otoritas terakhir untuk setiap mutasi Tuton.
+    return false;
+  }
+}
+
 /**
  * Pastikan jam kerja aktif sebelum mutasi.
  * - AKTIF  -> lanjut true
@@ -114,6 +128,13 @@ export async function ensureWorkActiveBeforeMutate(opts?: {
     }
   } catch {
     /* abaikan error localStorage */
+  }
+
+  // USER tertentu dapat diberi pengecualian oleh OWNER. Permission dibaca dari
+  // server supaya perubahan berlaku tanpa perlu logout/login ulang.
+  if (await canEditTutonWithoutActiveWork()) {
+    pingWorkActivity();
+    return true;
   }
 
   // 1) baca state cepat

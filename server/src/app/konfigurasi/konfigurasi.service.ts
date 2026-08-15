@@ -9,6 +9,8 @@ import {
 } from "./konfigurasi.model"
 import { ERROR_CODE } from "../../utils/error-codes"
 import { AppError } from "../../middleware/app-error"
+import { prismaClient } from "../../config/database"
+import { writeAudit } from "../../attendance/services/audit.service"
 
 export class KonfigurasiService {
   static async get() {
@@ -18,18 +20,36 @@ export class KonfigurasiService {
       // practically tidak terjadi karena initIfMissing
       throw AppError.fromCode(ERROR_CODE.NOT_FOUND, "Konfigurasi global tidak ditemukan")
     }
-    return toKonfigurasiResponse(cfg)
+    const audit = await KonfigurasiRepository.getLastAudit("global")
+    return {
+      ...toKonfigurasiResponse(cfg),
+      updatedBy: audit?.actor
+        ? { username: audit.actor.username, namaLengkap: audit.actor.namaLengkap }
+        : null,
+    }
   }
 
   /** PATCH global */
-  static async update(data: UpdateKonfigurasiRequest) {
+  static async update(data: UpdateKonfigurasiRequest, actorId?: string) {
     if (!data || Object.keys(data).length === 0) {
       throw AppError.fromCode(
         ERROR_CODE.BAD_REQUEST,
         "Tidak ada data yang dikirim untuk diperbarui"
       )
     }
+    const before = await KonfigurasiRepository.getRaw()
     const updated = await KonfigurasiRepository.update(data)
+    if (actorId) {
+      await writeAudit(prismaClient, {
+        actorId,
+        entityType: "Konfigurasi",
+        entityId: "global",
+        action: "UPDATE_GLOBAL",
+        beforeData: before,
+        afterData: updated,
+        reason: "Perubahan konfigurasi global TaskPilot",
+      })
+    }
     return toKonfigurasiResponse(updated)
   }
 
@@ -41,7 +61,15 @@ export class KonfigurasiService {
     await KonfigurasiRepository.initIfMissing()
     const globalCfg = await KonfigurasiRepository.getGlobal()
     const overrideCfg = await KonfigurasiRepository.getOverrideByUsername(username)
-    return mergeEffective(globalCfg, overrideCfg, username)
+    const audit = await KonfigurasiRepository.getLastAudit(overrideCfg ? username : "global")
+    return mergeEffective(
+      globalCfg,
+      overrideCfg,
+      username,
+      audit?.actor
+        ? { username: audit.actor.username, namaLengkap: audit.actor.namaLengkap }
+        : null
+    )
   }
 
   /**
@@ -52,7 +80,8 @@ export class KonfigurasiService {
    */
   static async putOverride(
     username: string,
-    payload: PutOverrideKonfigurasiRequest
+    payload: PutOverrideKonfigurasiRequest,
+    actorId?: string
   ): Promise<OverrideResponse> {
     if (!payload || Object.keys(payload).length === 0) {
       throw AppError.fromCode(ERROR_CODE.BAD_REQUEST, "Minimal satu field harus diisi")
@@ -86,6 +115,17 @@ export class KonfigurasiService {
 
     // Simpan hasil merge
     const row = await KonfigurasiRepository.upsertOverride(username, merged)
+    if (actorId) {
+      await writeAudit(prismaClient, {
+        actorId,
+        entityType: "Konfigurasi",
+        entityId: username,
+        action: currentOv ? "UPDATE_OVERRIDE" : "CREATE_OVERRIDE",
+        beforeData: currentOv,
+        afterData: row,
+        reason: `Perubahan konfigurasi efektif ${username}`,
+      })
+    }
 
     // Bentuk response konsisten
     const overrides: OverrideResponse["overrides"] = {}
@@ -97,11 +137,22 @@ export class KonfigurasiService {
   }
 
   /** DELETE override */
-  static async deleteOverride(username: string) {
+  static async deleteOverride(username: string, actorId?: string) {
     const exists = await KonfigurasiRepository.userExists(username)
     if (!exists) throw AppError.fromCode(ERROR_CODE.NOT_FOUND, "User tidak ditemukan")
 
+    const before = await KonfigurasiRepository.getOverrideByUsername(username)
     await KonfigurasiRepository.deleteOverride(username)
+    if (actorId && before) {
+      await writeAudit(prismaClient, {
+        actorId,
+        entityType: "Konfigurasi",
+        entityId: username,
+        action: "DELETE_OVERRIDE",
+        beforeData: before,
+        reason: `Penghapusan override konfigurasi ${username}`,
+      })
+    }
     return { message: `Override konfigurasi untuk ${username} telah dihapus` }
   }
 }

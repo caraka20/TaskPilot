@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, Progress, Chip, Divider, Tooltip } from "@heroui/react";
 import type { UpsertKarilPayload, KarilDetail } from "../../../services/karil.service";
 
@@ -6,16 +6,35 @@ type Props = {
   initial?: KarilDetail | null;
   onSubmit: (payload: UpsertKarilPayload) => void | Promise<void>;
   busy?: boolean;
+  formId?: string;
+  hideActions?: boolean;
+  label?: string;
 };
 
-export default function KarilForm({ initial, onSubmit, busy }: Props) {
-  // ✅ pakai state full controlled
+export default function KarilForm({ initial, onSubmit, busy, formId, hideActions = false, label = "KARIL" }: Props) {
   const [judul, setJudul] = useState(initial?.judul ?? "");
   const [keterangan, setKeterangan] = useState(initial?.keterangan ?? "");
   const [t1, setT1] = useState(!!initial?.tugas1);
   const [t2, setT2] = useState(!!initial?.tugas2);
   const [t3, setT3] = useState(!!initial?.tugas3);
   const [t4, setT4] = useState(!!initial?.tugas4);
+
+  useEffect(() => {
+    setJudul(initial?.judul ?? "");
+    setKeterangan(initial?.keterangan ?? "");
+    setT1(Boolean(initial?.tugas1));
+    setT2(Boolean(initial?.tugas2));
+    setT3(Boolean(initial?.tugas3));
+    setT4(Boolean(initial?.tugas4));
+  }, [
+    initial?.id,
+    initial?.judul,
+    initial?.keterangan,
+    initial?.tugas1,
+    initial?.tugas2,
+    initial?.tugas3,
+    initial?.tugas4,
+  ]);
 
   const totalDone = useMemo(() => [t1, t2, t3, t4].filter(Boolean).length, [t1, t2, t3, t4]);
   const progress = useMemo(() => (totalDone / 4) * 100, [totalDone]);
@@ -33,7 +52,6 @@ export default function KarilForm({ initial, onSubmit, busy }: Props) {
       tugas4: t4,
       keterangan: keterangan.trim() || null,
     };
-    console.log("[KarilForm] SUBMIT payload:", payload);
     await onSubmit(payload);
   };
 
@@ -56,7 +74,14 @@ export default function KarilForm({ initial, onSubmit, busy }: Props) {
   );
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-default-200 bg-content1 shadow-md">
+    <form
+      className="overflow-hidden rounded-2xl border border-default-200 bg-content1 shadow-md"
+      id={formId}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void handleSubmit();
+      }}
+    >
       {/* Accent bar */}
       <div
         className={[
@@ -68,7 +93,7 @@ export default function KarilForm({ initial, onSubmit, busy }: Props) {
         {/* Kiri: input teks */}
         <div className="flex flex-col gap-4">
           <div className="rounded-2xl border border-default-200 bg-content1 p-4">
-            <div className="mb-2 text-sm font-semibold text-foreground">Judul KARIL</div>
+            <div className="mb-2 text-sm font-semibold text-foreground">Judul {label}</div>
             <input
               type="text"
               placeholder="cth: Analisis Sistem Informasi"
@@ -76,6 +101,8 @@ export default function KarilForm({ initial, onSubmit, busy }: Props) {
               disabled={busy}
               value={judul}
               onChange={(e) => setJudul(e.target.value)}
+              minLength={3}
+              required
             />
           </div>
 
@@ -123,25 +150,25 @@ export default function KarilForm({ initial, onSubmit, busy }: Props) {
               <CheckItem label="Tugas 4" checked={t4} onChange={setT4} />
             </div>
 
-            <div className="mt-4 flex justify-end">
+            {!hideActions ? <div className="mt-4 flex justify-end">
               <Tooltip
                 isDisabled={busy || !judul.trim()}
                 content={!judul.trim() ? "Judul wajib diisi" : "Simpan perubahan"}
               >
                 <Button
+                  type="submit"
                   color="primary"
                   className="bg-gradient-to-r from-violet-500 to-sky-500 text-white shadow-sm"
                   isLoading={busy}
                   isDisabled={disabled}
-                  onPress={handleSubmit}
                 >
-                  Simpan KARIL
+                  Simpan {label}
                 </Button>
               </Tooltip>
-            </div>
+            </div> : null}
           </div>
         </div>
       </div>
-    </div>
+    </form>
   );
 }

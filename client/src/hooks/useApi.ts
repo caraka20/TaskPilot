@@ -10,13 +10,14 @@ export function useApi() {
     instance.defaults.headers.common["Content-Type"] = "application/json";
     if (token) instance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
 
-    // Auto-logout ONLY on 401/403; other errors won't wipe state
+    // Token hanya tidak valid pada 401. Respons 403 berarti akun masih login,
+    // tetapi tidak punya izin untuk aksi tertentu.
     instance.interceptors.response.use(
       (res) => res,
       (err) => {
         if (isAxiosError(err)) {
           const status = err.response?.status;
-          if (status === 401 || status === 403) {
+          if (status === 401) {
             useAuthStore.getState().reset();
           }
         }

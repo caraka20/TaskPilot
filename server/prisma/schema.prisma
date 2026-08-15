@@ -16,14 +16,27 @@ datasource db {
 // ============
 model User {
   username    String  @id @db.VarChar(100)
+  // Stable internal key for the integrated attendance domain. Existing
+  // TaskPilot relations continue to use `username`, so no legacy contract is
+  // changed.
+  id          String  @unique @default(uuid()) @db.VarChar(36)
   password    String
   role        Role    @default(USER)
   namaLengkap String  @db.VarChar(100)
+  name        String  @default("") @db.VarChar(120)
   token       String? @db.Text
+  avatarUrl   String? @db.VarChar(255)
 
-  totalJamKerja Float   @default(0.0)
-  totalGaji     Float   @default(0.0)
-  jedaOtomatis  Boolean @default(true)
+  totalJamKerja Float     @default(0.0)
+  totalGaji     Float     @default(0.0)
+  jedaOtomatis  Boolean   @default(true)
+  canViewCustomerBilling Boolean @default(false)
+  // OWNER dapat mengecualikan user tertentu dari kewajiban memulai jam kerja
+  // sebelum melakukan mutasi data Tuton.
+  canEditTutonWithoutWork Boolean @default(false)
+  dailyRate     Decimal   @default(0) @db.Decimal(14, 2)
+  isActive      Boolean   @default(true)
+  deletedAt     DateTime?
 
   konfigurasiOverride KonfigurasiOverride?
 
@@ -32,6 +45,22 @@ model User {
   tutonItems TutonItem[] @relation("TutonItemUser") // ⬅ back-relation TUNGGAL & JELAS
 
   riwayatGaji Salary[]
+
+  workEntries         WorkEntry[]        @relation("AttendanceWorkUser")
+  approvedEntries     WorkEntry[]        @relation("AttendanceWorkApprover")
+  dailyRateHistory    DailyRateHistory[] @relation("AttendanceRateUser")
+  dailyRatesCreated   DailyRateHistory[] @relation("AttendanceRateCreator")
+  productRates        UserProductRate[]  @relation("AttendanceProductRateUser")
+  productRatesCreated UserProductRate[]  @relation("AttendanceProductRateCreator")
+  payments            Payment[]          @relation("AttendancePaymentUser")
+  paymentsCreated     Payment[]          @relation("AttendancePaymentCreator")
+  taskAssignments     TaskScheduleUser[]
+  taskOccurrences     TaskOccurrence[]
+  notes               DashboardNote[]    @relation("AttendanceNoteUser")
+  notesCreated        DashboardNote[]    @relation("AttendanceNoteCreator")
+  templatesCreated    TaskTemplate[]     @relation("AttendanceTemplateCreator")
+  schedulesCreated    TaskSchedule[]     @relation("AttendanceScheduleCreator")
+  auditLogs           AuditLog[]         @relation("AttendanceAuditActor")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -45,7 +74,6 @@ enum Role {
 enum JenisUT {
   TUTON
   KARIL
-  TK
 }
 
 enum JenisTugas {
@@ -67,6 +95,9 @@ model Customer {
   password     String
   jurusan      String
   jenis        JenisUT
+  layananTuton              Boolean @default(false)
+  layananKaril              Boolean @default(false)
+  layananMetodePenelitian   Boolean @default(false)
 
   totalBayar Float @default(0.0)
   sudahBayar Float @default(0.0)
@@ -74,11 +105,30 @@ model Customer {
 
   tutonCourses TutonCourse[]
   karil        KarilDetail?  @relation("CustomerToKaril")
+  metodePenelitian MetodePenelitianDetail? @relation("CustomerToMetodePenelitian")
 
   payments CustomerPayment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model MetodePenelitianDetail {
+  id         Int      @id @default(autoincrement())
+  customerId Int      @unique
+  customer   Customer @relation("CustomerToMetodePenelitian", fields: [customerId], references: [id], onDelete: Cascade)
+
+  judul  String
+  tugas1 Boolean @default(false)
+  tugas2 Boolean @default(false)
+  tugas3 Boolean @default(false)
+  tugas4 Boolean @default(false)
+
+  keterangan String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([updatedAt])
 }
 
 model CustomerPayment {
@@ -118,7 +168,7 @@ model TutonCourse {
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
   matkul         String @db.VarChar(191)
-  totalItems     Int    @default(19)
+  totalItems     Int    @default(16)
   completedItems Int    @default(0)
 
   items TutonItem[]
@@ -207,6 +257,216 @@ enum StatusKerja {
   AKTIF
   JEDA
   SELESAI
+}
+
+// =========================
+// ATTENDANCE / ABSENSI V2
+// =========================
+
+enum WorkMode {
+  DAILY
+  PIECEWORK
+}
+
+enum WorkStatus {
+  IN_PROGRESS
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RecurrenceType {
+  ONCE
+  DAILY
+  WEEKLY
+}
+
+enum TaskStatus {
+  OPEN
+  COMPLETED
+}
+
+model DailyRateHistory {
+  id            String    @id @default(cuid())
+  userId        String    @db.VarChar(36)
+  amount        Decimal   @db.Decimal(14, 2)
+  effectiveFrom DateTime  @db.Date
+  effectiveTo   DateTime? @db.Date
+  createdById   String    @db.VarChar(36)
+  createdAt     DateTime  @default(now())
+  user          User      @relation("AttendanceRateUser", fields: [userId], references: [id])
+  createdBy     User      @relation("AttendanceRateCreator", fields: [createdById], references: [id])
+
+  @@index([userId, effectiveFrom])
+}
+
+model Product {
+  id        String            @id @default(cuid())
+  name      String            @db.VarChar(120)
+  unit      String            @default("pcs") @db.VarChar(30)
+  baseRate  Decimal           @default(0) @db.Decimal(14, 2)
+  isActive  Boolean           @default(true)
+  deletedAt DateTime?
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  userRates UserProductRate[]
+  workItems PieceworkItem[]
+}
+
+model UserProductRate {
+  id            String    @id @default(cuid())
+  userId        String    @db.VarChar(36)
+  productId     String
+  rate          Decimal   @db.Decimal(14, 2)
+  effectiveFrom DateTime  @db.Date
+  effectiveTo   DateTime? @db.Date
+  createdById   String    @db.VarChar(36)
+  createdAt     DateTime  @default(now())
+  user          User      @relation("AttendanceProductRateUser", fields: [userId], references: [id])
+  product       Product   @relation(fields: [productId], references: [id])
+  createdBy     User      @relation("AttendanceProductRateCreator", fields: [createdById], references: [id])
+
+  @@index([userId, productId, effectiveFrom])
+}
+
+model WorkEntry {
+  id                String          @id @default(cuid())
+  userId            String          @db.VarChar(36)
+  workDate          DateTime        @db.Date
+  mode              WorkMode
+  status            WorkStatus      @default(IN_PROGRESS)
+  clockIn           DateTime?
+  clockOut          DateTime?
+  note              String?         @db.Text
+  dailyRateSnapshot Decimal?        @db.Decimal(14, 2)
+  finalAmount       Decimal         @default(0) @db.Decimal(14, 2)
+  submittedAt       DateTime?
+  approvedById      String?         @db.VarChar(36)
+  approvedAt        DateTime?
+  correctionReason  String?         @db.VarChar(255)
+  autoClosedAt      DateTime?
+  autoApprovedAt    DateTime?
+  automationReason  String?         @db.VarChar(255)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  user              User            @relation("AttendanceWorkUser", fields: [userId], references: [id])
+  approvedBy        User?           @relation("AttendanceWorkApprover", fields: [approvedById], references: [id])
+  items             PieceworkItem[]
+
+  @@unique([userId, workDate])
+  @@index([status, workDate])
+  @@index([autoClosedAt, status])
+}
+
+model PieceworkItem {
+  id               String    @id @default(cuid())
+  workEntryId      String
+  productId        String
+  quantity         Int
+  unitRateSnapshot Decimal   @db.Decimal(14, 2)
+  subtotal         Decimal   @db.Decimal(14, 2)
+  createdAt        DateTime  @default(now())
+  workEntry        WorkEntry @relation(fields: [workEntryId], references: [id], onDelete: Cascade)
+  product          Product   @relation(fields: [productId], references: [id])
+}
+
+model Payment {
+  id          String   @id @default(cuid())
+  userId      String   @db.VarChar(36)
+  paymentDate DateTime @db.Date
+  amount      Decimal  @db.Decimal(14, 2)
+  note        String?  @db.VarChar(255)
+  createdById String   @db.VarChar(36)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation("AttendancePaymentUser", fields: [userId], references: [id])
+  createdBy   User     @relation("AttendancePaymentCreator", fields: [createdById], references: [id])
+
+  @@index([userId, paymentDate])
+}
+
+model TaskTemplate {
+  id          String         @id @default(cuid())
+  title       String         @db.VarChar(160)
+  description String?        @db.Text
+  isActive    Boolean        @default(true)
+  deletedAt   DateTime?
+  createdById String         @db.VarChar(36)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  createdBy   User           @relation("AttendanceTemplateCreator", fields: [createdById], references: [id])
+  schedules   TaskSchedule[]
+}
+
+model TaskSchedule {
+  id            String             @id @default(cuid())
+  templateId    String
+  recurrence    RecurrenceType     @default(ONCE)
+  startDate     DateTime           @db.Date
+  endDate       DateTime?          @db.Date
+  weekdays      Json?
+  isActive      Boolean            @default(true)
+  createdById   String             @db.VarChar(36)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  template      TaskTemplate       @relation(fields: [templateId], references: [id])
+  createdBy     User               @relation("AttendanceScheduleCreator", fields: [createdById], references: [id])
+  assignedUsers TaskScheduleUser[]
+  occurrences   TaskOccurrence[]
+}
+
+model TaskScheduleUser {
+  scheduleId String
+  userId     String       @db.VarChar(36)
+  schedule   TaskSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id])
+
+  @@id([scheduleId, userId])
+}
+
+model TaskOccurrence {
+  id          String       @id @default(cuid())
+  scheduleId  String
+  userId      String       @db.VarChar(36)
+  taskDate    DateTime     @db.Date
+  status      TaskStatus   @default(OPEN)
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  schedule    TaskSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id])
+
+  @@unique([scheduleId, userId, taskDate])
+  @@index([userId, taskDate])
+}
+
+model DashboardNote {
+  id          String   @id @default(cuid())
+  userId      String   @db.VarChar(36)
+  title       String?  @db.VarChar(120)
+  message     String   @db.Text
+  isActive    Boolean  @default(true)
+  createdById String   @db.VarChar(36)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation("AttendanceNoteUser", fields: [userId], references: [id])
+  createdBy   User     @relation("AttendanceNoteCreator", fields: [createdById], references: [id])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String   @db.VarChar(36)
+  entityType String   @db.VarChar(60)
+  entityId   String   @db.VarChar(191)
+  action     String   @db.VarChar(60)
+  beforeData Json?
+  afterData  Json?
+  reason     String?  @db.VarChar(255)
+  createdAt  DateTime @default(now())
+  actor      User     @relation("AttendanceAuditActor", fields: [actorId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 model Salary {

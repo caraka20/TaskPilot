@@ -10,6 +10,7 @@ export interface KarilListQuery {
   page: number
   limit: number
   progress?: KarilProgressFilter
+  tugasBelum?: "all" | "1" | "2" | "3" | "4"
   sortBy: KarilSortBy
   sortDir: SortDir
 }
@@ -38,34 +39,35 @@ export interface Paginated<T> {
   pagination: { page: number; limit: number; total: number; totalPages: number }
 }
 
-export type KarilListRow = KarilDetail & {
-  customer: Pick<Customer, "id"|"namaCustomer"|"nim"|"jurusan"|"jenis">
+export type KarilListRow = Pick<Customer, "id" | "namaCustomer" | "nim" | "jurusan" | "jenis" | "createdAt" | "updatedAt"> & {
+  karil: KarilDetail | null
 }
 
 export function mapRowToItem(row: KarilListRow): KarilListItem {
+  const detail = row.karil
   const total = 4
   const done =
-    (row.tugas1 ? 1 : 0) +
-    (row.tugas2 ? 1 : 0) +
-    (row.tugas3 ? 1 : 0) +
-    (row.tugas4 ? 1 : 0)
+    (detail?.tugas1 ? 1 : 0) +
+    (detail?.tugas2 ? 1 : 0) +
+    (detail?.tugas3 ? 1 : 0) +
+    (detail?.tugas4 ? 1 : 0)
 
   return {
-    id: row.id,
-    customerId: row.customerId,
-    namaCustomer: row.customer.namaCustomer,
-    nim: row.customer.nim,
-    jurusan: row.customer.jurusan,
-    judul: row.judul,
-    tugas1: row.tugas1,
-    tugas2: row.tugas2,
-    tugas3: row.tugas3,
-    tugas4: row.tugas4,
+    id: detail?.id ?? 0,
+    customerId: row.id,
+    namaCustomer: row.namaCustomer,
+    nim: row.nim,
+    jurusan: row.jurusan,
+    judul: detail?.judul ?? "Belum dibuat",
+    tugas1: detail?.tugas1 ?? false,
+    tugas2: detail?.tugas2 ?? false,
+    tugas3: detail?.tugas3 ?? false,
+    tugas4: detail?.tugas4 ?? false,
     totalTasks: total,
     doneTasks: done,
     progress: total > 0 ? +(done/total).toFixed(4) : 0,
-    keterangan: row.keterangan,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
+    keterangan: detail?.keterangan ?? null,
+    createdAt: detail?.createdAt ?? row.createdAt,
+    updatedAt: detail?.updatedAt ?? row.updatedAt,
   }
 }

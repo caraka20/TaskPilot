@@ -6,6 +6,7 @@ import cron from 'node-cron'
 import { autoEndJamKerjaOverdue } from './utils/auto-end-jam-kerja'
 import { assertRuntimeEnv } from './config/env'
 import { prismaClient } from './config/database'
+import { runAttendanceAutomation } from './attendance/services/automation.service'
 
 // Setup HTTP Server
 const server = http.createServer(app)
@@ -18,6 +19,7 @@ export const io = new Server(server, {
 })
 
 let cronTask: ReturnType<typeof cron.schedule> | undefined
+let attendanceCronTask: ReturnType<typeof cron.schedule> | undefined
 
 export async function startServer(): Promise<void> {
   assertRuntimeEnv()
@@ -27,6 +29,19 @@ export async function startServer(): Promise<void> {
 
   if (process.env.NODE_ENV !== 'test') {
     cronTask = cron.schedule('0 * * * *', autoEndJamKerjaOverdue)
+    attendanceCronTask = cron.schedule(
+      '*/5 * * * *',
+      () => {
+        void runAttendanceAutomation().then((result) => {
+          if (result.closed || result.approved) {
+            console.log('[CRON][ABSENSI]', result)
+          }
+        }).catch((error: unknown) => {
+          console.error('[CRON][ABSENSI] gagal:', error)
+        })
+      },
+      { timezone: process.env.ATTENDANCE_TIMEZONE || process.env.TZ || 'Asia/Jakarta' },
+    )
   }
 
   const port = Number(process.env.PORT || 3000)
@@ -44,6 +59,7 @@ export async function startServer(): Promise<void> {
 async function shutdown(signal: string): Promise<void> {
   console.log(`\n${signal} diterima, server dihentikan...`)
   cronTask?.stop()
+  attendanceCronTask?.stop()
 
   if (server.listening) {
     await new Promise<void>((resolve, reject) => {

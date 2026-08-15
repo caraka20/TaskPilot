@@ -1,7 +1,7 @@
 // src/config/brand.ts
 export const BRAND = {
   // bisa diganti via env: VITE_APP_NAME, VITE_APP_TAGLINE, VITE_BRAND_COLOR
-  name: (import.meta.env.VITE_APP_NAME ?? "TaskPilot").trim(),
+  name: (import.meta.env.VITE_APP_NAME ?? "ARTECH").trim(),
   tagline: (import.meta.env.VITE_APP_TAGLINE ?? "").trim(),
 
   // path ke file logo di public/

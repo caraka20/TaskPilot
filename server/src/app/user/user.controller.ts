@@ -123,6 +123,68 @@ export class UserController {
     }
   }
 
+  static async setCustomerBillingAccess(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const { username } = await Validation.validate(
+        UserValidation.DETAIL_USER,
+        req.params as Record<string, unknown>,
+      )
+      const { aktif } = await Validation.validate(
+        UserValidation.SET_CUSTOMER_BILLING_ACCESS,
+        req.body,
+      )
+      const result = await UserService.setCustomerBillingAccess(username, aktif)
+      return ResponseHandler.success(res, result, "Hak akses tagihan customer diperbarui")
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  static async setTutonWorkExemption(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ) {
+    try {
+      const { username } = await Validation.validate(
+        UserValidation.DETAIL_USER,
+        req.params as Record<string, unknown>,
+      );
+      const { aktif } = await Validation.validate(
+        UserValidation.SET_TUTON_WORK_EXEMPTION,
+        req.body,
+      );
+      const result = await UserService.setTutonWorkExemption(username, aktif);
+      return ResponseHandler.success(
+        res,
+        result,
+        aktif
+          ? "Akses Tuton tanpa jam kerja diaktifkan"
+          : "Kewajiban jam kerja untuk Tuton diaktifkan kembali",
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async setActive(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { username } = await Validation.validate(
+        UserValidation.DETAIL_USER,
+        req.params as Record<string, unknown>,
+      )
+      const { aktif } = await Validation.validate(UserValidation.SET_ACTIVE, req.body)
+      const result = await UserService.setActive(username, aktif)
+      return ResponseHandler.success(res, result, aktif ? "Akun user diaktifkan" : "Akun user dinonaktifkan")
+    } catch (err) {
+      next(err)
+    }
+  }
+
   /* ========= API BARU: DETAIL LENGKAP =========
      GET /api/users/:username/everything?from=&to=&histPage=&histLimit=&payPage=&payLimit=
   */

@@ -5,10 +5,12 @@ export const ERROR_CODE = {
   UNAUTHORIZED: 'UNAUTHORIZED',
   FORBIDDEN: 'FORBIDDEN',
   BAD_REQUEST: 'BAD_REQUEST',
+  CONFLICT: 'CONFLICT',
   NOT_FOUND: 'NOT_FOUND',
   INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
   UNKNOWN_ERROR: 'UNKNOWN_ERROR',
   GAJI_EXCEEDS_REMAINING: 'GAJI_EXCEEDS_REMAINING',   // ← JANGAN object
+  DATABASE_MIGRATION_REQUIRED: 'DATABASE_MIGRATION_REQUIRED',
 } as const;
 
 export type ErrorCode = keyof typeof ERROR_CODE;
@@ -20,8 +22,10 @@ export const ERROR_DEFINITIONS: Record<ErrorCode, { httpStatus: number; message:
   UNAUTHORIZED: { httpStatus: 401, message: 'Unauthorized access' },
   FORBIDDEN: { httpStatus: 403, message: 'Forbidden request' },
   BAD_REQUEST: { httpStatus: 400, message: 'Bad request' },
+  CONFLICT: { httpStatus: 409, message: 'Conflict' },
   NOT_FOUND: { httpStatus: 404, message: 'Resource not found' },
   INTERNAL_SERVER_ERROR: { httpStatus: 500, message: 'Internal server error' },
   UNKNOWN_ERROR: { httpStatus: 500, message: 'Unknown error occurred' },
   GAJI_EXCEEDS_REMAINING: { httpStatus: 400, message: 'Jumlah bayar melebihi sisa gaji' },
+  DATABASE_MIGRATION_REQUIRED: { httpStatus: 503, message: 'Database migration required' },
 };

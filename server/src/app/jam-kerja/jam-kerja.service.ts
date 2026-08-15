@@ -235,8 +235,7 @@ export class JamKerjaService {
   /* SUMMARY (tetap) */
   static async buildUserSummary(username: string) {
     const gajiPerJam = await getRateFor(username);
-    const latestList = await JamKerjaRepository.findByUsername(username);
-    const latest = latestList[0];
+    const latest = await JamKerjaRepository.findLatestByUsername(username);
     const [todayAgg, weekAgg, monthAgg, allJam] = await Promise.all([
       JamKerjaRepository.rekap(username, startOfToday(), endOfToday()),
       JamKerjaRepository.rekap(username, startOfWeek(), endOfWeek()),

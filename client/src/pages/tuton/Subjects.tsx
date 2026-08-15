@@ -1,32 +1,74 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Card, CardBody, CardHeader,
   Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
-  Chip, Button, Input, Select, SelectItem, Pagination, Spinner, Divider,
+  Chip, Button, Input, Select, SelectItem, Pagination, Spinner,
 } from "@heroui/react";
 import { useSearchParams } from "react-router-dom";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 import {
   listSubjects, scanTuton,
   type SubjectEntry, type ScanResponse, type ScanRow,
   type JenisTugas, type StatusTugas,
 } from "../../services/tuton.service";
-import { Filter, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowRight,
+  BookOpenCheck,
+  Database,
+  Filter,
+  RotateCcw,
+  ScanSearch,
+  Search,
+  SlidersHorizontal,
+} from "lucide-react";
 import {
   ABSEN_SESSIONS,
   DISKUSI_SESSIONS,
   TUGAS_SESSIONS,
 } from "./components/matrix/constants";
+import WorkspacePageHeader from "../../components/common/WorkspacePageHeader";
 
 /** Tetap: pilihan jenis & status */
 const JENIS_OPTIONS: JenisTugas[] = ["ABSEN", "DISKUSI", "TUGAS"];
-const STATUS_OPTIONS: StatusTugas[] = ["BELUM", "SELESAI"];
 
-/** Baru: pilihan Copas */
-const COPAS_OPTIONS = ["SEMUA", "YA", "TIDAK"] as const;
-type CopasFilter = (typeof COPAS_OPTIONS)[number];
+const JENIS_LABEL: Record<JenisTugas, string> = {
+  ABSEN: "Absensi",
+  DISKUSI: "Diskusi",
+  TUGAS: "Tugas",
+};
+
+type CopasFilter = "SEMUA" | "YA" | "TIDAK";
 
 const DEFAULT_PAGE_SIZE = 10;
 const SUBJECT_PAGE_SIZE_DEFAULT = 10;
+
+const panelGroupVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      delayChildren: 0.12,
+      staggerChildren: 0.09,
+    },
+  },
+};
+
+const panelItemVariants: Variants = {
+  hidden: {
+    opacity: 0,
+    y: 12,
+    filter: "blur(2px)",
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: {
+      duration: 0.44,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+};
 
 const sessionsForJenis = (jenis: JenisTugas): readonly number[] => {
   if (jenis === "TUGAS") return TUGAS_SESSIONS;
@@ -36,6 +78,7 @@ const sessionsForJenis = (jenis: JenisTugas): readonly number[] => {
 
 export default function TutonSubjects() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const reduceMotion = useReducedMotion();
 
   // ===== Subjects (matkul) list =====
   const [subjects, setSubjects] = useState<SubjectEntry[]>([]);
@@ -189,354 +232,392 @@ export default function TutonSubjects() {
   };
 
   return (
-    <div className="mx-auto">
-      {/* ===== TITLE CARD (tanpa BackButton) ===== */}
-      <Card className="rounded-2xl border border-default-200 shadow-md overflow-hidden bg-content1">
-        <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-sky-500 to-indigo-600" />
-        <CardHeader className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
+    <div data-workspace-page className="space-y-5 pb-8">
+      <WorkspacePageHeader
+        eyebrow="ARTECH • Tuton workspace"
+        title="Mata kuliah & pemindaian sesi"
+        description="Periksa progres Absensi, Diskusi, Tugas, dan status COPAS dalam satu alur yang ringkas."
+        icon={BookOpenCheck}
+        metrics={[
+          { label: "Mata kuliah", value: `${subjects.length} mata kuliah`, icon: BookOpenCheck, tone: "cyan" },
+          { label: "Hasil scan", value: `${scan?.meta.total ?? 0} hasil`, icon: Database, tone: "emerald" },
+          { label: "Filter aktif", value: `${JENIS_LABEL[jenis]} · Sesi ${sesi}`, icon: Filter, tone: "indigo" },
+        ]}
+      />
+
+      <section className="overflow-hidden rounded-[24px] border border-default-200/80 bg-content1 shadow-[0_12px_35px_rgba(15,23,42,.06)]">
+        <motion.div
+          variants={panelGroupVariants}
+          initial={reduceMotion ? false : "hidden"}
+          animate="visible"
+        >
+        <motion.div variants={panelItemVariants} className="flex flex-col gap-4 border-b border-default-200/70 px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
-            <div className="text-lg font-semibold">Tuton Subjects &amp; Scan</div>
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#e7f4f7] text-[#155e75] ring-1 ring-[#bfe1e8] dark:bg-cyan-400/10 dark:text-cyan-300 dark:ring-cyan-400/15">
+              <ScanSearch className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#16758a] dark:text-cyan-300">Pemindaian sesi</p>
+              <h2 className="mt-0.5 text-lg font-bold text-foreground">Temukan pekerjaan yang perlu ditindaklanjuti</h2>
+              <p className="mt-1 text-xs leading-5 text-foreground-500">Saring aktivitas Tuton berdasarkan mata kuliah, sesi, status pengerjaan, dan kondisi COPAS.</p>
+            </div>
           </div>
-        </CardHeader>
+          <div className="inline-flex w-fit items-center gap-3 rounded-2xl border border-default-200/80 bg-default-50/80 px-3.5 py-2.5 dark:bg-default-100/50">
+            <span className="grid h-8 w-8 place-items-center rounded-xl bg-white text-[#155e75] shadow-sm dark:bg-slate-800 dark:text-cyan-300">
+              {scanLoading ? <Spinner size="sm" color="primary" /> : <Database className="h-4 w-4" />}
+            </span>
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-foreground-400">Hasil terakhir</p>
+              <p className="text-sm font-bold text-foreground">{scanLoading ? "Memindai…" : `${scan?.meta.total ?? 0} data ditemukan`}</p>
+            </div>
+          </div>
+        </motion.div>
 
-        <CardBody className="flex flex-col gap-6">
-          {/* ===== SCAN PANEL ===== */}
-          <Card className="border rounded-xl bg-content1">
-            <div className="h-0.5 w-full bg-gradient-to-r from-sky-500 to-indigo-500" />
-            <CardHeader className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-              <div className="font-medium">Scan &amp; Filter</div>
-              {scan && (
-                <div className="flex flex-wrap items-center gap-2">
-                  {matkul && <Chip size="sm" variant="flat" className="bg-content2">{matkul}</Chip>}
-                  <Chip size="sm" variant="flat" className="bg-content2">{jenis}</Chip>
-                  <Chip size="sm" variant="flat" className="bg-content2">Sesi {sesi}</Chip>
-                  <Chip
-                    size="sm"
-                    color={status === "BELUM" ? "warning" : "success"}
-                    variant="flat"
-                  >
-                    {status}
-                  </Chip>
-                  {copas !== "SEMUA" && (
-                    <Chip size="sm" variant="flat" className="bg-content2">Copas: {copas}</Chip>
-                  )}
-                </div>
-              )}
-            </CardHeader>
-
-            <CardBody className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-                <Input
-                  aria-label="Matkul"
-                  label="Matkul (opsional)"
-                  placeholder="mis. Akuntansi"
-                  labelPlacement="outside"
-                  value={matkul}
-                  onChange={(e) => setMatkul(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") applyFiltersToQuery({ resetPage: true }); }}
-                />
-
-                {/* Jenis */}
-                <Select
-                  label="Jenis"
-                  selectedKeys={new Set([jenis])}
-                  onSelectionChange={(k) => {
-                    const next = Array.from(k as Set<string>)[0] as JenisTugas;
-                    setJenis(next);
-                    const allowed = sessionsForJenis(next);
-                    if (!allowed.includes(sesi)) setSesi(allowed[0]);
-                  }}
-                  labelPlacement="outside"
-                >
-                  {JENIS_OPTIONS.map((j) => (
-                    <SelectItem key={j} textValue={j}>{j}</SelectItem>
-                  ))}
-                </Select>
-
-                {/* Sesi */}
-                <Select
-                  label="Sesi"
-                  selectedKeys={new Set([String(sesi)])}
-                  onSelectionChange={(k) => setSesi(Number(Array.from(k as Set<string>)[0] || 1))}
-                  labelPlacement="outside"
-                >
-                  {sessionsForJenis(jenis).map((n) => {
-                    return (
-                      <SelectItem key={String(n)} textValue={`Sesi ${n}`}>
-                        Sesi {n}
-                      </SelectItem>
-                    );
-                  })}
-                </Select>
-
-                {/* Status */}
-                <Select
-                  label="Status"
-                  selectedKeys={new Set([status])}
-                  onSelectionChange={(k) => setStatus(Array.from(k as Set<string>)[0] as StatusTugas)}
-                  labelPlacement="outside"
-                >
-                  {STATUS_OPTIONS.map((s) => (
-                    <SelectItem key={s} textValue={s}>{s}</SelectItem>
-                  ))}
-                </Select>
-
-                {/* Baru: Copas */}
-                <Select
-                  label="Copas"
-                  selectedKeys={new Set([copas])}
-                  onSelectionChange={(k) => setCopas(Array.from(k as Set<string>)[0] as CopasFilter)}
-                  labelPlacement="outside"
-                >
-                  {COPAS_OPTIONS.map((c) => (
-                    <SelectItem key={c} textValue={c}>{c}</SelectItem>
-                  ))}
-                </Select>
-
-                {/* Tombol */}
-                <div className="grid grid-cols-2 items-end gap-2 md:flex">
-                  <Button
-                    variant="flat"
-                    onPress={() => applyFiltersToQuery({ resetPage: true })}
-                    isDisabled={scanLoading}
-                    className="min-h-11 bg-gradient-to-r from-sky-500 to-indigo-500 text-white md:min-h-10"
-                  >
-                    {scanLoading ? <Spinner size="sm" /> : "Scan"}
-                  </Button>
-                  <Button className="min-h-11 md:min-h-10" variant="light" onPress={resetFilters}>Reset</Button>
+        <motion.div variants={panelItemVariants} className="border-b border-default-200/70 bg-[#f5f8fb] px-4 py-5 dark:bg-slate-950/30 sm:px-6 sm:py-6">
+          <div className="overflow-hidden rounded-[22px] border border-slate-200/90 bg-white shadow-[0_12px_32px_rgba(15,42,76,.055)] dark:border-slate-700/80 dark:bg-slate-900">
+            <div className="flex flex-col gap-2 border-b border-slate-200/80 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5 dark:border-slate-700/80">
+              <div className="flex items-center gap-2.5">
+                <span className="grid h-8 w-8 place-items-center rounded-xl bg-[#e8f2f8] text-[#174d73] dark:bg-sky-400/10 dark:text-sky-300">
+                  <SlidersHorizontal className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-xs font-bold text-foreground">Kriteria pemindaian</p>
+                  <p className="mt-0.5 text-[11px] text-foreground-400">Pilih target dan kondisi pekerjaan yang ingin diperiksa.</p>
                 </div>
               </div>
+              <span className="hidden text-[10px] font-semibold text-foreground-400 sm:block">Tekan Enter untuk memindai cepat</span>
+            </div>
 
-              <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:gap-3">
-                <Select
-                  aria-label="Per halaman (scan)"
-                  label="Per halaman"
-                  selectedKeys={new Set([String(pageSize)])}
-                  onSelectionChange={(k) => {
-                    const n = Number(Array.from(k as Set<string>)[0] || DEFAULT_PAGE_SIZE);
-                    setPageSize(n);
-                    const params: Record<string, string> = {
-                      ...(matkul ? { matkul } : {}),
-                      jenis,
-                      sesi: String(sesi),
-                      status,
-                      page: "1",
-                      pageSize: String(n),
-                    };
-                    if (copas !== "SEMUA") params.copas = copas;
-                    setSearchParams(params);
-                  }}
-                  className="w-full sm:w-[160px]"
-                >
-                  {[10, 20, 50, 100].map((n) => (
-                    <SelectItem key={String(n)} textValue={String(n)}>
-                      {n} / halaman
-                    </SelectItem>
-                  ))}
-                </Select>
-                {scan && <ResultRange total={scan.meta.total} page={page} pageSize={pageSize} />}
-              </div>
-
-              <div className="rounded-lg border border-default-200 bg-content2/60 px-3 py-2 text-xs text-foreground-500 md:hidden">
-                Geser tabel ke samping untuk melihat semua kolom hasil scan.
-              </div>
-              <div
-                className="max-w-full overflow-x-auto overscroll-x-contain rounded-xl touch-pan-x"
-                role="region"
-                aria-label="Hasil scan yang dapat digeser ke samping"
-                tabIndex={0}
-              >
-              <Table
-                aria-label="scan result"
-                removeWrapper
-                isStriped
-                className="min-w-[880px] rounded-xl border border-default-200 bg-content1"
+            <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(230px,1.65fr)_repeat(4,minmax(135px,1fr))] xl:items-end xl:p-5">
+              <Input
+                aria-label="Mata kuliah"
+                label="Mata kuliah"
+                placeholder="Semua mata kuliah"
+                labelPlacement="outside"
+                value={matkul}
+                onChange={(e) => setMatkul(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") applyFiltersToQuery({ resetPage: true }); }}
+                startContent={<Search className="h-4 w-4 text-[#16758a]" />}
                 classNames={{
-                  th: "bg-content2 text-foreground-500 font-semibold",
-                  td: "text-foreground",
-                  tr: "data-[hover=true]:bg-default-50 dark:data-[hover=true]:bg-content2",
-                  tbody: "bg-transparent",
+                  label: "pb-1 text-[11px] font-bold text-foreground-600",
+                  inputWrapper: "min-h-12 rounded-xl border border-slate-200 bg-slate-50/80 shadow-none transition-colors group-data-[focus=true]:border-[#2a7892] group-data-[focus=true]:bg-white dark:border-slate-700 dark:bg-slate-800/80",
+                  input: "text-sm font-medium",
+                }}
+              />
+
+              <Select
+                label="Aktivitas"
+                labelPlacement="outside"
+                selectedKeys={new Set([jenis])}
+                onSelectionChange={(keys) => {
+                  const next = Array.from(keys as Set<string>)[0] as JenisTugas;
+                  setJenis(next);
+                  const allowed = sessionsForJenis(next);
+                  if (!allowed.includes(sesi)) setSesi(allowed[0]);
+                }}
+                classNames={{
+                  label: "pb-1 text-[11px] font-bold text-foreground-600",
+                  trigger: "min-h-12 rounded-xl border border-slate-200 bg-slate-50/80 shadow-none data-[open=true]:border-[#2a7892] dark:border-slate-700 dark:bg-slate-800/80",
+                  value: "text-sm font-semibold",
                 }}
               >
-                <TableHeader>
-                  <TableColumn className="w-[80px]">ItemID</TableColumn>
-                  <TableColumn>Customer</TableColumn>
-                  <TableColumn>Matkul</TableColumn>
-                  <TableColumn className="w-[110px]">Jenis</TableColumn>
-                  <TableColumn className="w-[90px]">Sesi</TableColumn>
-                  <TableColumn className="w-[120px]">Status</TableColumn>
-                  <TableColumn className="w-[110px]">CourseId</TableColumn>
-                </TableHeader>
-                <TableBody
-                  isLoading={scanLoading}
-                  emptyContent={scanLoading ? "Memuat…" : "Belum ada hasil. Gunakan tombol Scan."}
-                >
-                  {(scan?.rows ?? []).map((r: ScanRow) => (
-                    <TableRow key={r.itemId}>
-                      <TableCell><code>{r.itemId}</code></TableCell>
-                      <TableCell>
-                        <a className="text-primary hover:underline" href={`/customers/${r.customerId}`}>
-                          {r.customerName}
-                        </a>
-                      </TableCell>
-                      <TableCell>{r.matkul}</TableCell>
-                      <TableCell>{r.jenis}</TableCell>
-                      <TableCell>{r.sesi}</TableCell>
-                      <TableCell>
-                        <Chip size="sm" color={r.status === "BELUM" ? "warning" : "success"} variant="flat">
-                          {r.status}
-                        </Chip>
-                      </TableCell>
-                      <TableCell><code>{r.courseId}</code></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                {JENIS_OPTIONS.map((item) => <SelectItem key={item}>{JENIS_LABEL[item]}</SelectItem>)}
+              </Select>
+
+              <Select
+                label="Sesi"
+                labelPlacement="outside"
+                selectedKeys={new Set([String(sesi)])}
+                onSelectionChange={(keys) => setSesi(Number(Array.from(keys as Set<string>)[0] || 1))}
+                classNames={{
+                  label: "pb-1 text-[11px] font-bold text-foreground-600",
+                  trigger: "min-h-12 rounded-xl border border-slate-200 bg-slate-50/80 shadow-none data-[open=true]:border-[#2a7892] dark:border-slate-700 dark:bg-slate-800/80",
+                  value: "text-sm font-semibold",
+                }}
+              >
+                {sessionsForJenis(jenis).map((item) => <SelectItem key={String(item)}>Sesi {item}</SelectItem>)}
+              </Select>
+
+              <Select
+                label="Status pekerjaan"
+                labelPlacement="outside"
+                selectedKeys={new Set([status])}
+                onSelectionChange={(keys) => setStatus(Array.from(keys as Set<string>)[0] as StatusTugas)}
+                classNames={{
+                  label: "pb-1 text-[11px] font-bold text-foreground-600",
+                  trigger: "min-h-12 rounded-xl border border-slate-200 bg-slate-50/80 shadow-none data-[open=true]:border-[#2a7892] dark:border-slate-700 dark:bg-slate-800/80",
+                  value: "text-sm font-semibold",
+                }}
+              >
+                <SelectItem key="BELUM">Belum selesai</SelectItem>
+                <SelectItem key="SELESAI">Selesai</SelectItem>
+              </Select>
+
+              <Select
+                label="Status COPAS"
+                labelPlacement="outside"
+                selectedKeys={new Set([copas])}
+                onSelectionChange={(keys) => setCopas(Array.from(keys as Set<string>)[0] as CopasFilter)}
+                classNames={{
+                  label: "pb-1 text-[11px] font-bold text-foreground-600",
+                  trigger: "min-h-12 rounded-xl border border-slate-200 bg-slate-50/80 shadow-none data-[open=true]:border-[#2a7892] dark:border-slate-700 dark:bg-slate-800/80",
+                  value: "text-sm font-semibold",
+                }}
+              >
+                <SelectItem key="SEMUA">Semua kondisi</SelectItem>
+                <SelectItem key="YA">Sudah COPAS</SelectItem>
+                <SelectItem key="TIDAK">Belum COPAS</SelectItem>
+              </Select>
+            </div>
+
+            <div className="flex flex-col gap-3 border-t border-slate-200/80 bg-slate-50/70 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5 dark:border-slate-700/80 dark:bg-slate-800/45">
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-[10px] font-bold uppercase tracking-[0.14em] text-foreground-400">Filter aktif</span>
+                {matkul && <Chip size="sm" variant="flat" className="max-w-[220px] bg-sky-100 text-sky-800 dark:bg-sky-400/10 dark:text-sky-300">{matkul}</Chip>}
+                <Chip size="sm" variant="flat" className="bg-[#e8f2f8] text-[#174d73] dark:bg-sky-400/10 dark:text-sky-300">{JENIS_LABEL[jenis]}</Chip>
+                <Chip size="sm" variant="flat">Sesi {sesi}</Chip>
+                <Chip size="sm" color={status === "BELUM" ? "warning" : "success"} variant="flat">{status === "BELUM" ? "Belum selesai" : "Selesai"}</Chip>
+                {copas !== "SEMUA" && <Chip size="sm" variant="flat">{copas === "YA" ? "Sudah COPAS" : "Belum COPAS"}</Chip>}
               </div>
 
-              {scan && (
-                <div className="mt-3 flex justify-center sm:justify-end">
-                  <Pagination
-                    showControls
-                    page={page}
-                    total={Math.max(1, Math.ceil(scan.meta.total / pageSize))}
-                    onChange={(p) => {
-                      setPage(p);
-                      const params: Record<string, string> = {
-                        ...(matkul ? { matkul } : {}),
-                        jenis,
-                        sesi: String(sesi),
-                        status,
-                        page: String(p),
-                        pageSize: String(pageSize),
-                      };
-                      if (copas !== "SEMUA") params.copas = copas;
-                      setSearchParams(params);
-                    }}
-                    classNames={{ cursor: "bg-gradient-to-r from-sky-500 to-indigo-500 text-white" }}
-                  />
-                </div>
-              )}
-            </CardBody>
-          </Card>
-
-          <Divider />
-
-          {/* ===== SUBJECT LIST ===== */}
-          <Card className="border rounded-xl bg-content1">
-            <div className="h-0.5 w-full bg-gradient-to-r from-emerald-400 via-sky-500 to-indigo-600" />
-            <CardHeader className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-              <div className="font-medium">Daftar Matkul</div>
-              <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:w-auto sm:items-center">
-                <Input
-                  aria-label="Cari matkul"
-                  size="sm"
-                  placeholder="Cari matkul…"
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") loadSubjects(); }}
-                  className="w-full sm:w-[240px]"
-                  startContent={<Search className="h-4 w-4 text-foreground-500" />}
-                />
-                <Button className="min-h-10" size="sm" variant="flat" onPress={loadSubjects} isDisabled={loadingSubjects}>
-                  {loadingSubjects ? <Spinner size="sm" /> : "Cari"}
+              <div className="grid shrink-0 grid-cols-2 gap-2 sm:flex">
+                <Button
+                  aria-label="Reset seluruh filter"
+                  variant="flat"
+                  className="min-h-11 rounded-xl px-4 font-semibold text-foreground-600"
+                  onPress={resetFilters}
+                  startContent={<RotateCcw className="h-4 w-4" />}
+                >
+                  Reset
                 </Button>
-
-                <Select
-                  aria-label="Per halaman (subjects)"
-                  selectedKeys={new Set([String(subjectPageSize)])}
-                  onSelectionChange={(k) => {
-                    const n = Number(Array.from(k as Set<string>)[0] || SUBJECT_PAGE_SIZE_DEFAULT);
-                    setSubjectPageSize(n);
-                    setSubjectPage(1);
-                  }}
-                  className="col-span-2 w-full sm:col-span-1 sm:w-[140px]"
-                  size="sm"
+                <Button
+                  className="min-h-11 rounded-xl bg-[#174d73] px-5 font-bold text-white shadow-[0_8px_20px_rgba(23,77,115,.20)] transition hover:bg-[#123f60]"
+                  startContent={!scanLoading && <ScanSearch className="h-4 w-4" />}
+                  onPress={() => applyFiltersToQuery({ resetPage: true })}
+                  isLoading={scanLoading}
+                  isDisabled={scanLoading}
                 >
-                  {[10, 20, 50, 100].map((n) => (
-                    <SelectItem key={String(n)} textValue={String(n)}>
-                      {n} / halaman
-                    </SelectItem>
-                  ))}
-                </Select>
+                  Pindai data
+                </Button>
               </div>
-            </CardHeader>
+            </div>
+          </div>
+        </motion.div>
 
-            <CardBody className="pt-0">
-              <div className="rounded-lg border border-default-200 bg-content2/60 px-3 py-2 text-xs text-foreground-500 md:hidden">
-                Geser tabel ke samping untuk melihat aksi matkul.
-              </div>
-              <div
-                className="max-w-full overflow-x-auto overscroll-x-contain rounded-xl touch-pan-x"
-                role="region"
-                aria-label="Daftar matkul yang dapat digeser ke samping"
-                tabIndex={0}
-              >
-              <Table
-                aria-label="subjects"
-                removeWrapper
-                isStriped
-                className="min-w-[640px] rounded-xl border border-default-200 bg-content1"
-                classNames={{
-                  th: "bg-content2 text-foreground-500 font-semibold",
-                  td: "text-foreground",
-                  tr: "data-[hover=true]:bg-default-50 dark:data-[hover=true]:bg-content2",
-                  tbody: "bg-transparent",
+        <motion.div variants={panelItemVariants} className="px-4 py-5 sm:px-6">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h3 className="font-bold text-foreground">Hasil pemindaian</h3>
+              <p className="mt-1 text-xs text-foreground-500">Klik nama customer untuk membuka detail pekerjaannya.</p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {scan && <ResultRange total={scan.meta.total} page={page} pageSize={pageSize} />}
+              <Select
+                aria-label="Jumlah hasil per halaman"
+                selectedKeys={new Set([String(pageSize)])}
+                onSelectionChange={(keys) => {
+                  const nextSize = Number(Array.from(keys as Set<string>)[0] || DEFAULT_PAGE_SIZE);
+                  setPageSize(nextSize);
+                  const params: Record<string, string> = {
+                    ...(matkul ? { matkul } : {}), jenis, sesi: String(sesi), status,
+                    page: "1", pageSize: String(nextSize),
+                  };
+                  if (copas !== "SEMUA") params.copas = copas;
+                  setSearchParams(params);
                 }}
+                className="w-full sm:w-[145px]"
+                size="sm"
               >
-                <TableHeader>
-                  <TableColumn>Matkul</TableColumn>
-                  <TableColumn className="w-[120px] text-center">Total</TableColumn>
-                  <TableColumn className="w-[140px] text-center">Conflict</TableColumn>
-                  <TableColumn className="w-[200px] text-right">Aksi</TableColumn>
-                </TableHeader>
-                <TableBody isLoading={loadingSubjects} emptyContent="Belum ada matkul.">
-                  {subjectsSlice.map((s) => (
-                    <TableRow key={s.matkul}>
-                      <TableCell className="font-medium">{s.matkul}</TableCell>
-                      <TableCell className="text-center">
-                        <Chip size="sm" variant="flat" className="bg-content2">{s.totalCourses}</Chip>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Chip size="sm" color={s.isConflict ? "warning" : "default"} variant="flat">
-                          {s.isConflict ? "Ya" : "Tidak"}
-                        </Chip>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="flat"
-                            startContent={<Filter className="h-4 w-4" />}
-                            onPress={() => handleQuickScan(s.matkul)}
-                            className="min-h-10 bg-default-100 dark:bg-content2"
-                          >
-                            Scan sesi
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              </div>
+                {[10, 20, 50, 100].map((item) => <SelectItem key={String(item)}>{item} / halaman</SelectItem>)}
+              </Select>
+            </div>
+          </div>
 
-              <div className="mt-3 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <ResultRange total={subjects.length} page={subjectPage} pageSize={subjectPageSize} />
-                {subjectTotalPages > 1 && (
-                  <Pagination
-                    showControls
-                    page={subjectPage}
-                    total={subjectTotalPages}
-                    onChange={setSubjectPage}
-                    classNames={{ cursor: "bg-gradient-to-r from-emerald-400 via-sky-500 to-indigo-600 text-white" }}
-                  />
-                )}
-              </div>
-            </CardBody>
-          </Card>
-        </CardBody>
-      </Card>
+          <div className="mb-3 rounded-xl bg-primary/5 px-3 py-2 text-xs text-foreground-500 md:hidden">
+            Geser tabel ke samping untuk melihat semua kolom.
+          </div>
+          <div className="max-w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-default-200/80 touch-pan-x" role="region" aria-label="Hasil scan" tabIndex={0}>
+            <Table
+              aria-label="Hasil pemindaian sesi Tuton"
+              removeWrapper
+              className="min-w-[880px] bg-content1"
+              classNames={{
+                th: "h-12 bg-slate-900 px-4 text-[11px] font-bold uppercase tracking-wider text-slate-200 dark:bg-slate-800",
+                td: "border-b border-default-100 px-4 py-3.5 text-foreground",
+                tr: "last:[&>td]:border-b-0 data-[hover=true]:bg-primary/[0.035]",
+              }}
+            >
+              <TableHeader>
+                <TableColumn className="w-[90px]">Item ID</TableColumn>
+                <TableColumn>Customer</TableColumn>
+                <TableColumn>Mata kuliah</TableColumn>
+                <TableColumn className="w-[120px]">Aktivitas</TableColumn>
+                <TableColumn className="w-[80px]">Sesi</TableColumn>
+                <TableColumn className="w-[130px]">Status</TableColumn>
+                <TableColumn className="w-[110px]">Course ID</TableColumn>
+              </TableHeader>
+              <TableBody isLoading={scanLoading} emptyContent={scanLoading ? "Memuat hasil…" : "Belum ada hasil. Atur filter lalu pilih Pindai."}>
+                {(scan?.rows ?? []).map((row: ScanRow) => (
+                  <TableRow key={row.itemId}>
+                    <TableCell><code className="rounded-md bg-default-100 px-2 py-1 text-xs">{row.itemId}</code></TableCell>
+                    <TableCell>
+                      <a className="font-semibold text-primary hover:underline" href={`/customers/${row.customerId}`}>{row.customerName}</a>
+                    </TableCell>
+                    <TableCell className="font-medium">{row.matkul}</TableCell>
+                    <TableCell>{JENIS_LABEL[row.jenis]}</TableCell>
+                    <TableCell>{row.sesi}</TableCell>
+                    <TableCell>
+                      <Chip size="sm" color={row.status === "BELUM" ? "warning" : "success"} variant="flat">
+                        {row.status === "BELUM" ? "Belum selesai" : "Selesai"}
+                      </Chip>
+                    </TableCell>
+                    <TableCell><code className="text-xs text-foreground-500">{row.courseId}</code></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          {scan && Math.ceil(scan.meta.total / pageSize) > 1 && (
+            <div className="mt-4 flex justify-center sm:justify-end">
+              <Pagination
+                showControls
+                page={page}
+                total={Math.max(1, Math.ceil(scan.meta.total / pageSize))}
+                onChange={(nextPage) => {
+                  setPage(nextPage);
+                  const params: Record<string, string> = {
+                    ...(matkul ? { matkul } : {}), jenis, sesi: String(sesi), status,
+                    page: String(nextPage), pageSize: String(pageSize),
+                  };
+                  if (copas !== "SEMUA") params.copas = copas;
+                  setSearchParams(params);
+                }}
+              />
+            </div>
+          )}
+        </motion.div>
+        </motion.div>
+      </section>
+
+      <section className="overflow-hidden rounded-[24px] border border-default-200/80 bg-content1 shadow-[0_12px_35px_rgba(15,23,42,.06)]">
+        <motion.div
+          variants={panelGroupVariants}
+          initial={reduceMotion ? false : "hidden"}
+          animate="visible"
+        >
+        <motion.div variants={panelItemVariants} className="flex flex-col gap-4 border-b border-default-200/70 px-5 py-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+              <Database className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-300">Data akademik</p>
+              <h2 className="mt-0.5 text-lg font-bold text-foreground">Daftar mata kuliah</h2>
+            </div>
+          </div>
+          <div className="grid w-full grid-cols-[minmax(0,1fr)_auto] gap-2 lg:flex lg:w-auto lg:items-center">
+            <Input
+              aria-label="Cari mata kuliah"
+              placeholder="Cari mata kuliah…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void loadSubjects(); }}
+              className="w-full lg:w-[280px]"
+              startContent={<Search className="h-4 w-4 text-foreground-400" />}
+              classNames={{ inputWrapper: "min-h-11 bg-default-50 shadow-none" }}
+            />
+            <Button color="primary" variant="flat" className="min-h-11 font-semibold" onPress={() => void loadSubjects()} isDisabled={loadingSubjects}>
+              {loadingSubjects ? <Spinner size="sm" /> : "Cari"}
+            </Button>
+            <Select
+              aria-label="Jumlah mata kuliah per halaman"
+              selectedKeys={new Set([String(subjectPageSize)])}
+              onSelectionChange={(keys) => {
+                const nextSize = Number(Array.from(keys as Set<string>)[0] || SUBJECT_PAGE_SIZE_DEFAULT);
+                setSubjectPageSize(nextSize);
+                setSubjectPage(1);
+              }}
+              className="col-span-2 w-full lg:col-span-1 lg:w-[145px]"
+            >
+              {[10, 20, 50, 100].map((item) => <SelectItem key={String(item)}>{item} / halaman</SelectItem>)}
+            </Select>
+          </div>
+        </motion.div>
+
+        <motion.div variants={panelItemVariants} className="px-4 py-5 sm:px-6">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <ResultRange total={subjects.length} page={subjectPage} pageSize={subjectPageSize} />
+            <Chip size="sm" variant="flat" startContent={<BookOpenCheck className="h-3.5 w-3.5" />}>
+              {subjects.length} mata kuliah
+            </Chip>
+          </div>
+          <div className="mb-3 rounded-xl bg-primary/5 px-3 py-2 text-xs text-foreground-500 md:hidden">
+            Geser tabel ke samping untuk melihat tindakan.
+          </div>
+          <div className="max-w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-default-200/80 touch-pan-x" role="region" aria-label="Daftar mata kuliah" tabIndex={0}>
+            <Table
+              aria-label="Daftar mata kuliah Tuton"
+              removeWrapper
+              className="min-w-[680px] bg-content1"
+              classNames={{
+                th: "h-12 bg-default-50 px-4 text-[11px] font-bold uppercase tracking-wider text-foreground-500",
+                td: "border-b border-default-100 px-4 py-3.5 text-foreground",
+                tr: "last:[&>td]:border-b-0 data-[hover=true]:bg-primary/[0.035]",
+              }}
+            >
+              <TableHeader>
+                <TableColumn>Mata kuliah</TableColumn>
+                <TableColumn className="w-[130px] text-center">Total akun</TableColumn>
+                <TableColumn className="w-[150px] text-center">Validasi</TableColumn>
+                <TableColumn className="w-[170px] text-right">Tindakan</TableColumn>
+              </TableHeader>
+              <TableBody isLoading={loadingSubjects} emptyContent="Belum ada mata kuliah yang ditemukan.">
+                {subjectsSlice.map((subject) => (
+                  <TableRow key={subject.matkul}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"><BookOpenCheck className="h-4 w-4" /></span>
+                        <span className="font-semibold">{subject.matkul}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center"><Chip size="sm" variant="flat">{subject.totalCourses} akun</Chip></TableCell>
+                    <TableCell className="text-center">
+                      <Chip
+                        size="sm"
+                        color={subject.isConflict ? "warning" : "success"}
+                        variant="flat"
+                        startContent={subject.isConflict ? <AlertTriangle className="h-3.5 w-3.5" /> : undefined}
+                      >
+                        {subject.isConflict ? "Perlu dicek" : "Aman"}
+                      </Chip>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        color="primary"
+                        variant="flat"
+                        endContent={<ArrowRight className="h-4 w-4" />}
+                        startContent={<Filter className="h-4 w-4" />}
+                        onPress={() => handleQuickScan(subject.matkul)}
+                        className="min-h-10 font-semibold"
+                      >
+                        Scan sesi
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {subjectTotalPages > 1 && (
+            <div className="mt-4 flex justify-center sm:justify-end">
+              <Pagination showControls page={subjectPage} total={subjectTotalPages} onChange={setSubjectPage} />
+            </div>
+          )}
+        </motion.div>
+        </motion.div>
+      </section>
     </div>
   );
 }

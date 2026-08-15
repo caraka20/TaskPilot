@@ -91,6 +91,25 @@ describe("PUT /api/customers/:id/karil", () => {
     expect(data).toHaveProperty("keterangan", "Update revisi")
   })
 
+  it("should accept an empty optional note as null", async () => {
+    const c = await CustomerTest.create({ jenis: JenisUT.KARIL })
+
+    const res = await supertest(app)
+      .put(`/api/customers/${c.id}/karil`)
+      .set("Authorization", `Bearer ${ownerToken}`)
+      .send({
+        judul: "Analisis Sistem Informasi",
+        tugas1: false,
+        tugas2: false,
+        tugas3: false,
+        tugas4: false,
+        keterangan: null,
+      })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toHaveProperty("keterangan", null)
+  })
+
   it("should return 404 when customer not found", async () => {
     const res = await supertest(app)
       .put(`/api/customers/999999/karil`)
@@ -134,15 +153,17 @@ describe("PUT /api/customers/:id/karil", () => {
     expect(res.body.status).toBe("error")
   })
 
-  it("should return 403 for USER (OWNER only route)", async () => {
+  it("should allow USER to upsert an active KARIL service", async () => {
     const c = await CustomerTest.create({ jenis: JenisUT.KARIL })
     const res = await supertest(app)
       .put(`/api/customers/${c.id}/karil`)
       .set("Authorization", `Bearer ${userToken}`)
       .send({ judul: "User mencoba" })
 
-    expect(res.status).toBe(403)
-    expect(res.body.status).toBe("error")
+    expect(res.status).toBe(200)
+    expect(res.body.status).toBe("success")
+    expect(res.body.data).toHaveProperty("customerId", c.id)
+    expect(res.body.data).toHaveProperty("judul", "User mencoba")
   })
 
   // ✅ Perbaikan: pakai helper getErrorMessage & getErrorCode
@@ -159,6 +180,6 @@ describe("PUT /api/customers/:id/karil", () => {
     expect(getErrorCode(res.body)).toBe("BAD_REQUEST")
 
     const msg = getErrorMessage(res.body)
-    expect(msg).toMatch(/bukan peserta KARIL/i)
+    expect(msg).toMatch(/layanan karya ilmiah belum diaktifkan/i)
   })
 })

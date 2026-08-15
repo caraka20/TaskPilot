@@ -38,12 +38,17 @@ async function seedOwner() {
     update: {
       role: Role.OWNER,
       password,
+      name: "Pemilik Sistem",
+      namaLengkap: "Pemilik Sistem",
+      isActive: true,
+      deletedAt: null,
       token: null,
     },
     create: {
       username,
       password,
       namaLengkap: "Pemilik Sistem",
+      name: "Pemilik Sistem",
       role: Role.OWNER,
       token: null,
       totalJamKerja: 0.0,

@@ -1,244 +1,291 @@
-// src/pages/users/RegisterUser.tsx
 import { useState } from "react";
+import { Button, Input } from "@heroui/react";
 import {
-  Card, CardBody, CardHeader, CardFooter,
-  Input, Button, Chip, Divider
-} from "@heroui/react";
-import { useNavigate } from "react-router-dom";
+  ArrowLeft,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Lock,
+  ShieldCheck,
+  Sparkles,
+  UserCircle2,
+  UserPlus,
+} from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+
+import WorkspacePageHeader from "../../components/common/WorkspacePageHeader";
 import { useApi } from "../../hooks/useApi";
 import { registerUser, type RegisterUserBody } from "../../services/users.service";
-import {
-  UserPlus, UserCircle2, Lock, ShieldCheck, Eye, EyeOff, X
-} from "lucide-react";
-import { useThemeStore } from "../../store/theme.store";
+import { closeAlert, showApiError, showLoading, showSuccess } from "../../utils/alert";
 
 type FieldErrors = Record<string, string>;
-type AppError = Error & { code?: string; errors?: Array<{ field: string; message: string }> };
-const isAppError = (e: unknown): e is AppError =>
-  typeof e === "object" && e !== null && "message" in e;
+
+type AppError = Error & {
+  code?: string;
+  errors?: Array<{
+    field: string;
+    message: string;
+  }>;
+};
+
+function isAppError(error: unknown): error is AppError {
+  return typeof error === "object" && error !== null && "message" in error;
+}
 
 export default function RegisterUser() {
   const api = useApi();
   const navigate = useNavigate();
-  const { dark } = useThemeStore();
 
   const [form, setForm] = useState<RegisterUserBody>({
     username: "",
     password: "",
     namaLengkap: "",
   });
-
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [errorCode, setErrorCode] = useState<string | undefined>();
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [showPassword, setShowPassword] = useState(false);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setErrorMsg(null);
-    setErrorCode(undefined);
     setFieldErrors({});
     setLoading(true);
+
     try {
-      await registerUser(api, form);
+      showLoading("Membuat akun user...");
+      await registerUser(api, {
+        namaLengkap: form.namaLengkap.trim(),
+        username: form.username.trim().toLowerCase(),
+        password: form.password,
+      });
+
+      closeAlert();
+      await showSuccess(
+        "Akun user berhasil dibuat",
+        `${form.namaLengkap.trim()} sekarang dapat login dengan username @${form.username.trim().toLowerCase()}.`,
+      );
       navigate("/users", { replace: true });
-    } catch (err) {
-      let msg = "Gagal mendaftarkan user";
-      let code: string | undefined;
-      const f: FieldErrors = {};
-      if (isAppError(err)) {
-        msg = err.message || msg;
-        code = err.code;
-        for (const fe of err.errors ?? []) {
-          if (fe.field && fe.message) f[fe.field] = fe.message;
+    } catch (error) {
+      let message = "Gagal mendaftarkan user.";
+      const fields: FieldErrors = {};
+
+      if (isAppError(error)) {
+        message = error.message || message;
+
+        for (const item of error.errors ?? []) {
+          if (item.field && item.message) {
+            fields[item.field] = item.message;
+          }
         }
       }
-      setErrorMsg(msg);
-      setErrorCode(code);
-      setFieldErrors(f);
+
+      setErrorMsg(message);
+      setFieldErrors(fields);
+      closeAlert();
+      await showApiError(error);
     } finally {
       setLoading(false);
     }
   }
 
-  /* ===== Styling helpers ===== */
-  const cardBg = dark ? "rgba(15,23,42,0.82)" : "rgba(248,250,252,0.95)";
-  const cardBorder = dark ? "#334155" : "#e5e7eb";
-
-  const inputWrapper =
-    "!bg-white/95 !border !border-slate-200 " +
-    "data-[hover=true]:!bg-white/95 data-[hover=true]:!border-indigo-300 " +
-    "dark:!bg-[#0f1a2e] dark:!border-slate-600 " +
-    "dark:data-[hover=true]:!bg-[#0f1a2e] dark:data-[hover=true]:!border-sky-400/60 " +
-    "focus-within:!border-indigo-500 dark:focus-within:!border-sky-400 " +
-    "rounded-xl transition-colors";
-
-  const inputText =
-    "!text-slate-900 dark:!text-slate-100 " +
-    "placeholder:text-slate-500 dark:placeholder:text-slate-400";
-
-  // Label selalu muted/gelap di kedua mode
-  const labelMuted = "!text-slate-700 dark:!text-slate-400";
+  const inputClasses = {
+    inputWrapper:
+      "min-h-12 rounded-xl border border-default-200 bg-default-50/70 shadow-none transition-colors data-[hover=true]:border-primary/40 group-data-[focus=true]:border-primary group-data-[focus=true]:bg-content1",
+    label: "font-semibold text-foreground-600",
+    input: "text-foreground placeholder:text-foreground-300",
+    description: "text-xs text-foreground-400",
+    errorMessage: "text-xs",
+  };
 
   return (
-    <div className="relative">
-      {/* Dekor halus */}
-      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
-        <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full blur-3xl
-                        bg-gradient-to-br from-indigo-400/20 via-sky-400/15 to-emerald-400/15
-                        dark:from-indigo-500/15 dark:via-sky-500/10 dark:to-emerald-500/10" />
-        <div className="absolute -bottom-28 -right-20 h-80 w-80 rounded-full blur-3xl
-                        bg-gradient-to-tr from-rose-400/10 via-fuchsia-400/10 to-indigo-400/10
-                        dark:from-rose-500/10 dark:via-fuchsia-500/10 dark:to-indigo-500/10" />
-      </div>
+    <div data-workspace-page className="app-page-shell">
+      <WorkspacePageHeader
+        eyebrow="ARTECH • User management"
+        title="Tambah pengguna baru"
+        description="Buat akun kerja baru dan hubungkan pengguna dengan absensi, aktivitas, serta payroll."
+        icon={UserPlus}
+        actions={
+          <Button
+            as={Link}
+            to="/users"
+            variant="flat"
+            className="min-h-10 rounded-xl border border-white/15 bg-white/10 font-semibold text-white hover:bg-white/15"
+            startContent={<ArrowLeft className="h-4 w-4" />}
+          >
+            Daftar user
+          </Button>
+        }
+        metrics={[
+          {
+            label: "Role akun",
+            value: "USER",
+            icon: ShieldCheck,
+            tone: "cyan",
+          },
+          {
+            label: "Status awal",
+            value: "Aktif",
+            icon: CheckCircle2,
+            tone: "emerald",
+          },
+          {
+            label: "Keamanan",
+            value: "Password wajib",
+            icon: Lock,
+            tone: "violet",
+          },
+        ]}
+      />
 
-      {/* Card form */}
-      <div className="grid min-h-[72dvh] place-items-center py-2 sm:px-3 sm:py-6">
-        <Card
-          style={{ backgroundColor: cardBg, borderColor: cardBorder }}
-          className="relative w-full max-w-xl overflow-hidden rounded-3xl border backdrop-blur
-                     ring-1 ring-black/5 dark:ring-white/5
-                     shadow-[0_16px_60px_-12px_rgba(2,6,23,0.25)]"
-        >
-          {/* Tombol X pojok kanan atas */}
-          <div className="absolute right-3 top-3 z-20">
-            <Button
-              isIconOnly
-              type="button"
-              variant="light"
-              color="danger"
-              onPress={() => navigate("/users")}
-              className="h-11 w-11 min-w-11 rounded-2xl border border-danger/30 bg-danger/10 hover:bg-danger/20 dark:border-danger/25"
-              aria-label="Batal dan kembali ke daftar pengguna"
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
-
-          <CardHeader className="px-5 pb-3 pt-5 sm:px-6 sm:pt-6">
-            <div className="flex w-full items-center gap-3">
-              <div className="grid h-12 w-12 place-items-center rounded-2xl
-                              bg-gradient-to-br from-indigo-500 via-sky-500 to-emerald-500
-                              text-white shadow-sm">
-                <UserPlus className="h-6 w-6" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold uppercase tracking-[0.14em] text-indigo-500">Manajemen pengguna</p>
-                <h1 className="mt-0.5 text-xl font-bold tracking-tight sm:text-2xl">Tambah pengguna</h1>
-                <p className="mt-1 text-sm leading-5 text-foreground-500">
-                  Buat akun baru untuk tim. Role default: <span className="font-medium">USER</span>.
+      <section className="overflow-hidden rounded-[26px] border border-default-200/80 bg-content1 shadow-[0_16px_45px_rgba(15,23,42,.08)]">
+        <form onSubmit={onSubmit}>
+          <div className="grid lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div className="px-5 py-7 sm:px-8 sm:py-8">
+              <div className="mb-6">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
+                  Informasi akun
+                </p>
+                <h2 className="mt-1 text-xl font-bold tracking-tight text-foreground">
+                  Identitas pengguna
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-foreground-500">
+                  Isi nama, username, dan password awal untuk pengguna.
                 </p>
               </div>
-            </div>
-          </CardHeader>
 
-          <CardBody className="px-5 pb-2 sm:px-6">
-            {errorMsg && (
-              <div
-                className="mb-4 rounded-2xl border border-danger/30 dark:border-danger/40
-                           bg-danger/10 dark:bg-danger/15 p-3
-                           text-danger-600 dark:text-danger-400"
-                role="alert"
-              >
-                <div className="flex items-center gap-2">
-                  <strong>Error:</strong>
-                  <span>{errorMsg}</span>
-                  {errorCode && <Chip size="sm" color="danger" variant="flat">{errorCode}</Chip>}
+              {errorMsg && (
+                <div
+                  role="alert"
+                  className="mb-5 rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm text-danger-700 dark:border-danger-500/25 dark:bg-danger-500/10 dark:text-danger-300"
+                >
+                  <p className="font-semibold">Akun belum dapat dibuat.</p>
+                  <p className="mt-1 leading-6">{errorMsg}</p>
                 </div>
-                {Object.keys(fieldErrors).length > 0 && (
-                  <ul className="mt-2 list-disc ps-5 text-sm">
-                    {Object.entries(fieldErrors).map(([k, v]) => (
-                      <li key={k}><span className="font-medium">{k}</span>: {v}</li>
-                    ))}
-                  </ul>
-                )}
+              )}
+
+              <div className="space-y-5">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Input
+                    label="Nama lengkap"
+                    labelPlacement="outside"
+                    placeholder="Adhi"
+                    autoComplete="name"
+                    value={form.namaLengkap}
+                    onValueChange={(value) =>
+                      setForm((current) => ({ ...current, namaLengkap: value }))
+                    }
+                    isInvalid={Boolean(fieldErrors.namaLengkap)}
+                    errorMessage={fieldErrors.namaLengkap}
+                    startContent={<UserCircle2 className="h-4 w-4 text-foreground-400" />}
+                    classNames={inputClasses}
+                    isRequired
+                  />
+
+                  <Input
+                    label="Username"
+                    labelPlacement="outside"
+                    placeholder="adhi"
+                    description="Gunakan huruf kecil tanpa spasi."
+                    autoComplete="username"
+                    value={form.username}
+                    onValueChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        username: value.toLowerCase().replace(/\s/g, ""),
+                      }))
+                    }
+                    isInvalid={Boolean(fieldErrors.username)}
+                    errorMessage={fieldErrors.username}
+                    startContent={<ShieldCheck className="h-4 w-4 text-foreground-400" />}
+                    classNames={inputClasses}
+                    isRequired
+                  />
+                </div>
+
+                <Input
+                  label="Password awal"
+                  labelPlacement="outside"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Masukkan password"
+                  description="Pengguna dapat mengganti password setelah berhasil login."
+                  autoComplete="new-password"
+                  value={form.password}
+                  onValueChange={(value) =>
+                    setForm((current) => ({ ...current, password: value }))
+                  }
+                  isInvalid={Boolean(fieldErrors.password)}
+                  errorMessage={fieldErrors.password}
+                  startContent={<Lock className="h-4 w-4 text-foreground-400" />}
+                  endContent={
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((current) => !current)}
+                      className="grid h-9 w-9 place-items-center rounded-lg text-foreground-400 transition hover:bg-default-100 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                      aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  }
+                  classNames={inputClasses}
+                  isRequired
+                />
               </div>
-            )}
-
-            <form className="grid gap-4" onSubmit={onSubmit}>
-              <Input
-                variant="bordered"
-                size="lg"
-                label="Nama Lengkap"
-                placeholder="Contoh: Adhi Pratama"
-                autoComplete="name"
-                value={form.namaLengkap}
-                onChange={(e) => setForm((s) => ({ ...s, namaLengkap: e.target.value }))}
-                isInvalid={!!fieldErrors.namaLengkap}
-                errorMessage={fieldErrors.namaLengkap}
-                startContent={<UserCircle2 className="h-5 w-5 text-slate-500 dark:text-slate-400" />}
-                classNames={{ inputWrapper, input: inputText, label: labelMuted }}
-              />
-
-              <Input
-                variant="bordered"
-                size="lg"
-                label="Username"
-                placeholder="Contoh: adhi"
-                autoComplete="username"
-                value={form.username}
-                onChange={(e) => setForm((s) => ({ ...s, username: e.target.value }))}
-                isInvalid={!!fieldErrors.username}
-                errorMessage={fieldErrors.username}
-                startContent={<ShieldCheck className="h-5 w-5 text-slate-500 dark:text-slate-400" />}
-                classNames={{ inputWrapper, input: inputText, label: labelMuted }}
-              />
-
-              <Input
-                variant="bordered"
-                size="lg"
-                label="Password"
-                type={showPassword ? "text" : "password"}
-                placeholder="minimal 8 karakter"
-                autoComplete="new-password"
-                value={form.password}
-                onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))}
-                isInvalid={!!fieldErrors.password}
-                errorMessage={fieldErrors.password}
-                startContent={<Lock className="h-5 w-5 text-slate-500 dark:text-slate-400" />}
-                endContent={
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((s) => !s)}
-                    className="grid h-10 w-10 place-items-center rounded-xl transition hover:bg-default-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
-                    aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5 text-slate-500 dark:text-slate-400" />
-                    ) : (
-                      <Eye className="h-5 w-5 text-slate-500 dark:text-slate-400" />
-                    )}
-                  </button>
-                }
-                classNames={{ inputWrapper, input: inputText, label: labelMuted }}
-              />
-
-              <Button
-                type="submit"
-                color="primary"
-                size="lg"
-                radius="lg"
-                isLoading={loading}
-                isDisabled={loading}
-                className="mt-1 min-h-12 rounded-2xl font-semibold"
-                startContent={!loading && <UserPlus className="h-5 w-5" />}
-              >
-                Simpan User
-              </Button>
-            </form>
-          </CardBody>
-
-          <CardFooter className="px-5 pb-5 sm:px-6 sm:pb-6">
-            <div className="w-full">
-              <Divider className="mb-3" />
-              <p className="text-xs text-foreground-500">
-                Pastikan username dan nama lengkap sudah benar sebelum akun disimpan.
-              </p>
             </div>
-          </CardFooter>
-        </Card>
-      </div>
+
+            <aside className="border-t border-default-200/70 bg-default-50/55 px-5 py-7 sm:px-8 lg:border-l lg:border-t-0 lg:px-6 lg:py-8">
+              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-primary/10 text-primary">
+                <Sparkles className="h-5 w-5" />
+              </span>
+
+              <h3 className="mt-4 font-bold text-foreground">Setelah akun dibuat</h3>
+              <p className="mt-1 text-xs leading-5 text-foreground-500">
+                Akun langsung tersedia pada daftar pengguna dan siap dikonfigurasi.
+              </p>
+
+              <div className="mt-5 space-y-4">
+                {[
+                  "Role awal ditetapkan sebagai USER.",
+                  "Terhubung dengan absensi dan payroll.",
+                  "Hak akses tambahan diatur dari detail user.",
+                ].map((item) => (
+                  <div key={item} className="flex items-start gap-2.5">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                    <p className="text-xs leading-5 text-foreground-600">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </aside>
+          </div>
+
+          <footer className="flex flex-col-reverse gap-3 border-t border-default-200/70 bg-content1 px-5 py-5 sm:flex-row sm:items-center sm:justify-end sm:px-8">
+            <Button
+              as={Link}
+              to="/users"
+              variant="flat"
+              className="min-h-11 rounded-xl px-6 font-semibold"
+            >
+              Batal
+            </Button>
+
+            <Button
+              type="submit"
+              color="primary"
+              isLoading={loading}
+              isDisabled={loading}
+              className="min-h-11 rounded-xl px-6 font-semibold shadow-sm"
+              startContent={!loading ? <KeyRound className="h-4 w-4" /> : undefined}
+            >
+              Buat akun user
+            </Button>
+          </footer>
+        </form>
+      </section>
     </div>
   );
 }

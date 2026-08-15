@@ -1,184 +1,205 @@
-// client/src/pages/customers/components/CustomerHeaderBar.tsx
-import { Card, Chip, Button, Tooltip } from "@heroui/react";
-import BackButton from "../../../components/common/BackButton";
-import { IdCard, GraduationCap, Tag, KeyRound, Copy, Eye, EyeOff } from "lucide-react";
-import type { CustomerDetail as DetailType } from "../../../utils/customer";
 import { useState } from "react";
+import { Button, Tooltip } from "@heroui/react";
+import {
+  BookOpen,
+  Check,
+  Copy,
+  Eye,
+  EyeOff,
+  IdCard,
+  KeyRound,
+  Layers3,
+  MessageCircle,
+  PencilLine,
+  UserRound,
+} from "lucide-react";
+import WorkspacePageHeader from "../../../components/common/WorkspacePageHeader";
+import type { CustomerDetail as DetailType } from "../../../utils/customer";
+import type { CustomerLayanan } from "../../../utils/customer";
+import { useAuthStore } from "../../../store/auth.store";
+import CustomerUpdateModal from "./CustomerUpdateModal";
 
 type Props = {
   data: DetailType;
   jenisNormalized: string;
   isKarilLike: boolean;
-  karilLabel: "KARIL" | "TK";
+  karilLabel: "KARIL";
   showTutonMatrix: boolean;
   singleCourseId: number | null;
   password?: string;
+  onUpdated?: () => void;
 };
+
+function normalizePhoneForWa(raw?: string): string | null {
+  if (!raw) return null;
+  let digits = (raw.match(/\d+/g) || []).join("");
+  if (!digits) return null;
+  while (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("62")) return digits;
+  if (digits.startsWith("0")) return `62${digits.slice(1)}`;
+  return digits.length >= 8 ? `62${digits}` : null;
+}
+
+function formatCreatedAt(input?: string | number | Date): string {
+  if (!input) return "Tanggal pendaftaran belum tersedia";
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) return "Tanggal pendaftaran belum tersedia";
+  return `Terdaftar ${date.toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  })}`;
+}
+
+function CredentialValue({
+  label,
+  value,
+  secret = false,
+}: {
+  label: string;
+  value: string;
+  secret?: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const display = !value ? "—" : secret && !visible ? "•".repeat(Math.min(10, value.length)) : value;
+
+  async function copyValue() {
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  }
+
+  return (
+    <div className="flex min-w-0 items-center gap-1">
+      <span className="min-w-0 truncate font-mono text-sm font-bold text-white">{display}</span>
+      {secret ? (
+        <Tooltip content={visible ? "Sembunyikan password" : "Tampilkan password"}>
+          <Button
+            isIconOnly
+            type="button"
+            variant="light"
+            aria-label={visible ? "Sembunyikan password" : "Tampilkan password"}
+            className="h-7 min-h-7 w-7 min-w-7 shrink-0 text-slate-300 hover:bg-white/10 hover:text-white"
+            onPress={() => setVisible((current) => !current)}
+          >
+            {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </Button>
+        </Tooltip>
+      ) : null}
+      <Tooltip content={copied ? "Sudah disalin" : `Salin ${label}`}>
+        <Button
+          isIconOnly
+          type="button"
+          variant="light"
+          aria-label={`Salin ${label}`}
+          isDisabled={!value}
+          className="h-7 min-h-7 w-7 min-w-7 shrink-0 text-slate-300 hover:bg-white/10 hover:text-white"
+          onPress={copyValue}
+        >
+          {copied ? <Check className="h-4 w-4 text-emerald-300" /> : <Copy className="h-4 w-4" />}
+        </Button>
+      </Tooltip>
+    </div>
+  );
+}
 
 export default function CustomerHeaderBar({
   data,
-  jenisNormalized,
   password,
+  jenisNormalized,
+  isKarilLike,
+  showTutonMatrix,
+  onUpdated,
 }: Props) {
-  const [copied, setCopied] = useState<"nim" | "pass" | null>(null);
-  const [showPass, setShowPass] = useState(false);
-
-  const chipCls =
-    "relative border border-default-200 bg-gradient-to-r from-content1 to-content2 " +
-    "text-foreground shadow-sm rounded-xl px-2.5 py-1 " +
-    "dark:border-neutral-800 dark:from-neutral-900 dark:to-neutral-800";
-
-  const handleCopy = async (text: string, type: "nim" | "pass") => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(type);
-      setTimeout(() => setCopied(null), 1500);
-    } catch (err) {
-      console.error("Gagal menyalin:", err);
-    }
+  const [showUpdate, setShowUpdate] = useState(false);
+  const role = useAuthStore((state) => state.role);
+  const isOwner = role === "OWNER";
+  const passValue = typeof data.password === "string" ? data.password : password ?? "";
+  const phone = normalizePhoneForWa(data.noWa);
+  const registeredLabel = formatCreatedAt(data.createdAt);
+  const programLabel = data.jurusan?.trim() || "Program studi belum diisi";
+  const services: CustomerLayanan[] = data.layanan?.length
+    ? data.layanan
+    : [
+        ...(showTutonMatrix || jenisNormalized === "TUTON" ? ["TUTON" as const] : []),
+        ...(isKarilLike || jenisNormalized === "KARIL" ? ["KARIL" as const] : []),
+      ];
+  const serviceLabels: Record<CustomerLayanan, string> = {
+    TUTON: "Tuton",
+    KARIL: "Karya Ilmiah",
+    METODE_PENELITIAN: "Metode Penelitian",
   };
-
-  const passValue =
-    typeof (data as any).password === "string"
-      ? (data as any).password
-      : password ?? "";
+  const serviceSummary = services.length
+    ? services.map((service) => serviceLabels[service]).join(" • ")
+    : "Belum ada layanan";
 
   return (
-    <Card className="rounded-2xl overflow-hidden shadow-md border border-default-100 bg-content1">
-      {/* top gradient line */}
-      <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-indigo-500 to-fuchsia-500" />
-
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 sm:px-6 sm:py-4 bg-gradient-to-r from-content2 to-content1 dark:from-content2 dark:to-content1">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <BackButton variant="flat" tone="sky" tooltip="Kembali" />
-
-          <div className="flex items-center gap-3">
-            <span className="h-9 w-[3px] rounded-full bg-gradient-to-b from-sky-400 to-indigo-500 shadow" />
-            <div className="flex flex-col">
-              <div
-                className="text-[17px] sm:text-lg font-semibold tracking-tight"
-                style={{ color: "var(--hdr-title)" }}
+    <>
+      <WorkspacePageHeader
+        eyebrow="ARTECH • Customer workspace"
+        title={data.namaCustomer}
+        description={`${programLabel} • ${registeredLabel}`}
+        icon={UserRound}
+        actions={(
+          <div className="flex items-center gap-2">
+            {data.noWa && phone ? (
+              <Button
+                as="a"
+                href={`https://wa.me/${phone}`}
+                target="_blank"
+                rel="noreferrer"
+                variant="flat"
+                className="min-h-10 rounded-xl border border-white/15 bg-white/10 px-4 font-bold text-white backdrop-blur data-[hover=true]:bg-white/15"
+                startContent={<MessageCircle className="h-4 w-4 text-emerald-200" />}
               >
-                Customer Detail
-              </div>
-              <p
-                className="text-[13px] sm:text-sm !leading-snug"
-                style={{ color: "var(--hdr-subtitle)" }}
+                {data.noWa}
+              </Button>
+            ) : null}
+            {isOwner ? (
+              <Button
+                type="button"
+                variant="flat"
+                className="min-h-10 rounded-xl border border-white/15 bg-white/10 px-4 font-bold text-white backdrop-blur data-[hover=true]:bg-white/15"
+                startContent={<PencilLine className="h-4 w-4 text-cyan-200" />}
+                onPress={() => setShowUpdate(true)}
               >
-                Profil customer, tagihan, dan progres layanan.
-              </p>
-            </div>
+                Edit customer
+              </Button>
+            ) : null}
           </div>
-        </div>
+        )}
+        metrics={[
+          {
+            label: "NIM",
+            value: <CredentialValue label="NIM" value={String(data.nim ?? "")} />,
+            icon: IdCard,
+            tone: "cyan",
+          },
+          {
+            label: "Password",
+            value: <CredentialValue label="Password" value={passValue} secret />,
+            icon: KeyRound,
+            tone: "emerald",
+          },
+          {
+            label: "Layanan aktif",
+            value: <span className="block truncate">{serviceSummary}</span>,
+            icon: services.includes("TUTON") ? BookOpen : Layers3,
+            tone: "violet",
+          },
+        ]}
+      />
 
-        {/* chips info */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Chip size="sm" variant="flat" className={chipCls} startContent={<Tag className="h-3.5 w-3.5" />}>
-            {jenisNormalized || "—"}
-          </Chip>
-
-          {data.nim && (
-            <div className="relative">
-              <Chip
-                size="sm"
-                variant="flat"
-                className={
-                  "flex h-auto min-h-11 max-w-full items-center gap-1 pr-1 border bg-gradient-to-r from-sky-100 to-sky-200 text-sky-800 " +
-                  "dark:from-sky-900 dark:to-sky-800 dark:text-sky-200 rounded-xl px-2.5 py-1"
-                }
-                startContent={<IdCard className="h-3.5 w-3.5" />}
-              >
-                <span className="break-all font-semibold">NIM: {data.nim}</span>
-                <Tooltip content="Salin NIM">
-                  <Button
-                    isIconOnly
-                    size="sm"
-                    className="h-10 w-10 min-w-10"
-                    variant="light"
-                    onPress={() => handleCopy(data.nim!, "nim")}
-                    aria-label="Salin NIM"
-                  >
-                    <Copy className="h-3.5 w-3.5 text-black dark:text-white" />
-                  </Button>
-                </Tooltip>
-
-              </Chip>
-              {copied === "nim" && (
-                <div className="absolute -top-4 right-1 bg-emerald-500 text-white text-[11px] px-2 py-0.5 rounded-full shadow animate-fade" role="status" aria-live="polite">
-                  ✔ Disalin!
-                </div>
-              )}
-            </div>
-          )}
-
-          {passValue && (
-            <div className="relative">
-              <Chip
-                size="sm"
-                variant="flat"
-                className={
-                  "flex h-auto min-h-11 max-w-full items-center gap-1 pr-1 border bg-gradient-to-r from-indigo-100 to-indigo-200 text-indigo-800 " +
-                  "dark:from-indigo-900 dark:to-indigo-800 dark:text-indigo-200 rounded-xl px-2.5 py-1"
-                }
-                startContent={<KeyRound className="h-3.5 w-3.5" />}
-              >
-                <span className="min-w-0 break-all font-semibold">
-                  Password:{" "}
-                  {showPass
-                    ? passValue
-                    : "•".repeat(Math.min(8, passValue.length))}
-                </span>
-                <Tooltip content={showPass ? "Sembunyikan" : "Tampilkan"}>
-                  <Button
-                    isIconOnly
-                    size="sm"
-                    className="h-10 w-10 min-w-10"
-                    variant="light"
-                    onPress={() => setShowPass((s) => !s)}
-                    aria-label={showPass ? "Sembunyikan password" : "Tampilkan password"}
-                  >
-                    {showPass ? (
-                      <EyeOff className="h-3.5 w-3.5 text-black dark:text-white" />
-                    ) : (
-                      <Eye className="h-3.5 w-3.5 text-black dark:text-white" />
-                    )}
-                  </Button>
-                </Tooltip>
-
-                <Tooltip content="Salin Password">
-                  <Button
-                    isIconOnly
-                    size="sm"
-                    className="h-10 w-10 min-w-10"
-                    variant="light"
-                    onPress={() => handleCopy(passValue, "pass")}
-                    aria-label="Salin password"
-                  >
-                    <Copy className="h-3.5 w-3.5 text-black dark:text-white" />
-                  </Button>
-                </Tooltip>
-
-              </Chip>
-              {copied === "pass" && (
-                <div className="absolute -top-4 right-1 bg-emerald-500 text-white text-[11px] px-2 py-0.5 rounded-full shadow animate-fade" role="status" aria-live="polite">
-                  ✔ Password disalin!
-                </div>
-              )}
-            </div>
-          )}
-
-          {data.jurusan && (
-            <Chip
-              size="sm"
-              variant="flat"
-              className={chipCls}
-              startContent={<GraduationCap className="h-3.5 w-3.5" />}
-            >
-              {data.jurusan}
-            </Chip>
-          )}
-        </div>
-      </div>
-    </Card>
+      {isOwner ? (
+        <CustomerUpdateModal
+          open={showUpdate}
+          onOpenChange={setShowUpdate}
+          data={data}
+          onUpdated={onUpdated}
+        />
+      ) : null}
+    </>
   );
 }

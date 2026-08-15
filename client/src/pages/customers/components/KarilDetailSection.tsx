@@ -72,8 +72,8 @@ export default function KarilDetailSection({
   return (
     <Card
       className={[
-        "mt-6 overflow-hidden rounded-2xl border border-default-200 bg-content1 shadow-md",
-        isComplete ? "ring-1 ring-success-400/40" : "",
+        "overflow-hidden rounded-3xl bg-default-50 shadow-none dark:bg-default-100/50",
+        isComplete ? "bg-success-50/50 dark:bg-success-500/5" : "",
         className,
       ]
         .filter(Boolean)
@@ -149,23 +149,23 @@ export default function KarilDetailSection({
       {karil && (
         <CardBody className="grid grid-cols-1 gap-4 p-5 md:grid-cols-2">
           {/* Kolom kiri: progress tugas */}
-          <div className="rounded-2xl border border-default-200 bg-content1 p-4">
+          <div className="rounded-2xl bg-content1 p-4">
             <div className="mb-3 text-sm font-semibold text-foreground">Progress Tugas</div>
 
             <div className="grid grid-cols-2 gap-2">
-              <div className="flex items-center justify-between rounded-lg border border-default-200 bg-content2 px-3 py-2">
+              <div className="flex items-center justify-between rounded-xl bg-content2 px-3 py-2">
                 <span className="text-sm text-foreground-600">Tugas 1</span>
                 <TaskPill on={karil.tugas1} />
               </div>
-              <div className="flex items-center justify-between rounded-lg border border-default-200 bg-content2 px-3 py-2">
+              <div className="flex items-center justify-between rounded-xl bg-content2 px-3 py-2">
                 <span className="text-sm text-foreground-600">Tugas 2</span>
                 <TaskPill on={karil.tugas2} />
               </div>
-              <div className="flex items-center justify-between rounded-lg border border-default-200 bg-content2 px-3 py-2">
+              <div className="flex items-center justify-between rounded-xl bg-content2 px-3 py-2">
                 <span className="text-sm text-foreground-600">Tugas 3</span>
                 <TaskPill on={karil.tugas3} />
               </div>
-              <div className="flex items-center justify-between rounded-lg border border-default-200 bg-content2 px-3 py-2">
+              <div className="flex items-center justify-between rounded-xl bg-content2 px-3 py-2">
                 <span className="text-sm text-foreground-600">Tugas 4</span>
                 <TaskPill on={karil.tugas4} />
               </div>
@@ -179,10 +179,10 @@ export default function KarilDetailSection({
           </div>
 
           {/* Kolom kanan: keterangan + meta + progress bar */}
-          <div className="rounded-2xl border border-default-200 bg-content1 p-4">
+          <div className="rounded-2xl bg-content1 p-4">
             <div className="mb-2 text-sm font-semibold text-foreground">Keterangan</div>
 
-            <div className="min-h-[64px] rounded-xl border border-default-200 bg-content2 p-3 text-sm text-foreground whitespace-pre-wrap">
+            <div className="min-h-[64px] rounded-xl bg-content2 p-3 text-sm text-foreground whitespace-pre-wrap">
               {karil.keterangan ?? "—"}
             </div>
 

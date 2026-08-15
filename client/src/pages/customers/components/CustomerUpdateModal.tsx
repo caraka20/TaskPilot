@@ -1,26 +1,22 @@
 // client/src/pages/customers/components/CustomerUpdateModal.tsx
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
   Input,
   Button,
-  Select,
-  SelectItem,
+  Checkbox,
+  CheckboxGroup,
   Tooltip,
 } from "@heroui/react";
 
 import type {
   CustomerDetail,
-  CustomerJenis,
+  CustomerLayanan,
   UpdateCustomerPayload,
 } from "../../../utils/customer";
-import { CUSTOMER_JENIS_OPTIONS } from "../../../utils/customer";
+import { CUSTOMER_LAYANAN_LABEL, CUSTOMER_LAYANAN_OPTIONS } from "../../../utils/customer";
 import { updateCustomer } from "../../../services/customer.service";
 import { showApiError, showToast } from "../../../utils/alert";
+import OperationalModal from "../../../components/common/OperationalModal";
 
 type Props = {
   open: boolean;
@@ -43,23 +39,20 @@ export default function CustomerUpdateModal({
     nim?: string;
     password?: string;
     jurusan?: string;
-    jenis?: CustomerJenis;
+    layanan: CustomerLayanan[];
   }>({
     namaCustomer: data?.namaCustomer ?? "",
     noWa: data?.noWa ?? "",
     nim: data?.nim ?? "",
     password: (data as any)?.password ?? "",
     jurusan: data?.jurusan ?? "",
-    jenis: (data?.jenis as CustomerJenis) ?? "TUTON",
+    layanan: data?.layanan?.length ? data.layanan : [data.jenis as CustomerLayanan],
   });
 
   const set = (k: keyof typeof form, v: any) =>
     setForm((f) => ({ ...f, [k]: v }));
 
   const [busy, setBusy] = useState(false);
-
-  // host untuk Select popover (agar muncul di DALAM modal & tidak ketutup)
-  const popoverHostRef = useRef<HTMLDivElement>(null);
 
   // ===== validasi ringan (FE) — hanya field dasar =====
   const errors = useMemo(() => {
@@ -69,14 +62,14 @@ export default function CustomerUpdateModal({
     const nim = (form.nim ?? "").trim();
     const pass = form.password ?? "";
     const jur = (form.jurusan ?? "").trim();
-    const jenis = form.jenis;
+    const layanan = form.layanan;
 
     if (!nama) e.namaCustomer = "Nama wajib diisi";
     if (!wa) e.noWa = "No. WA wajib diisi";
     if (!nim) e.nim = "NIM wajib diisi";
     if (!pass || pass.length < 6) e.password = "Password minimal 6 karakter";
     if (!jur) e.jurusan = "Jurusan wajib diisi";
-    if (!jenis) e.jenis = "Jenis wajib dipilih";
+    if (!layanan.length) e.layanan = "Pilih minimal satu layanan";
 
     return e;
   }, [form]);
@@ -96,7 +89,7 @@ export default function CustomerUpdateModal({
       noWa: form.noWa?.trim(),
       nim: form.nim?.trim(),
       jurusan: form.jurusan?.trim(),
-      jenis: form.jenis as CustomerJenis,
+      layanan: form.layanan,
       ...(form.password && form.password.trim()
         ? { password: String(form.password) }
         : {}), // kirim hanya bila diisi
@@ -124,44 +117,37 @@ export default function CustomerUpdateModal({
         nim: data?.nim ?? "",
         password: (data as any)?.password ?? "",
         jurusan: data?.jurusan ?? "",
-        jenis: (data?.jenis as CustomerJenis) ?? "TUTON",
+        layanan: data?.layanan?.length ? data.layanan : [data.jenis as CustomerLayanan],
       });
     }
     onOpenChange(v);
   };
 
   return (
-    <Modal
+    <OperationalModal
       isOpen={open}
       onOpenChange={onOpenChangeInternal}
-      size="2xl"
-      scrollBehavior="inside"
-      classNames={{
-        base: "data-[placement=center]:!duration-150",
-        wrapper: "z-[2100]", // pastikan di atas layer lain
-        header: "px-5 py-4",
-        body: "px-5 py-4",
-        footer: "px-5 py-4",
-      }}
+      isDismissable={!busy}
+      title="Edit identitas customer"
+      description="Perbarui informasi utama dan layanan akademik tanpa mengubah riwayat customer."
+      footer={
+        <>
+          <Button className="min-h-11 w-full font-semibold sm:w-auto" variant="flat" onPress={() => onOpenChange(false)} isDisabled={busy}>
+            Batal
+          </Button>
+          <Button
+            color="primary"
+            className="min-h-11 w-full font-bold sm:w-auto"
+            isLoading={busy}
+            onPress={onSave}
+          >
+            Simpan perubahan
+          </Button>
+        </>
+      }
     >
-      <ModalContent
-        className={
-          "bg-content1 text-foreground border border-default-200 shadow-2xl " +
-          "w-[min(92vw,900px)] max-w-[900px]"
-        }
-      >
-        {() => (
-          <>
-            <ModalHeader className="flex flex-col gap-1">
-              Update Customer
-              <span className="text-xs font-normal text-foreground-500">
-                Perbarui data dasar pelanggan
-              </span>
-            </ModalHeader>
-
-            <ModalBody>
-              {/* Section: Data Utama */}
-              <div className="rounded-2xl border border-default-100 bg-content1 p-4 shadow-sm">
+      <div className="mx-auto w-full max-w-6xl">
+              <div className="rounded-[24px] bg-content1 p-4 shadow-sm ring-1 ring-default-200/60 sm:p-6">
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-base font-semibold text-primary">
                     Data Utama
@@ -172,10 +158,7 @@ export default function CustomerUpdateModal({
                 </div>
 
                 {/* Grid input; overflow visible + host popover agar dropdown tidak terpotong */}
-                <div
-                  ref={popoverHostRef}
-                  className="grid grid-cols-1 md:grid-cols-2 gap-3 relative overflow-visible"
-                >
+                <div className="relative grid grid-cols-1 gap-4 overflow-visible md:grid-cols-2">
                   <Input
                     label="Nama"
                     variant="bordered"
@@ -186,34 +169,22 @@ export default function CustomerUpdateModal({
                     placeholder="cth: Akka"
                   />
 
-                  {/* JENIS di atas (kanan); popover ke host di dalam modal */}
-                  <Select
-                    label="Jenis"
-                    variant="bordered"
-                    selectedKeys={new Set<string>([form.jenis || "TUTON"])}
-                    onSelectionChange={(keys) => {
-                      const val =
-                        (Array.from(keys)[0] as CustomerJenis | undefined) ??
-                        "TUTON";
-                      set("jenis", val);
-                    }}
-                    popoverProps={{
-                      portalContainer: popoverHostRef.current ?? undefined, // <<< kunci: sama seperti create
-                      placement: "bottom-start",
-                      offset: 8,
-                      shouldFlip: true,
-                      classNames: {
-                        base: "z-[2200]",
-                        content:
-                          "z-[2200] bg-content1 text-foreground border border-default-100 shadow-lg",
-                      },
-                    }}
-                    classNames={{ listbox: "max-h-64" }}
-                  >
-                    {CUSTOMER_JENIS_OPTIONS.map((k) => (
-                      <SelectItem key={k}>{k}</SelectItem>
-                    ))}
-                  </Select>
+                  <div className="rounded-2xl bg-content2/60 p-4 ring-1 ring-default-200/60 md:col-span-2">
+                    <CheckboxGroup
+                      label="Layanan customer"
+                      description="Pilih satu atau beberapa layanan."
+                      orientation="horizontal"
+                      value={form.layanan}
+                      onValueChange={(values) => set("layanan", values as CustomerLayanan[])}
+                      isInvalid={isInvalid("layanan")}
+                      errorMessage={errors.layanan}
+                      classNames={{ wrapper: "mt-2 flex flex-wrap gap-3" }}
+                    >
+                      {CUSTOMER_LAYANAN_OPTIONS.map((item) => (
+                        <Checkbox key={item} value={item}>{CUSTOMER_LAYANAN_LABEL[item]}</Checkbox>
+                      ))}
+                    </CheckboxGroup>
+                  </div>
 
                   <Input
                     label="NIM"
@@ -228,7 +199,8 @@ export default function CustomerUpdateModal({
                   <Input
                     label="Password (UT/e-learning)"
                     variant="bordered"
-                    type="text"
+                    type="password"
+                    autoComplete="new-password"
                     value={form.password ?? ""}
                     onValueChange={(v) => set("password", v)}
                     isInvalid={isInvalid("password")}
@@ -250,6 +222,9 @@ export default function CustomerUpdateModal({
                   <Input
                     label="No. WA"
                     variant="bordered"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
                     value={form.noWa ?? ""}
                     onValueChange={(v) => set("noWa", v)}
                     isInvalid={isInvalid("noWa")}
@@ -258,25 +233,7 @@ export default function CustomerUpdateModal({
                   />
                 </div>
               </div>
-            </ModalBody>
-
-            <ModalFooter>
-              <Button variant="flat" onPress={() => onOpenChange(false)} isDisabled={busy}>
-                Batal
-              </Button>
-              <Button
-                color="primary"
-                variant="shadow"
-                className="bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-lg"
-                isLoading={busy}
-                onPress={onSave}
-              >
-                Update
-              </Button>
-            </ModalFooter>
-          </>
-        )}
-      </ModalContent>
-    </Modal>
+      </div>
+    </OperationalModal>
   );
 }

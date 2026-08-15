@@ -23,10 +23,15 @@ export const authMiddleware = async ( req: UserRequest, res: Response, next: Nex
     where: { username: payload.username },
   })
 
-  if (!user) {
+  if (!user || !user.isActive || user.deletedAt) {
     throw AppError.fromCode(ERROR_CODE.UNAUTHORIZED)
   }
 
   req.user = user
+  req.auth = {
+    sub: user.id,
+    username: user.username,
+    role: user.role === 'OWNER' ? 'ADMIN' : 'USER',
+  }
   next()
 }

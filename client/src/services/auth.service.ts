@@ -8,6 +8,8 @@ export type LoginResponse = {
     role: "OWNER" | "USER";
     totalJamKerja: number;
     totalGaji: number;
+    canViewCustomerBilling?: boolean;
+    avatarUrl?: string | null;
   };
 };
 

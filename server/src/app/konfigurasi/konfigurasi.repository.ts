@@ -111,4 +111,15 @@ export class KonfigurasiRepository {
     })
     return !!u
   }
+
+  static async getLastAudit(entityId: string) {
+    return prismaClient.auditLog.findFirst({
+      where: { entityType: "Konfigurasi", entityId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        createdAt: true,
+        actor: { select: { username: true, namaLengkap: true } },
+      },
+    })
+  }
 }

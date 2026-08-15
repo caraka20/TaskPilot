@@ -1,22 +1,25 @@
 import { useEffect, useState } from "react";
 import { Button, Card, CardBody, Chip, Input } from "@heroui/react";
-import { Search, SlidersHorizontal, Trash2, UserRoundCog } from "lucide-react";
+import { Activity, ArrowLeft, Globe2, Search, SlidersHorizontal, Trash2, UserRound, UserRoundCog } from "lucide-react";
+import { Link } from "react-router-dom";
 
-import PageHeader from "../../components/common/PageHeader";
+import WorkspacePageHeader from "../../components/common/WorkspacePageHeader";
 import ConfigForm from "../../components/config/ConfigForm";
 import { useApi } from "../../hooks/useApi";
 import {
   deleteUserOverride,
   getEffectiveConfig,
   putUserOverride,
+  type EffectiveKonfigurasiResponse,
   type KonfigurasiResponse,
 } from "../../services/config.service";
+import { showConfirm, showToast } from "../../utils/alert";
 
 export default function OverridesConfigPage() {
   const api = useApi();
   const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
-  const [effective, setEffective] = useState<KonfigurasiResponse | null>(null);
+  const [effective, setEffective] = useState<EffectiveKonfigurasiResponse | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error" | "info"; text: string } | null>(null);
 
   const normalizedUsername = username.trim();
@@ -42,6 +45,13 @@ export default function OverridesConfigPage() {
 
   async function upsertOverride(values: KonfigurasiResponse) {
     if (!normalizedUsername) return;
+    const confirmation = await showConfirm({
+      title: `Simpan override ${normalizedUsername}?`,
+      text: "Nilai ini akan menggantikan konfigurasi global untuk pengguna tersebut.",
+      confirmText: "Simpan override",
+      tone: "primary",
+    });
+    if (!confirmation.isConfirmed) return;
     setLoading(true);
     setMessage(null);
     try {
@@ -49,6 +59,7 @@ export default function OverridesConfigPage() {
       const result = await getEffectiveConfig(api, normalizedUsername);
       setEffective(result);
       setMessage({ tone: "success", text: "Override berhasil disimpan." });
+      await showToast("Override pengguna berhasil disimpan.");
     } catch (cause) {
       setMessage({
         tone: "error",
@@ -61,6 +72,13 @@ export default function OverridesConfigPage() {
 
   async function removeOverride() {
     if (!normalizedUsername) return;
+    const confirmation = await showConfirm({
+      title: `Hapus override ${normalizedUsername}?`,
+      text: "Pengguna akan kembali mengikuti konfigurasi global.",
+      confirmText: "Hapus override",
+      tone: "danger",
+    });
+    if (!confirmation.isConfirmed) return;
     setLoading(true);
     setMessage(null);
     try {
@@ -68,6 +86,7 @@ export default function OverridesConfigPage() {
       const result = await getEffectiveConfig(api, normalizedUsername);
       setEffective(result);
       setMessage({ tone: "success", text: "Override dihapus. Pengguna kembali memakai konfigurasi global." });
+      await showToast("Override dihapus. Konfigurasi global kembali berlaku.");
     } catch (cause) {
       setMessage({
         tone: "error",
@@ -90,16 +109,51 @@ export default function OverridesConfigPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-5 py-2 sm:py-4">
-      <PageHeader
-        eyebrow="Konfigurasi owner"
+    <div className="app-page-shell">
+      <WorkspacePageHeader
+        eyebrow="ARTECH • Konfigurasi owner"
         title="Override pengguna"
         description="Terapkan pengaturan khusus untuk satu pengguna tanpa mengubah konfigurasi global pengguna lainnya."
-        icon={<UserRoundCog className="h-5 w-5" />}
-        backTo="/config/effective"
+        icon={UserRoundCog}
+        actions={
+          <Button
+            as={Link}
+            to="/config/effective"
+            variant="flat"
+            className="min-h-10 rounded-xl border border-white/15 bg-white/10 font-semibold text-white hover:bg-white/15"
+            startContent={<ArrowLeft className="h-4 w-4" />}
+          >
+            Konfigurasi efektif
+          </Button>
+        }
+        metrics={[
+          {
+            label: "Pengguna target",
+            value: normalizedUsername || "Belum dipilih",
+            icon: UserRound,
+            tone: "cyan",
+          },
+          {
+            label: "Sumber konfigurasi",
+            value:
+              effective?.scope === "USER"
+                ? "Override pengguna"
+                : effective
+                  ? "Konfigurasi global"
+                  : "Belum dimuat",
+            icon: Globe2,
+            tone: effective?.scope === "USER" ? "violet" : "indigo",
+          },
+          {
+            label: "Status",
+            value: loading ? "Memuat…" : message?.tone === "error" ? "Perlu diperiksa" : "Siap dikelola",
+            icon: Activity,
+            tone: message?.tone === "error" ? "amber" : "emerald",
+          },
+        ]}
       />
 
-      <Card className="rounded-3xl border border-default-200/80 bg-content1 shadow-sm">
+      <Card className="app-section shadow-none">
         <CardBody className="gap-4 p-5 sm:p-6">
           <div>
             <h2 className="text-lg font-bold">Cari pengguna</h2>
@@ -136,7 +190,7 @@ export default function OverridesConfigPage() {
               variant="flat"
               className="min-h-12 rounded-2xl sm:min-w-36"
               onPress={() => void removeOverride()}
-              isDisabled={!normalizedUsername || loading}
+              isDisabled={!normalizedUsername || loading || effective?.scope !== "USER"}
               startContent={<Trash2 className="h-4 w-4" />}
             >
               Hapus override
@@ -145,7 +199,7 @@ export default function OverridesConfigPage() {
         </CardBody>
       </Card>
 
-      <Card className="rounded-3xl border border-default-200/80 bg-content1 shadow-sm">
+      <Card className="app-section shadow-none">
         <CardBody className="gap-5 p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -153,7 +207,7 @@ export default function OverridesConfigPage() {
               <p className="mt-1 text-sm text-foreground-500">Nilai yang saat ini berlaku untuk pengguna terpilih.</p>
             </div>
             <Chip variant="flat" startContent={<SlidersHorizontal className="h-3.5 w-3.5" />}>
-              {normalizedUsername || "Belum dipilih"}
+              {effective?.scope === "USER" ? "Override user" : effective ? "Konfigurasi global" : normalizedUsername || "Belum dipilih"}
             </Chip>
           </div>
 
@@ -173,6 +227,13 @@ export default function OverridesConfigPage() {
                   <p className="mt-2 break-words text-lg font-bold">{value}</p>
                 </div>
               ))}
+            </div>
+          )}
+
+          {effective && (
+            <div className="grid gap-3 border-t border-default-200/70 pt-5 text-sm sm:grid-cols-2">
+              <p><span className="text-foreground-500">Terakhir diperbarui:</span> <strong>{effective.updatedAt ? new Intl.DateTimeFormat("id-ID", { dateStyle: "medium", timeStyle: "short" }).format(new Date(effective.updatedAt)) : "Belum tercatat"}</strong></p>
+              <p><span className="text-foreground-500">Diperbarui oleh:</span> <strong>{effective.updatedBy?.namaLengkap || effective.updatedBy?.username || "Belum tercatat"}</strong></p>
             </div>
           )}
         </CardBody>

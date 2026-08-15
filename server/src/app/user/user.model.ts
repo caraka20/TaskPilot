@@ -8,12 +8,18 @@ import {
 /* ========= RESPON RINGKAS ========= */
 
 export interface UserResponse {
+  id?: string;
   username: string;
   namaLengkap: string;
   role?: string;
   totalJamKerja?: number;
   totalGaji?: number;
   totalGajiDibayar?: number;
+  canViewCustomerBilling?: boolean;
+  canEditTutonWithoutWork?: boolean;
+  avatarUrl?: string | null;
+  isActive?: boolean;
+  dailyRate?: number;
 }
 
 export interface LoginResponse {
@@ -24,11 +30,17 @@ export interface LoginResponse {
 /* ========= DETAIL (lama) ========= */
 
 export interface UserDetailResponse {
+  id: string;
   username: string;
   namaLengkap: string;
   role: string;
   totalJamKerja: number;
   totalGaji: number;
+  canViewCustomerBilling: boolean;
+  canEditTutonWithoutWork: boolean;
+  avatarUrl: string | null;
+  isActive: boolean;
+  dailyRate: number;
   createdAt: Date;
   updatedAt: Date;
   jamKerja: JamKerja[];
@@ -46,6 +58,19 @@ export interface UserDetailResponse {
     };
   }>;
   riwayatGaji: Salary[];
+  unifiedPayroll?: {
+    hourlyHours: number;
+    hourlyRate: number;
+    hourlyEarned: number;
+    hourlySessionCount: number;
+    dailyEarned: number;
+    dailyCount: number;
+    pieceworkEarned: number;
+    pieceworkCount: number;
+    totalEarned: number;
+    totalPaid: number;
+    balance: number;
+  };
 }
 
 /* ========= REQUEST ========= */
@@ -69,15 +94,33 @@ export interface SetJedaOtomatisRequest {
   aktif: boolean;
 }
 
+export interface SetCustomerBillingAccessRequest {
+  aktif: boolean;
+}
+
+export interface SetTutonWorkExemptionRequest {
+  aktif: boolean;
+}
+
+export interface SetUserActiveRequest {
+  aktif: boolean;
+}
+
 /* ========= MAPPERS ========= */
 
 export function toUserResponse(user: User): UserResponse {
   return {
+    id: user.id,
     username: user.username,
     namaLengkap: user.namaLengkap,
     role: user.role,
     totalJamKerja: user.totalJamKerja,
     totalGaji: user.totalGaji,
+    canViewCustomerBilling: user.canViewCustomerBilling,
+    canEditTutonWithoutWork: user.canEditTutonWithoutWork,
+    avatarUrl: user.avatarUrl,
+    isActive: user.isActive && !user.deletedAt,
+    dailyRate: Number(user.dailyRate),
   };
 }
 
@@ -136,11 +179,17 @@ export function toUserDetailResponse(user: UserDetailEntity): UserDetailResponse
   });
 
   return {
+    id: user.id,
     username: user.username,
     namaLengkap: user.namaLengkap,
     role: user.role,
     totalJamKerja: user.totalJamKerja,
     totalGaji: user.totalGaji,
+    canViewCustomerBilling: user.canViewCustomerBilling,
+    canEditTutonWithoutWork: user.canEditTutonWithoutWork,
+    avatarUrl: user.avatarUrl,
+    isActive: user.isActive && !user.deletedAt,
+    dailyRate: Number(user.dailyRate),
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     jamKerja: user.jamKerja ?? [],
@@ -182,6 +231,8 @@ export interface UserEverythingResponse {
     username: string;
     namaLengkap: string;
     role: string;
+    canViewCustomerBilling: boolean;
+    canEditTutonWithoutWork: boolean;
     createdAt: Date;
     updatedAt: Date;
     totals: {

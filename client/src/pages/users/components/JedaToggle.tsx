@@ -26,7 +26,7 @@ export default function JedaToggle({
   if (!canSeeJeda) return null;
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
       <span className="text-sm text-foreground-500">
         Jeda Otomatis
         {!hasOverride && typeof globalCfg?.jedaOtomatisAktif !== "undefined" && (
@@ -62,6 +62,7 @@ export default function JedaToggle({
         <Tooltip content="Hapus override & pakai default global">
           <Button
             size="sm"
+            className="min-h-10 w-full sm:w-auto"
             variant="flat"
             startContent={<Undo2 className="h-4 w-4" />}
             onPress={onUseGlobalDefault}

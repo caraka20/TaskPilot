@@ -198,6 +198,58 @@ function styleStatusCell(cell: ExcelJS.Cell, status: string) {
   cell.font = { bold: true, color: { argb: COLORS.red } }
 }
 
+function customerServices(customer: CustomerExportRow) {
+  const services: string[] = []
+  if (customer.layananTuton) services.push("Tuton")
+  if (customer.layananKaril) services.push("Karya Ilmiah")
+  if (customer.layananMetodePenelitian) services.push("Metode Penelitian")
+  if (services.length === 0) {
+    return customer.jenis === "KARIL" ? "Karya Ilmiah" : "Tuton"
+  }
+  return services.join(", ")
+}
+
+function addProjectDetail(
+  sheet: Worksheet,
+  rowNumber: number,
+  title: string,
+  detail: CustomerExportRow["karil"] | CustomerExportRow["metodePenelitian"],
+  tableName: string,
+) {
+  styleSection(sheet, rowNumber, title)
+  let row = rowNumber + 1
+  if (!detail) {
+    addEmptyState(sheet, row, `Customer tidak memiliki detail ${title}.`)
+    return row
+  }
+
+  addKeyValue(sheet, row, ["Judul", detail.judul], ["Keterangan", detail.keterangan || "—"])
+  row += 1
+  const taskHeaderRow = row
+  const taskRows = [detail.tugas1, detail.tugas2, detail.tugas3, detail.tugas4].map(
+    (done, index) => [`Tugas ${index + 1}`, done ? "Selesai" : "Belum"],
+  )
+  sheet.addTable({
+    name: tableName,
+    ref: `A${taskHeaderRow}`,
+    headerRow: true,
+    totalsRow: false,
+    style: { theme: "TableStyleMedium2", showRowStripes: true },
+    columns: [{ name: "Tahapan" }, { name: "Status" }],
+    rows: taskRows,
+  })
+  styleTableHeader(sheet, taskHeaderRow, 2)
+  styleDataRows(sheet, taskHeaderRow + 1, taskHeaderRow + taskRows.length, 2)
+  taskRows.forEach((task, index) => {
+    styleStatusCell(sheet.getCell(taskHeaderRow + index + 1, 2), String(task[1]))
+  })
+  row = taskHeaderRow + taskRows.length + 1
+  addKeyValue(sheet, row, ["Dibuat", detail.createdAt], ["Diperbarui", detail.updatedAt])
+  sheet.getCell(row, 2).numFmt = dateFormat
+  sheet.getCell(row, 6).numFmt = dateFormat
+  return row
+}
+
 function createCustomerSheet(
   workbook: ExcelJS.Workbook,
   customer: CustomerExportRow,
@@ -251,7 +303,7 @@ function createCustomerSheet(
   let row = 5
   styleSection(sheet, row, "PROFIL CUSTOMER")
   row += 1
-  addKeyValue(sheet, row, ["ID Customer", customer.id], ["Jenis", customer.jenis])
+  addKeyValue(sheet, row, ["ID Customer", customer.id], ["Layanan", customerServices(customer)])
   row += 1
   addKeyValue(sheet, row, ["Nama", customer.namaCustomer], ["NIM", customer.nim])
   row += 1
@@ -284,6 +336,7 @@ function createCustomerSheet(
     addEmptyState(sheet, row, "Belum ada pembayaran yang tercatat.")
     row += 1
   } else {
+    const paymentHeaderRow = row
     sheet.getRow(row).values = ["No.", "Tanggal", "Jumlah", "Catatan", "Dicatat pada"]
     styleTableHeader(sheet, row, 5)
     const firstPaymentRow = row + 1
@@ -301,6 +354,21 @@ function createCustomerSheet(
       sheet.getCell(row, 5).numFmt = dateFormat
     })
     styleDataRows(sheet, firstPaymentRow, row, 5)
+    sheet.addTable({
+      name: `Payments_${customer.id}`,
+      ref: `A${paymentHeaderRow}`,
+      headerRow: true,
+      totalsRow: false,
+      style: { theme: "TableStyleMedium2", showRowStripes: true },
+      columns: ["No.", "Tanggal", "Jumlah", "Catatan", "Dicatat pada"].map((name) => ({ name })),
+      rows: customer.payments.map((payment, index) => [
+        index + 1,
+        payment.tanggalBayar,
+        payment.amount,
+        payment.catatan || "—",
+        payment.createdAt,
+      ]),
+    })
     row += 1
   }
 
@@ -311,6 +379,7 @@ function createCustomerSheet(
     addEmptyState(sheet, row, "Customer belum memiliki mata kuliah Tuton.")
     row += 1
   } else {
+    const courseHeaderRow = row
     sheet.getRow(row).values = ["No.", "Mata Kuliah", "Total Item", "Selesai", "Progress", "Diperbarui"]
     styleTableHeader(sheet, row, 6)
     const firstCourseRow = row + 1
@@ -330,11 +399,24 @@ function createCustomerSheet(
       sheet.getCell(row, 6).numFmt = dateFormat
     })
     styleDataRows(sheet, firstCourseRow, row, 6)
+    sheet.addTable({
+      name: `Courses_${customer.id}`,
+      ref: `A${courseHeaderRow}`,
+      headerRow: true,
+      totalsRow: false,
+      style: { theme: "TableStyleMedium2", showRowStripes: true },
+      columns: ["No.", "Mata Kuliah", "Total Item", "Selesai", "Progress", "Diperbarui"].map((name) => ({ name })),
+      rows: customer.tutonCourses.map((course, index) => {
+        const total = course.totalItems || course.items.length
+        return [index + 1, course.matkul, total, course.completedItems, total > 0 ? course.completedItems / total : 0, course.updatedAt]
+      }),
+    })
     row += 2
 
+    const itemHeaderRow = row
     sheet.getRow(row).values = [
       "Mata Kuliah",
-      "Jenis",
+      "Layanan",
       "Sesi",
       "Status",
       "Nilai",
@@ -375,6 +457,36 @@ function createCustomerSheet(
       for (let itemRow = firstItemRow; itemRow <= row; itemRow += 1) {
         styleStatusCell(sheet.getCell(itemRow, 4), String(sheet.getCell(itemRow, 4).value))
       }
+      const itemRows = customer.tutonCourses.flatMap((course) =>
+        course.items.map((item) => [
+          course.matkul,
+          item.jenis,
+          item.sesi,
+          item.status,
+          item.nilai ?? "—",
+          item.username || "—",
+          item.copasSoal ? "Ya" : "Tidak",
+          [
+            item.deskripsi?.trim() || "—",
+            item.selesaiAt
+              ? `Selesai: ${new Intl.DateTimeFormat("id-ID", {
+                  dateStyle: "short",
+                  timeStyle: "short",
+                  timeZone: "Asia/Jakarta",
+                }).format(item.selesaiAt)}`
+              : null,
+          ].filter(Boolean).join("\n"),
+        ]),
+      )
+      sheet.addTable({
+        name: `TutonItems_${customer.id}`,
+        ref: `A${itemHeaderRow}`,
+        headerRow: true,
+        totalsRow: false,
+        style: { theme: "TableStyleMedium2", showRowStripes: true },
+        columns: ["Mata Kuliah", "Jenis", "Sesi", "Status", "Nilai", "Penanggung Jawab", "Copas Soal", "Deskripsi / Selesai"].map((name) => ({ name })),
+        rows: itemRows,
+      })
     }
     if (row < firstItemRow) {
       addEmptyState(sheet, row + 1, "Mata kuliah tersedia, tetapi belum memiliki item Tuton.")
@@ -383,31 +495,15 @@ function createCustomerSheet(
   }
 
   row += 2
-  styleSection(sheet, row, "DETAIL KARIL")
-  row += 1
-  if (!customer.karil) {
-    addEmptyState(sheet, row, "Customer tidak memiliki detail KARIL.")
-  } else {
-    addKeyValue(sheet, row, ["Judul", customer.karil.judul], ["Keterangan", customer.karil.keterangan || "—"])
-    row += 1
-    addKeyValue(
-      sheet,
-      row,
-      ["Tugas 1", customer.karil.tugas1 ? "Selesai" : "Belum"],
-      ["Tugas 2", customer.karil.tugas2 ? "Selesai" : "Belum"],
-    )
-    row += 1
-    addKeyValue(
-      sheet,
-      row,
-      ["Tugas 3", customer.karil.tugas3 ? "Selesai" : "Belum"],
-      ["Tugas 4", customer.karil.tugas4 ? "Selesai" : "Belum"],
-    )
-    row += 1
-    addKeyValue(sheet, row, ["Dibuat", customer.karil.createdAt], ["Diperbarui", customer.karil.updatedAt])
-    sheet.getCell(row, 2).numFmt = dateFormat
-    sheet.getCell(row, 6).numFmt = dateFormat
-  }
+  row = addProjectDetail(sheet, row, "DETAIL KARYA ILMIAH", customer.karil, `KarilTasks_${customer.id}`)
+  row += 2
+  addProjectDetail(
+    sheet,
+    row,
+    "DETAIL METODE PENELITIAN",
+    customer.metodePenelitian,
+    `ResearchTasks_${customer.id}`,
+  )
 
   sheet.autoFilter = undefined
   return sheet
@@ -507,7 +603,7 @@ export class CustomerExportService {
         customer.nim,
         customer.noWa,
         customer.jurusan,
-        customer.jenis,
+        customerServices(customer),
         customer.totalBayar,
         customer.sudahBayar,
         customer.sisaBayar,
@@ -525,6 +621,36 @@ export class CustomerExportService {
 
     if (customers.length > 0) {
       const lastDataRow = firstDataRow + customers.length - 1
+      indexSheet.addTable({
+        name: "CustomerIndex",
+        ref: `A${headerRow}`,
+        headerRow: true,
+        totalsRow: false,
+        style: { theme: "TableStyleMedium2", showRowStripes: true },
+        columns: [
+          "No.", "Nama Customer", "NIM", "No. WhatsApp", "Jurusan", "Layanan",
+          "Total Tagihan", "Sudah Dibayar", "Sisa Tagihan", "Status Bayar",
+          "Jumlah Tuton", "Diperbarui", "Buka Detail",
+        ].map((name) => ({ name })),
+        rows: customers.map((customer, index) => {
+          const targetSheet = sheetNames[index]
+          return [
+            index + 1,
+            { text: customer.namaCustomer, hyperlink: sheetLink(targetSheet) },
+            customer.nim,
+            customer.noWa,
+            customer.jurusan,
+            customerServices(customer),
+            customer.totalBayar,
+            customer.sudahBayar,
+            customer.sisaBayar,
+            paymentStatus(customer),
+            customer.tutonCourses.length,
+            customer.updatedAt,
+            { text: "Buka tab →", hyperlink: sheetLink(targetSheet) },
+          ]
+        }),
+      })
       styleDataRows(indexSheet, firstDataRow, lastDataRow, 13)
       for (let rowNumber = firstDataRow; rowNumber <= lastDataRow; rowNumber += 1) {
         styleStatusCell(
@@ -532,7 +658,6 @@ export class CustomerExportService {
           String(indexSheet.getCell(rowNumber, 10).value),
         )
       }
-      indexSheet.autoFilter = { from: { row: headerRow, column: 1 }, to: { row: lastDataRow, column: 13 } }
     } else {
       indexSheet.mergeCells("A5:M5")
       indexSheet.getCell("A5").value = "Belum ada customer di database."

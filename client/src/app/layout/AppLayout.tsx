@@ -1,12 +1,12 @@
 // src/app/layout/AppLayout.tsx
 import { Suspense } from "react";
-import { Spinner } from "@heroui/react";
 import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "../../components/layout/Sidebar";
 import MobileNavigation from "../../components/layout/MobileNavigation";
 import { useThemeStore } from "../../store/theme.store";
 import { useUIStore } from "../../store/ui.store";
 import { useAuthStore } from "../../store/auth.store";
+import AppLoadingScreen from "../../components/common/AppLoadingScreen";
 
 export default function AppLayout() {
   const { dark } = useThemeStore();
@@ -16,7 +16,15 @@ export default function AppLayout() {
 
   const standalone = pathname === "/login" || pathname.startsWith("/public/");
   const showNavigation = !standalone && Boolean(token);
-  const contentMaxW = collapsed ? "max-w-[1600px]" : "max-w-[1480px]";
+  const isCustomerDetail = /^\/customers\/[^/]+\/?$/.test(pathname);
+  const contentMaxW = isCustomerDetail
+    ? "max-w-none"
+    : collapsed
+      ? "max-w-[1600px]"
+      : "max-w-[1480px]";
+  const authenticatedMainSpacing = isCustomerDetail
+    ? "px-2 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(4.5rem+env(safe-area-inset-top))] sm:px-3 lg:px-3 lg:py-3 xl:px-4"
+    : "px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))] sm:px-5 lg:px-7 lg:py-6 xl:px-8";
 
   return (
     <div
@@ -37,21 +45,24 @@ export default function AppLayout() {
         className={
           !showNavigation
             ? "min-h-dvh min-w-0 flex-1"
-            : "app-grid-background min-h-dvh min-w-0 flex-1 overflow-x-clip px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[calc(5rem+env(safe-area-inset-top))] sm:px-5 lg:h-dvh lg:overflow-y-auto lg:px-7 lg:py-6 xl:px-8"
+            : `app-grid-background min-h-dvh min-w-0 flex-1 overflow-x-clip lg:h-dvh lg:overflow-y-auto ${authenticatedMainSpacing}`
         }
       >
         <div
+          key={pathname}
           className={
             !showNavigation
               ? "min-h-dvh w-full"
-              : `app-page-enter mx-auto w-full ${contentMaxW} transition-[max-width] duration-300 ease-out`
+              : `app-page-enter mx-auto w-full ${contentMaxW}`
           }
         >
           <Suspense
             fallback={
-              <div className="grid min-h-[50dvh] place-items-center" role="status" aria-live="polite">
-                <Spinner color="primary" label="Memuat halaman…" />
-              </div>
+              <AppLoadingScreen
+                fullScreen
+                label="Membuka halaman"
+                description="Menyiapkan tampilan dan data terbaru untuk ruang kerja Anda."
+              />
             }
           >
             <Outlet />

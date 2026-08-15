@@ -39,6 +39,7 @@ export class CustomerService {
       password: payload.password, // plain sesuai kebutuhan
       jurusan: payload.jurusan,
       jenis: payload.jenis,
+      layanan: payload.layanan,
       totalBayar: payload.totalBayar,
       sudahBayar: payload.sudahBayar,
     });
@@ -65,6 +66,7 @@ export class CustomerService {
       password: payload.password,
       jurusan: payload.jurusan,
       jenis: payload.jenis,
+      layanan: payload.layanan,
     });
 
     return toCustomerResponse(updated);
@@ -80,10 +82,13 @@ export class CustomerService {
 
   /* ===================== Detail / Payments ===================== */
 
-  static async detail(id: number): Promise<CustomerDetailResponse> {
+  static async detail(id: number, includeBilling = true): Promise<CustomerDetailResponse> {
     const row = await CustomerRepository.findDetailById(id);
     if (!row) throw AppError.fromCode(ERROR_CODE.NOT_FOUND);
-    return toCustomerDetailResponse(row); // berisi password
+    const result = toCustomerDetailResponse(row)
+    return includeBilling
+      ? result
+      : { ...result, totalBayar: 0, sudahBayar: 0, sisaBayar: 0, billingVisible: false }
   }
 
   static async addPayment(
@@ -98,6 +103,12 @@ export class CustomerService {
     });
     if (!updated) throw AppError.fromCode(ERROR_CODE.NOT_FOUND, "Customer tidak ditemukan");
     return updated;
+  }
+
+  static async settlePayment(id: number) {
+    const updated = await CustomerRepository.settlePayment(id)
+    if (!updated) throw AppError.fromCode(ERROR_CODE.NOT_FOUND, "Customer tidak ditemukan")
+    return updated
   }
 
   // OWNER: update total tagihan
@@ -129,19 +140,24 @@ export class CustomerService {
 
   /* ===================== Listing ===================== */
 
-  static async list(query: CustomerListQuery): Promise<Paginated<CustomerListItem> & {
+  static async list(query: CustomerListQuery, includeBilling = true): Promise<Paginated<CustomerListItem> & {
     totalsGlobal: { totalBayar: number; sudahBayar: number; sisaBayar: number };
     countNoMKGlobal: number;
     totalCustomers: number;
   }> {
     const { rows, total, totalsGlobal, countNoMKGlobal, totalCustomers } = await CustomerRepository.list(query);
-    const items = rows.map(toCustomerListItem);
+    const items = rows.map((row) => {
+      const item = toCustomerListItem(row)
+      return includeBilling
+        ? item
+        : { ...item, totalBayar: 0, sudahBayar: 0, sisaBayar: 0, billingVisible: false }
+    });
     const totalPages = Math.max(1, Math.ceil(total / query.limit));
     return {
       items,
       pagination: { page: query.page, limit: query.limit, total, totalPages },
       // ➕ forward agregat global
-      totalsGlobal,
+      totalsGlobal: includeBilling ? totalsGlobal : { totalBayar: 0, sudahBayar: 0, sisaBayar: 0 },
       countNoMKGlobal,
       totalCustomers,
     };

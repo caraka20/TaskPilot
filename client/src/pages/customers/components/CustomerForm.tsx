@@ -1,19 +1,22 @@
 // client/src/pages/customers/components/CustomerForm.tsx
-import { useMemo, useRef, useState } from "react";
-import { Input, Button, Select, SelectItem, Tooltip } from "@heroui/react";
+import { useMemo, useState } from "react";
+import { Input, Button, Checkbox, CheckboxGroup, Tooltip } from "@heroui/react";
 import {
   type CreateCustomerPayload,
-  type CustomerJenis,
-  CUSTOMER_JENIS_OPTIONS,
+  type CustomerLayanan,
+  CUSTOMER_LAYANAN_LABEL,
+  CUSTOMER_LAYANAN_OPTIONS,
 } from "../../../utils/customer";
 import { showApiError } from "../../../utils/alert";
 
 interface Props {
   onSubmit: (payload: CreateCustomerPayload) => Promise<void> | void;
   busy?: boolean;
+  formId?: string;
+  hideActions?: boolean;
 }
 
-export default function CustomerForm({ onSubmit, busy }: Props) {
+export default function CustomerForm({ onSubmit, busy, formId, hideActions = false }: Props) {
   const [form, setForm] = useState<CreateCustomerPayload>({
     namaCustomer: "",
     noWa: "",
@@ -21,12 +24,11 @@ export default function CustomerForm({ onSubmit, busy }: Props) {
     password: "",
     jurusan: "",
     jenis: "TUTON",
+    layanan: ["TUTON"],
     totalBayar: undefined,
     sudahBayar: undefined,
   });
 
-  // host popover agar Select muncul di atas konten modal (hindari z-index clash)
-  const popoverHostRef = useRef<HTMLDivElement>(null);
   const set = (k: keyof CreateCustomerPayload, v: any) =>
     setForm((f) => ({ ...f, [k]: v }));
 
@@ -38,7 +40,7 @@ export default function CustomerForm({ onSubmit, busy }: Props) {
     const nim = form.nim?.trim() ?? "";
     const pass = form.password ?? "";
     const jur = form.jurusan?.trim() ?? "";
-    const jenis = form.jenis as CustomerJenis | undefined;
+    const layanan = form.layanan ?? [];
 
     const total = form.totalBayar;
     const paid = form.sudahBayar;
@@ -49,7 +51,7 @@ export default function CustomerForm({ onSubmit, busy }: Props) {
     if (!pass) e.password = "Password wajib diisi";
     else if (pass.length < 6) e.password = "Password minimal 6 karakter";
     if (!jur) e.jurusan = "Jurusan wajib diisi";
-    if (!jenis) e.jenis = "Jenis wajib dipilih";
+    if (!layanan.length) e.layanan = "Pilih minimal satu layanan";
 
     // total & sudahBayar: wajib diisi, angka valid, dan konsistensi
     if (total === undefined || total === null || Number.isNaN(total)) {
@@ -90,14 +92,14 @@ export default function CustomerForm({ onSubmit, busy }: Props) {
       noWa: form.noWa.trim(),
       nim: form.nim.trim(),
       jurusan: form.jurusan.trim(),
-      jenis: form.jenis as CustomerJenis,
+      jenis: form.layanan.includes("KARIL") && !form.layanan.includes("TUTON") ? "KARIL" : "TUTON",
       totalBayar: Number(form.totalBayar),    // dipastikan ada nilainya oleh validator
       sudahBayar: Number(form.sudahBayar),    // dipastikan ada nilainya oleh validator
     };
 
     await onSubmit(payload);
 
-    // reset lembut (jenis tetap)
+    // reset lembut (layanan tetap)
     setForm({
       namaCustomer: "",
       noWa: "",
@@ -105,6 +107,7 @@ export default function CustomerForm({ onSubmit, busy }: Props) {
       password: "",
       jurusan: "",
       jenis: form.jenis,
+      layanan: form.layanan,
       totalBayar: undefined,
       sudahBayar: undefined,
     });
@@ -119,7 +122,14 @@ export default function CustomerForm({ onSubmit, busy }: Props) {
     form.sudahBayar === undefined;
 
   return (
-    <div className="flex flex-col gap-6">
+    <form
+      className="flex flex-col gap-6"
+      id={formId}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void onSave();
+      }}
+    >
       {/* Section: Data Utama */}
       <div className="rounded-2xl border border-default-100 bg-content1 p-4 shadow-sm">
         <div className="mb-3 flex items-center justify-between">
@@ -129,11 +139,7 @@ export default function CustomerForm({ onSubmit, busy }: Props) {
           </Tooltip>
         </div>
 
-        {/* Grid + popover host untuk Select */}
-        <div
-          ref={popoverHostRef}
-          className="relative grid grid-cols-1 gap-3 overflow-visible md:grid-cols-2"
-        >
+        <div className="relative grid grid-cols-1 gap-3 overflow-visible md:grid-cols-2">
           <Input
             label="Nama"
             variant="bordered"
@@ -185,31 +191,22 @@ export default function CustomerForm({ onSubmit, busy }: Props) {
             placeholder="cth: Manajemen"
           />
 
-          {/* Select jenis — render popover di host agar aman ketika dalam modal */}
-          <Select
-            label="Jenis"
-            variant="bordered"
-            selectedKeys={new Set<string>([form.jenis])}
-            onSelectionChange={(keys) => {
-              const val = (Array.from(keys)[0] as CustomerJenis | undefined) ?? "TUTON";
-              set("jenis", val);
-            }}
-            popoverProps={{
-              portalContainer: popoverHostRef.current ?? undefined,
-              placement: "bottom-start",
-              offset: 8,
-              classNames: {
-                base: "z-[100]",
-                content:
-                  "z-[100] bg-content1 text-foreground border border-default-100 shadow-lg",
-              },
-            }}
-            classNames={{ listbox: "max-h-64" }}
-          >
-            {CUSTOMER_JENIS_OPTIONS.map((k) => (
-              <SelectItem key={k}>{k}</SelectItem>
-            ))}
-          </Select>
+          <div className="md:col-span-2 rounded-2xl border border-default-200 bg-content2/50 p-4">
+            <CheckboxGroup
+              label="Layanan customer"
+              description="Satu customer dapat mengambil lebih dari satu layanan."
+              orientation="horizontal"
+              value={form.layanan}
+              onValueChange={(values) => set("layanan", values as CustomerLayanan[])}
+              isInvalid={isInvalid("layanan")}
+              errorMessage={errors.layanan}
+              classNames={{ wrapper: "mt-2 flex flex-wrap gap-3" }}
+            >
+              {CUSTOMER_LAYANAN_OPTIONS.map((item) => (
+                <Checkbox key={item} value={item}>{CUSTOMER_LAYANAN_LABEL[item]}</Checkbox>
+              ))}
+            </CheckboxGroup>
+          </div>
         </div>
       </div>
 
@@ -257,18 +254,18 @@ export default function CustomerForm({ onSubmit, busy }: Props) {
       </div>
 
       {/* Actions */}
-      <div className="flex justify-end">
+      {!hideActions ? <div className="flex justify-end">
         <Button
+          type="submit"
           color="primary"
           variant="shadow"
           className="min-h-12 w-full bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-lg sm:w-auto"
           isLoading={busy}
           isDisabled={disableSave}
-          onPress={onSave}
         >
           Simpan Customer
         </Button>
-      </div>
-    </div>
+      </div> : null}
+    </form>
   );
 }

@@ -1,5 +1,5 @@
 // src/app/konfigurasi/konfigurasi.controller.ts
-import { type Request, type Response, type NextFunction } from 'express'
+import { type Response, type NextFunction } from 'express'
 import { KonfigurasiService } from './konfigurasi.service'
 import { ResponseHandler } from '../../utils/response-handler'
 import { Validation } from '../../middleware/validation'
@@ -15,7 +15,7 @@ import { ERROR_CODE } from '../../utils/error-codes'
 
 export class KonfigurasiController {
   // GET /api/konfigurasi  (OWNER)
-  static async get(req: Request, res: Response, next: NextFunction) {
+  static async get(req: UserRequest, res: Response, next: NextFunction) {
     try {
       const data = await KonfigurasiService.get()
       return ResponseHandler.success(res, data, 'Konfigurasi berhasil diambil')
@@ -25,13 +25,13 @@ export class KonfigurasiController {
   }
 
   // PATCH /api/konfigurasi  (OWNER)
-  static async update(req: Request, res: Response, next: NextFunction) {
+  static async update(req: UserRequest, res: Response, next: NextFunction) {
     try {
       const payload = Validation.validate<UpdateKonfigurasiRequest>(
         KonfigurasiValidation.UPDATE_GLOBAL,
         req.body
       )
-      const result = await KonfigurasiService.update(payload)
+      const result = await KonfigurasiService.update(payload, req.user?.id)
       return ResponseHandler.success(res, result, 'Konfigurasi berhasil diperbarui')
     } catch (error) {
       next(error)
@@ -76,7 +76,7 @@ export class KonfigurasiController {
         req.body
       )
 
-      const data = await KonfigurasiService.putOverride(username, payload)
+      const data = await KonfigurasiService.putOverride(username, payload, req.user?.id)
       return ResponseHandler.success(res, data, 'Override konfigurasi berhasil disimpan')
     } catch (error) {
       next(error)
@@ -84,10 +84,10 @@ export class KonfigurasiController {
   }
 
   // DELETE /api/konfigurasi/override/:username  (OWNER)
-  static async deleteOverride(req: Request, res: Response, next: NextFunction) {
+  static async deleteOverride(req: UserRequest, res: Response, next: NextFunction) {
     try {
       const params = Validation.validate(KonfigurasiValidation.DELETE_OVERRIDE, req.params)
-      const result = await KonfigurasiService.deleteOverride(params.username)
+      const result = await KonfigurasiService.deleteOverride(params.username, req.user?.id)
       return ResponseHandler.success(res, result)
     } catch (err) {
       next(err)

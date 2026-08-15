@@ -1,9 +1,9 @@
 // client/src/router/AppRouter.tsx
 import { lazy, Suspense } from "react";
-import { Spinner } from "@heroui/react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "../layout/AppLayout";
 import { RequireToken, OwnerOnly } from "../../lib/guards";
+import AppLoadingScreen from "../../components/common/AppLoadingScreen";
 
 const LoginPage = lazy(() => import("../../pages/LoginPage"));
 const TutonPublicPage = lazy(() => import("../../pages/public/TutonPublicPage"));
@@ -19,16 +19,17 @@ const UsersList = lazy(() => import("../../pages/users/UsersList"));
 const UserDetailPage = lazy(() => import("../../pages/users/UserDetail"));
 const RegisterUser = lazy(() => import("../../pages/users/RegisterUser"));
 const KarilList = lazy(() => import("../../pages/customers/KarilList"));
+const MetodePenelitianList = lazy(
+  () => import("../../pages/customers/MetodePenelitianList")
+);
 const TutonSubjects = lazy(() => import("../../pages/tuton/Subjects"));
 const TutonList = lazy(() => import("../../pages/tuton/TutonList"));
 const NotFoundPage = lazy(() => import("../../pages/NotFoundPage"));
+const AttendancePage = lazy(() => import("../../attendance/AttendancePage"));
+const AccountSettingsPage = lazy(() => import("../../pages/account/AccountSettingsPage"));
 
 function PageLoader() {
-  return (
-    <div className="grid min-h-[50dvh] place-items-center" role="status" aria-live="polite">
-      <Spinner color="primary" label="Memuat halaman…" />
-    </div>
-  );
+  return <AppLoadingScreen fullScreen label="Menyiapkan ARTECH" description="Memuat modul aplikasi yang Anda perlukan." />;
 }
 
 export default function AppRouter() {
@@ -47,6 +48,8 @@ export default function AppRouter() {
         <Route element={<RequireToken />}>
           {/* dashboard */}
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="attendance" element={<AttendancePage />} />
+          <Route path="account" element={<AccountSettingsPage />} />
 
           {/* USERS (OWNER only) */}
           <Route
@@ -87,7 +90,14 @@ export default function AppRouter() {
               </OwnerOnly>
             }
           />
-          <Route path="config/effective" element={<EffectiveConfigPage />} />
+          <Route
+            path="config/effective"
+            element={
+              <OwnerOnly>
+                <EffectiveConfigPage />
+              </OwnerOnly>
+            }
+          />
           <Route
             path="config/overrides"
             element={
@@ -99,6 +109,7 @@ export default function AppRouter() {
 
           {/* KARIL */}
           <Route path="karil" element={<KarilList />} />
+          <Route path="metode-penelitian" element={<MetodePenelitianList />} />
 
           {/* TUTON (internal/protected) */}
           <Route path="tuton" element={<TutonList />} />

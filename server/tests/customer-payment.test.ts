@@ -32,8 +32,6 @@ describe('POST /api/customers/:id/payments', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({ amount: 30000, catatan: 'Cicilan 1' })
 
-      console.log(res.body);
-      
     expect(res.status).toBe(200)
     expect(res.body.status).toBe('success')
 
@@ -79,7 +77,7 @@ describe('POST /api/customers/:id/payments', () => {
     expect(res.body.status).toBe('error')
   })
 
-  it('should forbid USER (403)', async () => {
+  it('should forbid USER without customer billing permission (403)', async () => {
     const c = await CustomerTest.create()
 
     const res = await supertest(app)
@@ -89,6 +87,34 @@ describe('POST /api/customers/:id/payments', () => {
 
     expect(res.status).toBe(403)
     expect(res.body.status).toBe('error')
+  })
+
+  it('should allow USER with customer billing permission to add payment', async () => {
+    const c = await CustomerTest.create({ totalBayar: 100000, sudahBayar: 0, sisaBayar: 100000 })
+    await UserTest.setCustomerBillingAccess(true)
+
+    const res = await supertest(app)
+      .post(`/api/customers/${c.id}/payments`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ amount: 25000, catatan: 'Dicatat user berizin' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.sudahBayar).toBe(25000)
+    expect(res.body.data.sisaBayar).toBe(75000)
+  })
+
+  it('should allow USER with customer billing permission to settle invoice', async () => {
+    const c = await CustomerTest.create({ totalBayar: 75000, sudahBayar: 10000, sisaBayar: 65000 })
+    await UserTest.setCustomerBillingAccess(true)
+
+    const res = await supertest(app)
+      .post(`/api/customers/${c.id}/payments/settle`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({})
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.sisaBayar).toBe(0)
+    expect(res.body.data.sudahBayar).toBe(75000)
   })
 
   it('should return 401 when no token provided', async () => {
@@ -183,7 +209,7 @@ describe('PATCH /api/customers/:id/invoice', () => {
     expect(res.body.status).toBe('error')
   })
 
-  it('should forbid USER (403)', async () => {
+  it('should forbid USER without customer billing permission (403)', async () => {
     const c = await CustomerTest.create()
     const res = await supertest(app)
       .patch(`/api/customers/${c.id}/invoice`)
@@ -191,6 +217,19 @@ describe('PATCH /api/customers/:id/invoice', () => {
       .send({ totalBayar: 123456 })
     expect(res.status).toBe(403)
     expect(res.body.status).toBe('error')
+  })
+
+  it('should allow USER with customer billing permission to update invoice', async () => {
+    const c = await CustomerTest.create({ totalBayar: 100000, sudahBayar: 0, sisaBayar: 100000 })
+    await UserTest.setCustomerBillingAccess(true)
+
+    const res = await supertest(app)
+      .patch(`/api/customers/${c.id}/invoice`)
+      .set('Authorization', `Bearer ${userToken}`)
+      .send({ totalBayar: 125000 })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.totalBayar).toBe(125000)
   })
 })
 
@@ -272,12 +311,25 @@ describe('GET /api/customers/:id/payments', () => {
     expect(res.body.status).toBe('error')
   })
 
-  it('should forbid USER if route is OWNER-only', async () => {
+  it('should forbid USER without customer billing permission', async () => {
     const c = await CustomerTest.create()
     const res = await supertest(app)
       .get(`/api/customers/${c.id}/payments`)
       .set('Authorization', `Bearer ${userToken}`)
     expect(res.status).toBe(403)
     expect(res.body.status).toBe('error')
+  })
+
+  it('should allow USER with customer billing permission to list payments', async () => {
+    const c = await CustomerTest.create({ totalBayar: 100000 })
+    await UserTest.setCustomerBillingAccess(true)
+
+    const res = await supertest(app)
+      .get(`/api/customers/${c.id}/payments`)
+      .set('Authorization', `Bearer ${userToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.status).toBe('success')
+    expect(res.body.data.items).toEqual([])
   })
 })

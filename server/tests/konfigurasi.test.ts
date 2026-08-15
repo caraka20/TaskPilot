@@ -79,6 +79,13 @@ describe('PUT /api/konfigurasi', () => {
     expect(response.body.data).toHaveProperty('gajiPerJam', 15000)
     expect(response.body.data).toHaveProperty('batasJedaMenit', 10)
     expect(response.body.data).toHaveProperty('jedaOtomatisAktif', false)
+
+    const audit = await prismaClient.auditLog.findFirst({
+      where: { entityType: 'Konfigurasi', entityId: 'global', action: 'UPDATE_GLOBAL' },
+      include: { actor: true },
+      orderBy: { createdAt: 'desc' },
+    })
+    expect(audit?.actor.username).toBe('owner-test')
   })
 
   it('should return 400 for invalid input', async () => {
@@ -259,6 +266,13 @@ describe('PUT /api/konfigurasi/override/:username', () => {
     expect(data).toHaveProperty('username', 'raka20')
     expect(data).toHaveProperty('overrides')
     expect(data.overrides).toMatchObject({ batasJedaMenit: 10 })
+
+    const audit = await prismaClient.auditLog.findFirst({
+      where: { entityType: 'Konfigurasi', entityId: 'raka20', action: 'CREATE_OVERRIDE' },
+      include: { actor: true },
+      orderBy: { createdAt: 'desc' },
+    })
+    expect(audit?.actor.username).toBe('owner-test')
   })
 
   it('should update existing override (idempotent/merge-by-fields)', async () => {

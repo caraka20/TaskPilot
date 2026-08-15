@@ -14,7 +14,15 @@ import {
   Skeleton,
 } from "@heroui/react";
 import { Link } from "react-router-dom";
-import { ArrowRight, GraduationCap } from "lucide-react";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Clock3,
+  FileText,
+  FlaskConical,
+  GraduationCap,
+  UsersRound,
+} from "lucide-react";
 import type { KarilListResponse } from "../../../services/karil.service";
 
 type Props = {
@@ -22,11 +30,15 @@ type Props = {
   loading?: boolean;
   page: number;
   onPageChange: (p: number) => void;
+  label?: string;
 };
 
-export default function KarilTable({ data, loading, page, onPageChange }: Props) {
+export default function KarilTable({ data, loading, page, onPageChange, label = "KARIL" }: Props) {
   const rows = data?.items ?? [];
   const pagination = data?.pagination;
+  const isMetode = label.toLowerCase().includes("metode");
+  const ServiceIcon = isMetode ? FlaskConical : FileText;
+  const completedRows = rows.filter((row) => row.totalTasks > 0 && row.doneTasks >= row.totalTasks).length;
 
   const nomor = (idx: number) => {
     const limit = pagination?.limit ?? 10;
@@ -34,19 +46,35 @@ export default function KarilTable({ data, loading, page, onPageChange }: Props)
     return limit * (currPage - 1) + (idx + 1);
   };
 
-  const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <div className="rounded-2xl border border-default-200 bg-content1 shadow-md overflow-hidden">
-      {children}
-    </div>
-  );
-
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${isMetode ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300" : "bg-violet-500/10 text-violet-600 dark:text-violet-300"}`}>
+            <ServiceIcon className="h-[18px] w-[18px]" />
+          </span>
+          <div>
+            <h2 className="text-base font-bold text-foreground">Daftar {isMetode ? "Metode Penelitian" : "Karya Ilmiah"}</h2>
+            <p className="mt-0.5 text-xs text-foreground-500">Pantau identitas, judul, dan empat tugas setiap customer.</p>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip size="sm" variant="flat" startContent={<UsersRound className="h-3.5 w-3.5" />}>
+            {pagination?.total ?? rows.length} customer
+          </Chip>
+          <Chip size="sm" color="success" variant="flat" startContent={<CheckCircle2 className="h-3.5 w-3.5" />}>
+            {completedRows} selesai di halaman ini
+          </Chip>
+        </div>
+      </div>
+
       <div className="grid gap-3 md:hidden">
         {rows.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-default-300 bg-content1 px-5 py-12 text-center">
-            <GraduationCap className="mx-auto h-8 w-8 text-foreground-300" />
-            <p className="mt-3 font-semibold text-foreground">Belum ada data KARIL</p>
+          <div className="rounded-2xl border border-dashed border-default-300 bg-default-50/60 px-5 py-12 text-center">
+            <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-default-100 text-foreground-400">
+              <GraduationCap className="h-6 w-6" />
+            </span>
+            <p className="mt-3 font-semibold text-foreground">Belum ada data {label}</p>
             <p className="mt-1 text-sm text-foreground-500">Data yang sesuai dengan filter akan tampil di sini.</p>
           </div>
         ) : (
@@ -56,9 +84,10 @@ export default function KarilTable({ data, loading, page, onPageChange }: Props)
             const tasks = [row.tugas1, row.tugas2, row.tugas3, row.tugas4];
 
             return (
-              <article key={row.id} className="rounded-3xl border border-default-200 bg-content1 p-4 shadow-sm">
+              <article key={row.customerId} className="relative overflow-hidden rounded-2xl border border-default-200 bg-content1 p-4 shadow-[0_8px_24px_rgba(15,23,42,.05)]">
+                <span className={`absolute inset-y-0 left-0 w-1 ${isMetode ? "bg-emerald-500" : "bg-violet-500"}`} />
                 <div className="flex items-start gap-3">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-indigo-50 text-sm font-bold text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300">
+                  <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-bold ${isMetode ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-violet-500/10 text-violet-700 dark:text-violet-300"}`}>
                     {nomor(index)}
                   </span>
                   <div className="min-w-0 flex-1">
@@ -70,26 +99,26 @@ export default function KarilTable({ data, loading, page, onPageChange }: Props)
                   </Chip>
                 </div>
 
-                <div className="mt-4 space-y-3">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-foreground-400">Jurusan</p>
-                    <p className="mt-1 text-sm text-foreground-700">{row.jurusan || "—"}</p>
+                <div className="mt-4 grid gap-3 rounded-xl bg-default-50/75 p-3">
+                  <div className="grid grid-cols-[76px_1fr] gap-3 text-sm">
+                    <span className="text-foreground-400">Jurusan</span>
+                    <span className="font-medium text-foreground-700">{row.jurusan || "—"}</span>
                   </div>
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-foreground-400">Judul</p>
-                    <p className="mt-1 line-clamp-3 text-sm leading-6 text-foreground-700">{row.judul || "Belum ada judul"}</p>
+                  <div className="grid grid-cols-[76px_1fr] gap-3 text-sm">
+                    <span className="text-foreground-400">Judul</span>
+                    <span className="line-clamp-3 font-medium leading-5 text-foreground-700">{row.judul || "Belum ada judul"}</span>
                   </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl bg-default-50 p-3">
+                <div className="mt-3 rounded-xl border border-default-200/70 p-3">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <span className="text-xs font-semibold text-foreground-500">Progress tugas</span>
                     <span className="text-xs font-bold">{row.doneTasks}/{row.totalTasks} selesai</span>
                   </div>
                   <Progress
-                    aria-label={`Progress KARIL ${row.namaCustomer}`}
+                    aria-label={`Progress ${label} ${row.namaCustomer}`}
                     value={pct}
-                    color={pct >= 100 ? "success" : pct > 0 ? "primary" : "default"}
+                    color={pct >= 100 ? "success" : pct > 0 ? (isMetode ? "success" : "primary") : "default"}
                     size="sm"
                   />
                   <div className="mt-3 grid grid-cols-4 gap-2">
@@ -99,7 +128,7 @@ export default function KarilTable({ data, loading, page, onPageChange }: Props)
                         size="sm"
                         color={done ? "success" : "default"}
                         variant="flat"
-                        className="w-full justify-center"
+                        className="w-full justify-center font-semibold"
                       >
                         T{taskIndex + 1}
                       </Chip>
@@ -110,9 +139,9 @@ export default function KarilTable({ data, loading, page, onPageChange }: Props)
                 <Button
                   as={Link}
                   to={customerDetailPath}
-                  color="primary"
+                  color={isMetode ? "success" : "primary"}
                   variant="flat"
-                  className="mt-4 min-h-11 w-full rounded-2xl"
+                  className="mt-4 min-h-11 w-full rounded-xl font-semibold"
                   endContent={<ArrowRight className="h-4 w-4" />}
                 >
                   Lihat detail customer
@@ -124,29 +153,27 @@ export default function KarilTable({ data, loading, page, onPageChange }: Props)
       </div>
 
       <div className="hidden md:block">
-      <Wrapper>
-        <div className="overflow-x-auto">
+        <div className="overflow-hidden rounded-2xl border border-default-200/80">
+        <div className="max-w-full overflow-x-auto overscroll-x-contain">
           <Table
-            aria-label="Daftar KARIL"
+            aria-label={`Daftar ${label}`}
             removeWrapper
-            isStriped
-            className="rounded-none"
+            className="min-w-[1120px] rounded-none bg-content1"
             classNames={{
-              th: "bg-content2 text-foreground-500 font-semibold",
-              td: "text-foreground align-top",
-              tr: "data-[hover=true]:bg-default-50 dark:data-[hover=true]:bg-content2",
+              th: "h-12 bg-default-50 px-4 text-[11px] font-bold uppercase tracking-wider text-foreground-500",
+              td: "border-b border-default-100 px-4 py-3.5 text-foreground align-middle",
+              tr: "last:[&>td]:border-b-0 data-[hover=true]:bg-primary/[0.035]",
               tbody: "bg-transparent",
             }}
           >
             <TableHeader>
-              <TableColumn className="w-[64px] text-center">No</TableColumn>
-              <TableColumn>Nama</TableColumn>
-              <TableColumn className="min-w-[120px]">NIM</TableColumn>
-              <TableColumn className="min-w-[220px]">Jurusan</TableColumn>
-              <TableColumn className="min-w-[260px]">Judul</TableColumn>
-              <TableColumn className="min-w-[160px]">Tugas</TableColumn>
-              <TableColumn className="min-w-[220px]">Progress</TableColumn>
-              <TableColumn className="text-right min-w-[140px]">Aksi</TableColumn>
+              <TableColumn className="w-[60px] text-center">No.</TableColumn>
+              <TableColumn className="min-w-[210px]">Mahasiswa</TableColumn>
+              <TableColumn className="min-w-[190px]">Jurusan</TableColumn>
+              <TableColumn className="min-w-[270px]">Judul</TableColumn>
+              <TableColumn className="min-w-[190px]">Tugas</TableColumn>
+              <TableColumn className="min-w-[210px]">Progres</TableColumn>
+              <TableColumn className="min-w-[130px] text-right">Tindakan</TableColumn>
             </TableHeader>
 
             <TableBody isLoading={loading} emptyContent={loading ? "Memuat..." : "Belum ada data"}>
@@ -155,98 +182,81 @@ export default function KarilTable({ data, loading, page, onPageChange }: Props)
                 const customerDetailPath = `/customers/${r.customerId}`;
 
                 return (
-                  <TableRow key={r.id}>
-                    {/* No */}
+                  <TableRow key={r.customerId}>
                     <TableCell className="text-center">
                       <span
                         className={[
-                          "inline-flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-semibold",
-                          "bg-gradient-to-br from-default-100 to-default-200 text-foreground-600",
-                          "dark:from-content2 dark:to-content2/80 dark:text-foreground-500",
+                          "inline-flex h-8 w-8 items-center justify-center rounded-xl text-[12px] font-bold",
+                          isMetode
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                            : "bg-violet-500/10 text-violet-700 dark:text-violet-300",
                         ].join(" ")}
                       >
                         {nomor(idx)}
                       </span>
                     </TableCell>
 
-                    {/* Nama */}
                     <TableCell>
-                      <Button
-                        as={Link}
-                        to={customerDetailPath}
-                        variant="light"
-                        className="px-0 text-foreground font-medium hover:underline"
-                      >
-                        {r.namaCustomer}
-                      </Button>
-                    </TableCell>
-
-                    {/* NIM */}
-                    <TableCell>
-                      <span className="font-mono text-[13px] text-foreground-600">{r.nim}</span>
-                    </TableCell>
-
-                    {/* Jurusan */}
-                    <TableCell>
-                      <div className="truncate max-w-[260px] text-foreground" title={r.jurusan}>
-                        {r.jurusan}
+                      <div className="min-w-0">
+                        <Link to={customerDetailPath} className="block truncate font-semibold text-foreground transition-colors hover:text-primary">
+                          {r.namaCustomer}
+                        </Link>
+                        <span className="mt-1 block font-mono text-xs text-foreground-400">{r.nim}</span>
                       </div>
                     </TableCell>
 
-                    {/* Judul */}
                     <TableCell>
-                      <div className="truncate max-w-[360px] text-foreground" title={r.judul}>
-                        {r.judul}
+                      <div className="line-clamp-2 max-w-[230px] text-sm leading-5 text-foreground-600" title={r.jurusan}>
+                        {r.jurusan || "—"}
                       </div>
                     </TableCell>
 
-                    {/* Tugas */}
                     <TableCell>
-                      <div className="flex gap-1 flex-wrap">
-                        <Chip size="sm" variant="flat" color={r.tugas1 ? "success" : "default"}>
-                          T1
-                        </Chip>
-                        <Chip size="sm" variant="flat" color={r.tugas2 ? "success" : "default"}>
-                          T2
-                        </Chip>
-                        <Chip size="sm" variant="flat" color={r.tugas3 ? "success" : "default"}>
-                          T3
-                        </Chip>
-                        <Chip size="sm" variant="flat" color={r.tugas4 ? "success" : "default"}>
-                          T4
-                        </Chip>
-
-                        <Chip
-                          size="sm"
-                          variant="flat"
-                          className="ml-1 bg-default-100 text-foreground-600 border border-default-200"
-                        >
-                          {r.doneTasks}/{r.totalTasks}
-                        </Chip>
+                      <div className="line-clamp-2 max-w-[330px] text-sm font-medium leading-5 text-foreground-700" title={r.judul}>
+                        {r.judul || "Belum ada judul"}
                       </div>
                     </TableCell>
 
-                    {/* Progress */}
                     <TableCell>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {[r.tugas1, r.tugas2, r.tugas3, r.tugas4].map((done, taskIndex) => (
+                          <Tooltip key={taskIndex} content={done ? `Tugas ${taskIndex + 1} selesai` : `Tugas ${taskIndex + 1} belum selesai`}>
+                            <span className={`inline-flex h-7 min-w-8 items-center justify-center rounded-lg px-2 text-[11px] font-bold ${done ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300" : "bg-default-100 text-foreground-400"}`}>
+                              T{taskIndex + 1}
+                            </span>
+                          </Tooltip>
+                        ))}
+                      </div>
+                    </TableCell>
+
+                    <TableCell>
+                      <div className="min-w-[180px]">
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground-500">
+                            {pct >= 100 ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> : <Clock3 className="h-3.5 w-3.5 text-amber-500" />}
+                            {r.doneTasks}/{r.totalTasks} tugas
+                          </span>
+                          <span className="text-xs font-bold text-foreground">{pct}%</span>
+                        </div>
                         <Progress
-                          aria-label="progress"
+                          aria-label={`Progres ${label} ${r.namaCustomer}`}
                           value={pct}
-                          className="w-[180px]"
-                          color={pct >= 100 ? "success" : pct > 0 ? "primary" : "default"}
+                          size="sm"
+                          color={pct >= 100 ? "success" : pct > 0 ? (isMetode ? "success" : "primary") : "default"}
                         />
-                        <span className="text-sm text-foreground-600">{pct}%</span>
                       </div>
                     </TableCell>
 
-                    {/* Aksi */}
                     <TableCell className="text-right">
                       <Tooltip content="Lihat detail Customer">
                         <Button
                           as={Link}
                           to={customerDetailPath}
                           size="sm"
-                          className="bg-gradient-to-r from-sky-500 to-indigo-500 text-white shadow-sm"
+                          variant="flat"
+                          color={isMetode ? "success" : "primary"}
+                          endContent={<ArrowRight className="h-3.5 w-3.5" />}
+                          className="min-h-9 font-semibold"
                         >
                           Detail
                         </Button>
@@ -258,7 +268,7 @@ export default function KarilTable({ data, loading, page, onPageChange }: Props)
             </TableBody>
           </Table>
         </div>
-      </Wrapper>
+        </div>
       </div>
 
       {pagination && (
@@ -269,7 +279,7 @@ export default function KarilTable({ data, loading, page, onPageChange }: Props)
             total={pagination.totalPages}
             onChange={onPageChange}
             classNames={{
-              cursor: "bg-gradient-to-r from-sky-500 to-indigo-500 text-white",
+              cursor: isMetode ? "bg-emerald-600 text-white" : "bg-indigo-600 text-white",
             }}
           />
         </div>
@@ -280,14 +290,18 @@ export default function KarilTable({ data, loading, page, onPageChange }: Props)
 
 export function KarilTableSkeleton({ rows = 8 }: { rows?: number }) {
   return (
-    <div className="rounded-2xl border border-default-200 bg-content1 shadow-md overflow-hidden">
+    <div className="overflow-hidden rounded-2xl border border-default-200 bg-content1">
+      <div className="border-b border-default-200 bg-default-50 px-4 py-4">
+        <Skeleton className="h-5 w-52 rounded-lg" />
+      </div>
       <div className="p-4">
         {Array.from({ length: rows }).map((_, i) => (
-          <div key={i} className="flex items-center gap-3 py-2">
-            <Skeleton className="h-5 w-6 rounded-full" />
-            <Skeleton className="h-4 w-48" />
-            <Skeleton className="h-4 w-24" />
-            <Skeleton className="h-4 w-56" />
+          <div key={i} className="flex items-center gap-4 border-b border-default-100 py-3 last:border-b-0">
+            <Skeleton className="h-8 w-8 shrink-0 rounded-xl" />
+            <Skeleton className="h-4 w-44 rounded-lg" />
+            <Skeleton className="hidden h-4 w-32 rounded-lg sm:block" />
+            <Skeleton className="hidden h-4 flex-1 rounded-lg md:block" />
+            <Skeleton className="h-8 w-24 rounded-xl" />
           </div>
         ))}
       </div>

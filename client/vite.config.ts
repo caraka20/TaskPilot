@@ -8,10 +8,19 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react(), tailwind()],
+    resolve: {
+      alias: {
+        '@attendance': '/src/attendance',
+      },
+    },
     server: {
       host: true,
       proxy: {
         '/api': {
+          target: apiTarget,
+          changeOrigin: true,
+        },
+        '/uploads': {
           target: apiTarget,
           changeOrigin: true,
         },

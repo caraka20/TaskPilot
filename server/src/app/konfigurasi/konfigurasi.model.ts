@@ -24,6 +24,11 @@ export interface KonfigurasiResponse {
   gajiPerJam: number
   batasJedaMenit: number
   jedaOtomatisAktif: boolean
+  updatedAt?: string | Date
+  updatedBy?: {
+    username: string
+    namaLengkap?: string
+  } | null
 }
 
 export interface OverrideResponse {
@@ -77,6 +82,11 @@ export type EffectiveKonfigurasiDTO = Readonly<{
       jedaOtomatisAktif?: boolean
     }
   }
+  updatedAt: Date
+  updatedBy?: {
+    username: string
+    namaLengkap?: string
+  } | null
 }>
 
 // ==========================
@@ -86,6 +96,7 @@ type WithKonfigurasiFields = {
   gajiPerJam: number
   batasJedaMenit: number
   jedaOtomatisAktif: boolean
+  updatedAt?: Date
 }
 
 export function toKonfigurasiResponse<T extends WithKonfigurasiFields>(
@@ -95,13 +106,15 @@ export function toKonfigurasiResponse<T extends WithKonfigurasiFields>(
     gajiPerJam: data.gajiPerJam,
     batasJedaMenit: data.batasJedaMenit,
     jedaOtomatisAktif: data.jedaOtomatisAktif,
+    updatedAt: data.updatedAt,
   }
 }
 
 export function mergeEffective(
   globalCfg: KonfigurasiGlobalDTO,
   overrideCfg: KonfigurasiOverrideDTO | undefined | null,
-  username: string
+  username: string,
+  updatedBy?: EffectiveKonfigurasiDTO["updatedBy"]
 ): EffectiveKonfigurasiDTO {
   const effective = {
     gajiPerJam: overrideCfg?.gajiPerJam ?? globalCfg.gajiPerJam,
@@ -130,5 +143,7 @@ export function mergeEffective(
     username,
     effective,
     sources,
+    updatedAt: overrideCfg?.updatedAt ?? globalCfg.updatedAt,
+    updatedBy: updatedBy ?? null,
   }
 }

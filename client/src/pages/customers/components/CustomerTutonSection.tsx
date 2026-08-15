@@ -8,17 +8,21 @@ type Props = {
 };
 
 export default function CustomerTutonSection({ show, summary, customerId, onChanged }: Props) {
-  if (!show || !summary) return null;
+  if (!show) return null;
+
+  const courses = Array.isArray(summary?.courses) ? summary.courses : [];
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Selalu tampilkan matrix; input tambah matkul ada di header matrix */}
+    <section
+      aria-label="Matriks pengerjaan Tuton"
+      className="overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_14px_38px_-30px_rgba(15,23,42,.35)] dark:border-slate-800 dark:bg-slate-900"
+    >
       <TutonMatrixTable
-        customerId={customerId}           // ✅ penting untuk add matkul
-        courses={Array.isArray(summary?.courses) ? summary.courses : []}
+        customerId={customerId}
+        courses={courses}
         onSaved={onChanged}
         {...({ showScores: true } as any)}
       />
-    </div>
+    </section>
   );
 }

@@ -34,7 +34,7 @@ export default function LoginPage() {
   const api = useApi();
   const navigate = useNavigate();
   const location = useLocation();
-  const { token, setToken, setUsername, setRole } = useAuthStore();
+  const { token, setToken, setUsername, setRole, setCanViewCustomerBilling, setAvatarUrl } = useAuthStore();
   const { dark, toggle } = useThemeStore();
 
   const [username, setUsernameInput] = useState("");
@@ -74,6 +74,8 @@ export default function LoginPage() {
       setToken(response.token);
       setUsername(response.user?.username ?? cleanUsername);
       setRole(response.user?.role ?? "");
+      setCanViewCustomerBilling(Boolean(response.user?.canViewCustomerBilling));
+      setAvatarUrl(response.user?.avatarUrl ?? "");
       navigate(destination, { replace: true });
     } catch (error: unknown) {
       let message = "Login gagal. Periksa kembali akun Anda.";
@@ -149,9 +151,7 @@ export default function LoginPage() {
 
         <section className="mx-auto w-full max-w-md pt-14 lg:pt-0">
           <div className="mb-6 flex items-center gap-3 lg:hidden">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-indigo-500 to-sky-500 font-black text-white shadow-lg shadow-indigo-500/20">
-              TP
-            </div>
+            <img alt="" aria-hidden="true" className="h-12 w-12 drop-shadow-lg" src="/brand/taskpilot-mark.svg" />
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-indigo-500">TaskPilot</p>
               <p className="text-sm text-slate-500 dark:text-slate-400">Masuk ke ruang kerja Anda</p>

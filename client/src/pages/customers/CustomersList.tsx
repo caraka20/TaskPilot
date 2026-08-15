@@ -1,20 +1,21 @@
 // client/src/pages/customers/CustomersList.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Card, CardHeader, CardBody,
-  Button, Chip,
-  Modal, ModalBody, ModalContent, ModalFooter, ModalHeader,
-  Popover, PopoverTrigger, PopoverContent, Kbd
-} from "@heroui/react";
-import { Plus, Wallet, CheckCircle2, PiggyBank, FileSpreadsheet } from "lucide-react";
+import { Button, Chip } from "@heroui/react";
 import Swal from "sweetalert2";
 import { useSearchParams } from "react-router-dom";
+import { useAuthStore } from "../../store/auth.store";
 
 import CustomerFilters from "./components/CustomerFilters";
 import CustomerTable from "./components/CustomerTable";
 import CustomerForm from "./components/CustomerForm";
+import CustomerBillingSummary, {
+  type CustomerBillingTotals,
+} from "./components/CustomerBillingSummary";
+import CustomerListHeader from "./components/CustomerListHeader";
+import type { CustomerWithoutCourse } from "./components/CustomerMissingCoursePopover";
+import OperationalModal from "../../components/common/OperationalModal";
 
-import { showApiError } from "../../utils/alert";
+import { closeAlert, showApiError, showLoading, showSuccess } from "../../utils/alert";
 import {
   getCustomers,
   createCustomer,
@@ -30,13 +31,10 @@ import type {
 } from "../../utils/customer";
 
 /* ================= Helpers ================= */
-const isValidJenis = (v?: string | null): v is "TUTON" | "KARIL" | "TK" => {
+const isValidLayanan = (v?: string | null): v is "TUTON" | "KARIL" | "METODE_PENELITIAN" => {
   const up = String(v ?? "").toUpperCase();
-  return up === "TUTON" || up === "KARIL" || up === "TK";
+  return up === "TUTON" || up === "KARIL" || up === "METODE_PENELITIAN";
 };
-
-const fmtIDR = (n = 0) =>
-  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
 
 /** Ambil role dari localStorage (kompatibel Zustand/Redux Persist/flat) */
 const getRoleFromStorage = (): string => {
@@ -111,12 +109,12 @@ export default function CustomersList() {
 
   // ringkasan global
   const [loadingTotals, setLoadingTotals] = useState(false);
-  const [totalsAll, setTotalsAll] = useState<{ totalBayar: number; sudahBayar: number; sisaBayar: number; totalCount: number }>({
+  const [totalsAll, setTotalsAll] = useState<CustomerBillingTotals>({
     totalBayar: 0, sudahBayar: 0, sisaBayar: 0, totalCount: 0
   });
   const [countNoMKAll, setCountNoMKAll] = useState(0);
   const [totalPagesAll, setTotalPagesAll] = useState(1);
-  const [namesNoMKAll, setNamesNoMKAll] = useState<Array<{ id: number; namaCustomer: string; nim: string }>>([]);
+  const [namesNoMKAll, setNamesNoMKAll] = useState<CustomerWithoutCourse[]>([]);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const parseIntParam = (v: string | null, fallback: number) => {
@@ -125,6 +123,9 @@ export default function CustomersList() {
   };
 
   const owner = useMemo(() => isOwner(), []);
+  const billingAccess = useAuthStore((state) => state.canViewCustomerBilling)
+  const canSeeBilling =
+    owner || billingAccess || Boolean(data?.items?.some((item) => item.billingVisible === true))
 
   // tidak ada clamp per role; hanya pastikan minimum 1 & default 50
   const clampByRole = (p: ListParams): ListParams => ({
@@ -169,17 +170,17 @@ export default function CustomersList() {
 
   // init dari URL (fallback limit -> 50 untuk semua)
   useEffect(() => {
-    const fromUrl: ListParams & { jenis?: "TUTON" | "KARIL" | "TK" } = {
+    const fromUrl: ListParams = {
       page: parseIntParam(searchParams.get("page"), 1),
       limit: parseIntParam(searchParams.get("limit"), 50),
       sortBy: (searchParams.get("sortBy") as any) || "createdAt",
       sortDir: (searchParams.get("sortDir") as any) || "desc",
     };
     const q = searchParams.get("q") || undefined;
-    const jenis = searchParams.get("jenis");
+    const layanan = searchParams.get("layanan");
 
     if (q) (fromUrl as any).q = q;
-    if (isValidJenis(jenis)) fromUrl.jenis = jenis as any;
+    if (isValidLayanan(layanan)) fromUrl.layanan = layanan as any;
 
     const eff = clampByRole(fromUrl);
     setParams(eff);
@@ -197,8 +198,8 @@ export default function CustomersList() {
       sortDir: String(params.sortDir ?? "desc"),
     };
     if ((params as any).q) sp.q = String((params as any).q);
-    if ((params as any).jenis && isValidJenis((params as any).jenis)) {
-      sp.jenis = String((params as any).jenis);
+    if ((params as any).layanan && isValidLayanan((params as any).layanan)) {
+      sp.layanan = String((params as any).layanan);
     }
     setSearchParams(sp, { replace: true });
   }, [params, setSearchParams]);
@@ -207,14 +208,20 @@ export default function CustomersList() {
   const onCreate = async (payload: CreateCustomerPayload) => {
     setCreating(true);
     try {
+      showLoading("Menyimpan customer...");
       await createCustomer(payload);
-      await Swal.fire({ icon: "success", title: "Berhasil", text: "Customer berhasil ditambahkan", timer: 1400, showConfirmButton: false });
+      closeAlert();
+      await showSuccess(
+        "Customer berhasil dibuat",
+        `${payload.namaCustomer || "Customer baru"} sudah masuk ke daftar layanan.`,
+      );
       const base = clampByRole({ ...params, page: 1 });
       setParams(base);
       await load(base);
       await loadTotals(base);
       setOpenAdd(false);
     } catch (e) {
+      closeAlert();
       await showApiError(e);
     } finally {
       setCreating(false);
@@ -265,10 +272,10 @@ export default function CustomersList() {
     const merged: any = { ...params, ...next, page: 1 };
     if (!merged.q || !String(merged.q).trim()) delete merged.q;
 
-    if ("jenis" in next) {
-      const j = String(next.jenis ?? "").toUpperCase();
-      if (j === "ALL" || !isValidJenis(j)) delete merged.jenis;
-      else merged.jenis = j;
+    if ("layanan" in next) {
+      const service = String(next.layanan ?? "").toUpperCase();
+      if (service === "ALL" || !isValidLayanan(service)) delete merged.layanan;
+      else merged.layanan = service;
     }
 
     const eff = clampByRole(merged);
@@ -303,218 +310,56 @@ export default function CustomersList() {
     return { ...data, items: sortedItems };
   }, [data, sortedItems]);
 
-  /* ============ Small UI helpers ============ */
-  const MoneyCard = ({
-    title,
-    value,
-    icon,
-    accentFrom = "from-sky-500",
-    accentTo = "to-indigo-500",
-    valueClass = "",
-  }: {
-    title: string;
-    value: string;
-    icon: React.ReactNode;
-    accentFrom?: string;
-    accentTo?: string;
-    valueClass?: string;
-  }) => (
-    <div className="group relative rounded-2xl p-[1px] bg-gradient-to-br from-default-200/40 to-default-100/20">
-      <div className="rounded-2xl h-full w-full bg-content2 p-4">
-        <div className="flex items-start gap-3">
-          <div className={`rounded-xl p-2 bg-gradient-to-br ${accentFrom} ${accentTo} text-white shadow-sm`}>
-            {icon}
-          </div>
-          <div className="flex-1">
-            <div className="text-[12px] uppercase tracking-wide text-foreground-500">{title}</div>
-            <div className={`text-xl font-semibold mt-1 ${valueClass}`}>{value}</div>
-          </div>
-        </div>
-        <div className={`absolute -z-10 inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl bg-gradient-to-r ${accentFrom} ${accentTo}`} />
-      </div>
-    </div>
-  );
-
   /* ================= Render ================= */
   return (
-    <div className="flex flex-col gap-4">
-      {/* ======= OWNER-ONLY: Ringkasan lengkap ======= */}
-      {owner ? (
-        <Card className="border border-default-200 shadow-sm overflow-hidden">
-          <div className="h-1 w-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500" />
-          <CardHeader className="flex flex-col gap-2 bg-content1 rounded-t-2xl">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="font-semibold text-lg">Ringkasan semua customer (sesuai filter)</div>
-              <Chip size="sm" variant="flat" className="h-6 px-2">
-                {loadingTotals ? "..." : `${totalsAll.totalCount} customer`}
-              </Chip>
-              <Popover placement="bottom-start">
-                <PopoverTrigger>
-                  <Chip as="button" size="sm" color="warning" variant="flat" className="h-6 px-2 cursor-pointer">
-                    {loadingTotals ? "..." : `${countNoMKAll} tanpa matkul`}
-                  </Chip>
-                </PopoverTrigger>
-                <PopoverContent className="max-w-[480px]">
-                  <div className="p-2">
-                    <div className="text-[12px] font-medium mb-1">Tanpa matkul (maks. 50 nama)</div>
-                    {namesNoMKAll.length === 0 ? (
-                      <div className="text-[12px] text-foreground-500">Tidak ada.</div>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5">
-                        {namesNoMKAll.map((p) => (
-                          <Chip
-                            key={p.id}
-                            as="button"
-                            color="danger"
-                            variant="flat"
-                            className="h-6 px-2 text-[12px] hover:opacity-90 font-medium"
-                            onClick={() => quickSearch(p.nim || p.namaCustomer)}
-                          >
-                            <span className="text-danger-600">{p.namaCustomer}</span>
-                            <span className="text-danger-500 ml-1">({p.nim})</span>
-                          </Chip>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-2 text-[11px] text-foreground-500">
-                      Klik nama untuk <b>cari cepat</b>. Tip: <Kbd>Esc</Kbd> untuk menutup.
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-              <Chip size="sm" variant="flat" className="h-6 px-2">
-                {loadingTotals ? "..." : `Total halaman: ${totalPagesAll}`}
-              </Chip>
-            </div>
-          </CardHeader>
+    <div data-workspace-page className="space-y-5 pb-8">
+      <CustomerListHeader
+        owner={owner}
+        exporting={exporting}
+        loadingTotals={loadingTotals}
+        totalCustomers={totalsAll.totalCount}
+        totalWithoutCourse={countNoMKAll}
+        totalPages={totalPagesAll}
+        customersWithoutCourse={namesNoMKAll}
+        onExportExcel={onExportExcel}
+        onAddCustomer={() => setOpenAdd(true)}
+        onQuickSearch={quickSearch}
+      />
 
-          {/* === Money summary prettier === */}
-          <CardBody className="bg-content1 rounded-b-2xl">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <MoneyCard
-                title="Total Tagihan (semua)"
-                value={loadingTotals ? "…" : fmtIDR(totalsAll.totalBayar)}
-                icon={<Wallet className="h-5 w-5" />}
-                accentFrom="from-violet-500"
-                accentTo="to-fuchsia-500"
-              />
-              <MoneyCard
-                title="Sudah Dibayar (semua)"
-                value={loadingTotals ? "…" : fmtIDR(totalsAll.sudahBayar)}
-                icon={<CheckCircle2 className="h-5 w-5" />}
-                accentFrom="from-emerald-500"
-                accentTo="to-teal-500"
-              />
-              <MoneyCard
-                title="Sisa (semua)"
-                value={loadingTotals ? "…" : fmtIDR(totalsAll.sisaBayar)}
-                icon={<PiggyBank className="h-5 w-5" />}
-                accentFrom="from-sky-500"
-                accentTo="to-indigo-500"
-                valueClass={totalsAll.sisaBayar > 0 ? "" : "text-success-600"}
-              />
-            </div>
-          </CardBody>
-        </Card>
-      ) : (
-        // ======= NON-OWNER: Ringkasan ringan (tanpa metrik uang) =======
-        <Card className="border border-default-200 shadow-sm overflow-hidden">
-          <CardHeader className="flex flex-wrap items-center gap-2 py-2">
-            <Chip size="sm" variant="flat" className="h-6 px-2">
-              {loadingTotals ? "..." : `${totalsAll.totalCount} customer`}
-            </Chip>
-            <Popover placement="bottom-start">
-              <PopoverTrigger>
-                <Chip as="button" size="sm" color="warning" variant="flat" className="h-6 px-2 cursor-pointer">
-                  {loadingTotals ? "..." : `${countNoMKAll} tanpa matkul`}
-                </Chip>
-              </PopoverTrigger>
-              <PopoverContent className="max-w-[480px]">
-                <div className="p-2">
-                  <div className="text-[12px] font-medium mb-1">Tanpa matkul (maks. 50 nama)</div>
-                  {namesNoMKAll.length === 0 ? (
-                    <div className="text-[12px] text-foreground-500">Tidak ada.</div>
-                  ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {namesNoMKAll.map((p) => (
-                        <Chip
-                          key={p.id}
-                          as="button"
-                          color="danger"
-                          variant="flat"
-                          className="h-6 px-2 text-[12px] hover:opacity-90 font-medium"
-                          onClick={() => quickSearch(p.nim || p.namaCustomer)}
-                        >
-                          <span className="text-danger-600">{p.namaCustomer}</span>
-                          <span className="text-danger-500 ml-1">({p.nim})</span>
-                        </Chip>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </PopoverContent>
-            </Popover>
-            <Chip size="sm" variant="flat" className="h-6 px-2">
-              {loadingTotals ? "..." : `Total halaman: ${totalPagesAll}`}
-            </Chip>
-          </CardHeader>
-        </Card>
+      {canSeeBilling && (
+        <CustomerBillingSummary loading={loadingTotals} totals={totalsAll} />
       )}
 
-      {/* ======= LIST + CONTROLS ======= */}
-      <Card id="customers-list-card" className="border border-default-100 overflow-hidden">
-        <div className="h-1 w-full bg-gradient-to-r from-sky-500 via-indigo-500 to-fuchsia-500" />
-        <CardHeader className="flex flex-col gap-3 bg-content1 rounded-t-2xl">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="font-semibold text-lg">Daftar Customer</div>
-
-            <div className="flex items-center gap-2">
-              <Chip size="sm" variant="flat" className="h-6 px-2">
-                {data?.pagination?.total ?? 0} total
-              </Chip>
-              <Chip size="sm" variant="flat" className="h-6 px-2">
-                Halaman {data?.pagination?.page ?? 1} / {data?.pagination?.totalPages ?? 1}
-              </Chip>
+      <section id="customers-list-card" className="overflow-hidden rounded-[24px] border border-default-200/80 bg-content1 shadow-[0_12px_35px_rgba(15,23,42,.06)]">
+        <div className="border-b border-default-200/70 px-4 py-5 sm:px-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Direktori customer</p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-bold text-foreground">Daftar customer</h2>
+                <Chip size="sm" variant="flat">{data?.pagination?.total ?? 0} data</Chip>
+                <Chip size="sm" variant="flat">Halaman {data?.pagination?.page ?? 1} dari {data?.pagination?.totalPages ?? 1}</Chip>
+              </div>
             </div>
-
-            <div className="hidden flex-1 sm:block" />
-
-            <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto">
-              {owner && (
-                <Button
-                  color="success"
-                  variant="flat"
-                  className="min-h-11 w-full border border-success-200 bg-success-50 font-semibold text-success-700 dark:border-success-800 dark:bg-success-950/40 dark:text-success-300 sm:w-auto"
-                  startContent={!exporting ? <FileSpreadsheet className="h-4 w-4" /> : undefined}
-                  isLoading={exporting}
-                  isDisabled={exporting}
-                  onPress={onExportExcel}
-                >
-                  {exporting ? "Membuat Excel..." : "Export Excel"}
-                </Button>
-              )}
-
-              <Button
-                color="primary"
-                className="min-h-11 w-full bg-gradient-to-r from-sky-500 to-indigo-500 text-white sm:w-auto"
-                startContent={<Plus className="h-4 w-4" />}
-                onPress={() => setOpenAdd(true)}
-              >
-                Tambah Customer
-              </Button>
-            </div>
+            {!canSeeBilling && (
+              <div className="rounded-xl bg-primary/5 px-3 py-2 text-xs text-foreground-500">
+                Informasi tagihan mengikuti hak akses akun Anda.
+              </div>
+            )}
           </div>
 
-          <CustomerFilters
-            initial={{
-              ...params,
-              jenis: isValidJenis((params as any).jenis) ? ((params as any).jenis as any) : "ALL",
-            }}
-            onChange={(next) => applyFilters(next as any)}
-          />
-        </CardHeader>
+          <div className="mt-5">
+            <CustomerFilters
+              initial={{
+                ...params,
+                layanan: isValidLayanan((params as any).layanan) ? ((params as any).layanan as any) : undefined,
+              }}
+              onChange={(next) => applyFilters(next as any)}
+            />
+          </div>
+        </div>
 
-        <CardBody className="bg-content1 rounded-b-2xl">
+        <div className="px-4 py-5 sm:px-6">
           <CustomerTable
             data={dataForTable}
             loading={loading}
@@ -526,36 +371,35 @@ export default function CustomersList() {
             }}
             onDelete={onDeleteRow}
           />
-        </CardBody>
-      </Card>
+        </div>
+      </section>
 
       {/* Modal Tambah Customer */}
-      <Modal
+      <OperationalModal
         isOpen={openAdd}
         onOpenChange={setOpenAdd}
-        size="2xl"
-        placement="center"
-        backdrop="blur"
-        scrollBehavior="inside"
-        classNames={{
-          base: "m-0 max-h-dvh rounded-none sm:m-4 sm:max-h-[92dvh] sm:rounded-large",
-          body: "px-3 sm:px-6",
-        }}
+        isDismissable={!creating}
+        title="Tambah customer"
+        description="Lengkapi identitas dan pilih satu atau beberapa layanan akademik."
+        footer={
+          <>
+            <Button className="min-h-11 w-full font-semibold sm:w-auto" variant="flat" onPress={() => setOpenAdd(false)} isDisabled={creating}>
+              Batal
+            </Button>
+            <Button
+              className="min-h-11 w-full font-bold sm:w-auto"
+              color="primary"
+              form="create-customer-form"
+              type="submit"
+              isLoading={creating}
+            >
+              Simpan customer
+            </Button>
+          </>
+        }
       >
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader className="flex flex-col gap-1">Tambah Customer</ModalHeader>
-              <ModalBody>
-                <CustomerForm onSubmit={onCreate} busy={creating} />
-              </ModalBody>
-              <ModalFooter>
-                <Button variant="light" onPress={() => onClose()}>Batal</Button>
-              </ModalFooter>
-            </>
-          )}
-        </ModalContent>
-      </Modal>
+        <CustomerForm formId="create-customer-form" hideActions onSubmit={onCreate} busy={creating} />
+      </OperationalModal>
     </div>
   );
 }

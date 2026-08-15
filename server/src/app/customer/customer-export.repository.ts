@@ -18,6 +18,9 @@ export class CustomerExportRepository {
         nim: true,
         jurusan: true,
         jenis: true,
+        layananTuton: true,
+        layananKaril: true,
+        layananMetodePenelitian: true,
         totalBayar: true,
         sudahBayar: true,
         sisaBayar: true,
@@ -37,6 +40,19 @@ export class CustomerExportRepository {
           },
         },
         karil: {
+          select: {
+            id: true,
+            judul: true,
+            tugas1: true,
+            tugas2: true,
+            tugas3: true,
+            tugas4: true,
+            keterangan: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+        metodePenelitian: {
           select: {
             id: true,
             judul: true,

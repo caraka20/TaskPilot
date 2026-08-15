@@ -7,6 +7,20 @@ export type KonfigurasiResponse = {
   gajiPerJam?: number
   batasJedaMenit?: number
   jedaOtomatisAktif?: boolean
+  updatedAt?: string
+  updatedBy?: {
+    username: string
+    namaLengkap?: string
+  } | null
+}
+
+export type EffectiveKonfigurasiResponse = KonfigurasiResponse & {
+  scope?: "GLOBAL" | "USER" | string
+  username?: string
+  sources?: {
+    global?: KonfigurasiResponse
+    override?: KonfigurasiResponse
+  }
 }
 
 type ApiEnvelope<T> = {
@@ -28,6 +42,11 @@ type RawConfig = {
   jedaOtomatisAktif?: boolean
   jeda_otomatis_aktif?: boolean
   jedaOtomatis?: boolean
+  updatedAt?: string | Date
+  updatedBy?: {
+    username?: string
+    namaLengkap?: string
+  } | null
 }
 
 // Payload khusus /konfigurasi/effective
@@ -40,6 +59,8 @@ type EffectivePayload = {
     override?: RawConfig
     [k: string]: RawConfig | undefined
   }
+  updatedAt?: string | Date
+  updatedBy?: RawConfig["updatedBy"]
 }
 
 // ===== Helpers =====
@@ -54,6 +75,10 @@ function normalizeConfig(raw: unknown): KonfigurasiResponse {
     gajiPerJam: r.gajiPerJam ?? r.gaji_per_jam ?? r.gaji ?? undefined,
     batasJedaMenit: r.batasJedaMenit ?? r.batas_jeda_menit ?? r.batasJeda ?? undefined,
     jedaOtomatisAktif: r.jedaOtomatisAktif ?? r.jeda_otomatis_aktif ?? r.jedaOtomatis ?? undefined,
+    updatedAt: r.updatedAt ? new Date(r.updatedAt).toISOString() : undefined,
+    updatedBy: r.updatedBy?.username
+      ? { username: r.updatedBy.username, namaLengkap: r.updatedBy.namaLengkap }
+      : null,
   }
 }
 
@@ -82,7 +107,7 @@ export async function updateGlobalConfig(
 export async function getEffectiveConfig(
   api: AxiosInstance,
   username: string
-): Promise<KonfigurasiResponse | null> {
+): Promise<EffectiveKonfigurasiResponse | null> {
   const res: AxiosResponse<ApiEnvelope<EffectivePayload>> = await api.get(
     "/api/konfigurasi/effective",
     {
@@ -99,7 +124,22 @@ export async function getEffectiveConfig(
     payload.sources?.global ??
     (payload as unknown)
 
-  return normalizeConfig(candidate)
+  const effective = normalizeConfig(candidate)
+  return {
+    ...effective,
+    scope: payload.scope,
+    username: payload.username,
+    updatedAt: payload.updatedAt ? new Date(payload.updatedAt).toISOString() : effective.updatedAt,
+    updatedBy: payload.updatedBy?.username
+      ? { username: payload.updatedBy.username, namaLengkap: payload.updatedBy.namaLengkap }
+      : effective.updatedBy,
+    sources: {
+      global: normalizeConfig(payload.sources?.global),
+      ...(payload.sources?.override
+        ? { override: normalizeConfig(payload.sources.override) }
+        : {}),
+    },
+  }
 }
 
 // ===== Overrides (OWNER) =====

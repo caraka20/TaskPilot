@@ -1,6 +1,6 @@
 import z, { ZodType } from "zod"
 import { JenisUT } from "../../generated/prisma"
-import { CreateCustomerRequest, CustomerListQuery, UpdateCustomerRequest, UpdatePaymentRequest } from "./customer.model"
+import { CUSTOMER_LAYANAN, CreateCustomerRequest, CustomerListQuery, UpdateCustomerRequest } from "./customer.model"
 
 export class CustomerValidation {
   static readonly ID_PARAM = z.object({
@@ -14,12 +14,16 @@ export class CustomerValidation {
     nim: z.string().min(3, "NIM tidak valid").max(191), // 191 aman utk unique index MySQL
     password: z.string().min(6, "Password minimal 6 karakter"),
     jurusan: z.string().min(2).max(200),
-    jenis: z.nativeEnum(JenisUT),
+    jenis: z.nativeEnum(JenisUT).optional(),
+    layanan: z.array(z.enum(CUSTOMER_LAYANAN)).min(1, "Pilih minimal satu layanan").optional(),
     totalBayar: z.number().min(0).optional(),
     sudahBayar: z.number().min(0).optional(),
   }).superRefine((v, ctx) => {
     const total = v.totalBayar ?? 0
     const sudah = v.sudahBayar ?? 0
+    if (!v.jenis && !v.layanan?.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["layanan"], message: "Pilih minimal satu layanan" })
+    }
     if (sudah > total) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["sudahBayar"], message: "sudahBayar tidak boleh melebihi totalBayar" })
     }
@@ -61,6 +65,12 @@ export class CustomerValidation {
       z.array(z.nativeEnum(JenisUT)).min(1),
     ]).optional());
 
+    private static readonly LAYANAN_Q = z.preprocess((val) => {
+      if (Array.isArray(val)) return val
+      if (typeof val === "string") return val.split(",").map((s) => s.trim()).filter(Boolean)
+      return val
+    }, z.array(z.enum(CUSTOMER_LAYANAN)).min(1).optional())
+
     static readonly LIST_QUERY: ZodType<CustomerListQuery> = z.object({
       q: z.string().trim().min(1).max(100).optional(),
       page: z.coerce.number().int().positive().default(1),
@@ -69,6 +79,7 @@ export class CustomerValidation {
       sortDir: z.enum(["asc", "desc"]).default("desc"),
       /** ⬅️ NEW */
       jenis: this.JENIS_Q,
+      layanan: this.LAYANAN_Q,
     });
 
   static readonly PARAMS_ID = z.object({
@@ -86,6 +97,7 @@ export class CustomerValidation {
     password: z.string().min(6).optional(),
     jurusan: z.string().min(2).max(200).optional(),
     jenis: z.nativeEnum(JenisUT).optional(),
+    layanan: z.array(z.enum(CUSTOMER_LAYANAN)).min(1).optional(),
   }).refine(obj => Object.keys(obj).length > 0, {
     message: "Tidak ada field yang diubah",
   });

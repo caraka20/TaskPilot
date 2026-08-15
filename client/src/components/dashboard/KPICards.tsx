@@ -61,12 +61,14 @@ type KPICardsProps = {
   totalJamAll?: number;
   showRate?: boolean;
   gajiPerJam?: number;
+  firstWorkDate?: string | null;
 };
 
 export default function KPICards({
   status, detikHariIni, startedAt, serverNow,
   jamMingguIni, totalJamAll,
   showRate = false, gajiPerJam,
+  firstWorkDate,
 }: KPICardsProps) {
   const liveDetikHariIni = useLiveDuration({
     status,
@@ -77,6 +79,12 @@ export default function KPICards({
   const approxJamHariIni = liveDetikHariIni / 3600;
 
   const desktopCols = showRate ? "lg:grid-cols-4 xl:grid-cols-4" : "lg:grid-cols-3 xl:grid-cols-3";
+  const now = new Date()
+  const monday = new Date(now)
+  const day = monday.getDay()
+  monday.setDate(monday.getDate() - (day === 0 ? 6 : day - 1))
+  const dateLabel = (value: Date | string) => new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value))
+  const weekLabel = `${dateLabel(monday)} – ${dateLabel(now)}`
 
   return (
     <div className={`grid grid-cols-1 sm:grid-cols-2 ${desktopCols} gap-4`}>
@@ -91,7 +99,7 @@ export default function KPICards({
       <MetricCard
         title="Jam Minggu Ini"
         value={`${numberID.format(jamMingguIni)} jam`}
-        subtitle="Akumulasi Senin–Minggu berjalan"
+        subtitle={`Periode ${weekLabel}`}
         icon={<CalendarRange size={22} />}
         accent="green"
         ariaLabel="Jam kerja minggu ini"
@@ -99,7 +107,7 @@ export default function KPICards({
       <MetricCard
         title="Seluruh Jam"
         value={typeof totalJamAll === "number" ? `${numberID.format(totalJamAll)} jam` : "—"}
-        subtitle="Total sepanjang waktu"
+        subtitle={firstWorkDate ? `Sejak ${dateLabel(firstWorkDate)}` : "Belum ada tanggal kerja pertama"}
         icon={<Timer size={22} />}
         accent="violet"
         ariaLabel="Total jam sepanjang waktu"

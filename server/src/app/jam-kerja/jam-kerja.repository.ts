@@ -68,7 +68,6 @@ export class JamKerjaRepository {
     return prismaClient.jamKerja.findMany({
       where: { username },
       orderBy: [{ jamMulai: "desc" }, { id: "desc" }],
-      take: 200,
     });
   }
 

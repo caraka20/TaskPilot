@@ -10,6 +10,11 @@ export const RANGE_LABEL: Record<RangeKey, string> = {
 
 export type RowItem = {
   username: string;
+  namaLengkap?: string;
+  role?: "USER" | "OWNER";
+  avatarUrl?: string | null;
+  accountIsActive?: boolean;
+  canViewCustomerBilling?: boolean;
   statusNow: "AKTIF" | "JEDA" | "SELESAI" | "OFF" | string;
   isActive: boolean;
 

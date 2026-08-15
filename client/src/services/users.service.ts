@@ -8,6 +8,10 @@ export type UserListItem = {
   role: "USER" | "OWNER";
   totalJamKerja: number;
   totalGaji: number;
+  canViewCustomerBilling?: boolean;
+  canEditTutonWithoutWork?: boolean;
+  avatarUrl?: string | null;
+  isActive?: boolean;
 };
 
 export type RegisterUserBody = {
@@ -40,15 +44,34 @@ export type RiwayatGajiBrief = {
 };
 
 export type UserDetail = {
+  id: string;
   username: string;
   namaLengkap: string;
   role: "USER" | "OWNER";
   totalJamKerja: number;
   totalGaji: number;
+  canViewCustomerBilling: boolean;
+  canEditTutonWithoutWork: boolean;
+  avatarUrl?: string | null;
+  isActive: boolean;
+  dailyRate: number;
   jedaOtomatis?: boolean; // ← opsional
   jamKerja: JamKerjaBrief[];
   tugas: TugasBrief[];
   riwayatGaji: RiwayatGajiBrief[];
+  unifiedPayroll?: {
+    hourlyHours: number;
+    hourlyRate: number;
+    hourlyEarned: number;
+    hourlySessionCount: number;
+    dailyEarned: number;
+    dailyCount: number;
+    pieceworkEarned: number;
+    pieceworkCount: number;
+    totalEarned: number;
+    totalPaid: number;
+    balance: number;
+  };
 };
 
 /** ─────────────── existing APIs ─────────────── */
@@ -76,6 +99,47 @@ export async function setJedaOtomatis(api: AxiosInstance, username: string, akti
   return data.data;
 }
 
+export async function setCustomerBillingAccess(api: AxiosInstance, username: string, aktif: boolean) {
+  const { data } = await api.patch<ApiEnvelope<{ username: string; canViewCustomerBilling: boolean }>>(
+    `/api/users/${encodeURIComponent(username)}/customer-billing-access`,
+    { aktif },
+  )
+  return data.data
+}
+
+export async function setTutonWorkExemption(api: AxiosInstance, username: string, aktif: boolean) {
+  const { data } = await api.patch<ApiEnvelope<{ username: string; canEditTutonWithoutWork: boolean }>>(
+    `/api/users/${encodeURIComponent(username)}/tuton-work-exemption`,
+    { aktif },
+  );
+  return data.data;
+}
+
+export async function setUserActive(api: AxiosInstance, username: string, aktif: boolean) {
+  const { data } = await api.patch<ApiEnvelope<{ username: string; isActive: boolean; deletedAt: string | null }>>(
+    `/api/users/${encodeURIComponent(username)}/status`,
+    { aktif },
+  )
+  return data.data
+}
+
+export async function setDailyRate(
+  api: AxiosInstance,
+  userId: string,
+  dailyRate: number,
+) {
+  const { data } = await api.patch<{
+    user: { id: string; dailyRate: string | number };
+  }>(`/api/attendance/admin/users/${encodeURIComponent(userId)}`, {
+    dailyRate,
+    reason: "Penyesuaian tarif harian melalui detail user",
+  });
+  return {
+    id: data.user.id,
+    dailyRate: Number(data.user.dailyRate),
+  };
+}
+
 export async function logout(api: AxiosInstance) {
   const { data } = await api.post<ApiEnvelope<{ message: string }>>("/api/users/logout");
   return data.data;
@@ -88,6 +152,7 @@ export type MeResponse = {
   username: string;
   namaLengkap: string;
   role: "USER" | "OWNER";
+  canEditTutonWithoutWork?: boolean;
 };
 
 export async function getMe(api: AxiosInstance) {
@@ -113,6 +178,8 @@ export type UserEverythingResponse = {
     username: string;
     namaLengkap: string;
     role: "OWNER" | "USER";
+    canViewCustomerBilling: boolean;
+    canEditTutonWithoutWork: boolean;
     createdAt: string;
     updatedAt: string;
     totals: { totalJamKerja: number; totalGaji: number };

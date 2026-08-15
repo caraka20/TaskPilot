@@ -35,6 +35,18 @@ export class UserValidation {
     aktif: z.boolean(),
   });
 
+  static readonly SET_CUSTOMER_BILLING_ACCESS = z.object({
+    aktif: z.boolean(),
+  });
+
+  static readonly SET_TUTON_WORK_EXEMPTION = z.object({
+    aktif: z.boolean(),
+  });
+
+  static readonly SET_ACTIVE = z.object({
+    aktif: z.boolean(),
+  });
+
   // query untuk API agregat
   static readonly DETAIL_DEEP_QUERY: ZodType<DetailRangeQuery> = z.object({
     from: DateString.optional(),

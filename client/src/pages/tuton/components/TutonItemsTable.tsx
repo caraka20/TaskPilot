@@ -1,227 +1,159 @@
-// client/src/pages/tuton/components/TutonItemsTable.tsx
 import { useState } from "react";
-import {
-  Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
-  Chip,
-  Button,
-  Tooltip,
-  Input,
-  Switch,
-} from "@heroui/react";
+import { Card, CardHeader, CardBody, Button, Input, Tooltip } from "@heroui/react";
+import { BookOpenCheck, Plus, RotateCcw, Save } from "lucide-react";
 
-type JenisTugas = "ABSEN" | "DISKUSI" | "TUGAS";
-type StatusTugas = "SELESAI" | "BELUM";
+import BulkToolbar from "../components/matrix/BulkToolbar";
+import useUnsavedBlocker from "../components/matrix/useUnsavedBlocker";
+import MatrixTable from "../components/matrix/MatrixTable";
+import { useMatrixState } from "../components/matrix/useMatrixState";
+import { useConflictIds } from "../hooks/useConflictIds";
+import type { MinimalCourse } from "../components/matrix/types";
 
-type TutonItem = {
-  id: number;
-  jenis: JenisTugas;
-  sesi: number;
-  status: StatusTugas;
-  nilai?: number | null;
-  deskripsi?: string | null;
-};
+// service/helper add matkul
+import { addCourse } from "../../../services/tuton.service";
+import { showApiError, showLoading, closeAlert, showSuccess } from "../../../utils/alert";
 
 type Props = {
-  items: TutonItem[];
-  selected: Set<number>;
-  onToggleSelect: (id: number, checked: boolean) => void;
-  onInlineUpdate: (id: number, changes: Partial<TutonItem>) => void;
+  customerId: number;
+  courses?: MinimalCourse[];
+  onSaved?: () => void;
 };
 
-const jenisColor = (j: string | JenisTugas) =>
-  j === "DISKUSI" ? "primary" : j === "ABSEN" ? "secondary" : "warning";
+export default function TutonMatrixTable({ customerId, courses = [], onSaved }: Props) {
+  const m = useMatrixState(courses, onSaved);
+  useUnsavedBlocker(m.changedCount > 0);
 
-export default function TutonItemsTable({
-  items,
-  selected,
-  onToggleSelect,
-  onInlineUpdate,
-}: Props) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-md overflow-hidden">
-      <div className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500 md:hidden">
-        Geser tabel ke samping untuk mengelola semua kolom.
-      </div>
-      <div
-        className="max-w-full overflow-x-auto overscroll-x-contain touch-pan-x"
-        role="region"
-        aria-label="Tabel item Tuton yang dapat digeser ke samping"
-        tabIndex={0}
-      >
-        <Table className="min-w-[900px]" aria-label="Tuton Items" removeWrapper>
-          <TableHeader>
-            <TableColumn>✓</TableColumn>
-            <TableColumn>Jenis</TableColumn>
-            <TableColumn>Sesi</TableColumn>
-            <TableColumn>Status</TableColumn>
-            <TableColumn>Nilai</TableColumn>
-            <TableColumn>Deskripsi</TableColumn>
-            <TableColumn>Aksi</TableColumn>
-          </TableHeader>
+  const { conflictIds } = useConflictIds();
 
-          <TableBody emptyContent="Belum ada item. Inisialisasi dulu dari tombol di atas.">
-            {items.map((it) => {
-              const isAbsen = String(it.jenis) === "ABSEN";
-              const isDone = String(it.status) === "SELESAI";
-              return (
-                <TableRow key={it.id} className="hover:bg-sky-50/60">
-                  <TableCell>
-                    <input
-                      type="checkbox"
-                      className="h-5 w-5 accent-indigo-600"
-                      checked={selected.has(it.id)}
-                      onChange={(e) => onToggleSelect(it.id, e.target.checked)}
-                    />
-                  </TableCell>
+  // input Tambah Matkul
+  const [matkul, setMatkul] = useState("");
+  const [busyAdd, setBusyAdd] = useState(false);
 
-                  <TableCell>
-                    <Chip
-                      size="sm"
-                      variant="flat"
-                      color={jenisColor(it.jenis as any)}
-                    >
-                      {String(it.jenis)}
-                    </Chip>
-                  </TableCell>
-
-                  <TableCell>
-                    <span className="font-mono text-[13px]">{it.sesi}</span>
-                  </TableCell>
-
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        size="sm"
-                        isSelected={isDone}
-                        onValueChange={(v) =>
-                          onInlineUpdate(it.id, {
-                            status: v ? "SELESAI" : "BELUM",
-                          })
-                        }
-                      />
-                      <span
-                        className={
-                          isDone
-                            ? "text-emerald-600 font-medium"
-                            : "text-slate-600"
-                        }
-                      >
-                        {isDone ? "Selesai" : "Belum"}
-                      </span>
-                    </div>
-                  </TableCell>
-
-                  <TableCell>
-                    {isAbsen ? (
-                      <span className="text-slate-400 text-sm">—</span>
-                    ) : (
-                      <NilaiCell
-                        value={it.nilai ?? null}
-                        onChange={(val) =>
-                          onInlineUpdate(it.id, { nilai: val })
-                        }
-                      />
-                    )}
-                  </TableCell>
-
-                  <TableCell>
-                    <DeskripsiCell
-                      value={it.deskripsi ?? ""}
-                      onChange={(val) =>
-                        onInlineUpdate(it.id, { deskripsi: val })
-                      }
-                    />
-                  </TableCell>
-
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Tooltip content="Tandai selesai">
-                        <Button
-                          size="sm"
-                          variant="flat"
-                          className="min-h-10 md:min-h-8"
-                          onPress={() =>
-                            onInlineUpdate(it.id, { status: "SELESAI" })
-                          }
-                        >
-                          Selesai
-                        </Button>
-                      </Tooltip>
-                      <Tooltip content="Tandai belum">
-                        <Button
-                          size="sm"
-                          variant="flat"
-                          className="min-h-10 md:min-h-8"
-                          onPress={() =>
-                            onInlineUpdate(it.id, { status: "BELUM" })
-                          }
-                        >
-                          Belum
-                        </Button>
-                      </Tooltip>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
-    </div>
-  );
-}
-
-function NilaiCell({
-  value,
-  onChange,
-}: {
-  value: number | null;
-  onChange: (v: number | null) => void;
-}) {
-  const [val, setVal] = useState<string>(
-    value == null ? "" : String(value)
-  );
+  async function handleAdd() {
+    const name = matkul.trim();
+    if (!name || !customerId) return;
+    setBusyAdd(true);
+    showLoading("Menambahkan matkul…");
+    try {
+      await addCourse(customerId, { matkul: name, generateItems: true });
+      closeAlert();
+      await showSuccess("Matkul ditambahkan");
+      setMatkul("");
+      onSaved?.(); // refresh matrix
+    } catch (e) {
+      closeAlert();
+      await showApiError(e);
+    } finally {
+      setBusyAdd(false);
+    }
+  }
 
   return (
-    <Input
-      size="sm"
-      variant="bordered"
-      placeholder="-"
-      value={val}
-      onValueChange={(s) => setVal(s)}
-      onBlur={() => {
-        const num = val.trim() === "" ? null : Number(val);
-        if (num === null) return onChange(null);
-        if (Number.isFinite(num) && num >= 0 && num <= 100) onChange(num);
-      }}
-      className="max-w-[110px]"
-      inputMode="numeric"
-      pattern="[0-9]*"
-    />
-  );
-}
+    <Card className="overflow-hidden rounded-none border-0 bg-transparent shadow-none">
+      <CardHeader className="flex flex-col gap-4 border-b border-slate-200/70 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-900 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-sky-50 text-[#1b5278] ring-1 ring-sky-100 dark:bg-sky-400/10 dark:text-sky-300 dark:ring-sky-400/15">
+            <BookOpenCheck className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-base font-black tracking-tight text-slate-950 dark:text-white sm:text-lg">
+                Matriks Tuton
+              </h3>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                {m.normalized.length} mata kuliah
+              </span>
+              {m.changedCount > 0 ? (
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-700 ring-1 ring-amber-200/70 dark:bg-amber-400/10 dark:text-amber-300 dark:ring-amber-400/20">
+                  {m.changedCount} perubahan belum disimpan
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-0.5 text-xs leading-5 text-slate-500 dark:text-slate-400">
+              Kelola status sesi, nilai, dan penanda salin dalam satu tabel.
+            </p>
+          </div>
+        </div>
 
-function DeskripsiCell({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const [val, setVal] = useState<string>(value ?? "");
-  return (
-    <Input
-      size="sm"
-      variant="bordered"
-      placeholder="catatan…"
-      value={val}
-      onValueChange={setVal}
-      onBlur={() => onChange(val.trim() || "")}
-    />
+        <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:items-end">
+          <div className="flex min-w-0 flex-1 items-end gap-2 lg:w-[350px]">
+            <Input
+              size="sm"
+              label="Tambah mata kuliah"
+              labelPlacement="outside"
+              placeholder="Contoh: Ekonomi Mikro"
+              value={matkul}
+              onValueChange={setMatkul}
+              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+              variant="bordered"
+              className="min-w-0 flex-1"
+              classNames={{
+                label: "text-[11px] font-bold text-slate-600 dark:text-slate-300",
+                inputWrapper:
+                  "min-h-10 rounded-xl border-slate-200 bg-slate-50 shadow-none data-[hover=true]:border-sky-300 group-data-[focus=true]:border-sky-500 dark:border-slate-700 dark:bg-slate-950/40",
+              }}
+            />
+            <Tooltip content="Tambahkan mata kuliah baru">
+              <Button
+                size="sm"
+                startContent={<Plus className="h-4 w-4" />}
+                className="min-h-10 shrink-0 rounded-xl bg-[#1b5278] px-4 font-bold text-white shadow-[0_8px_18px_-12px_rgba(27,82,120,.8)]"
+                isLoading={busyAdd}
+                isDisabled={!matkul.trim() || busyAdd}
+                onPress={handleAdd}
+              >
+                Tambah
+              </Button>
+            </Tooltip>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 lg:flex lg:items-center">
+            <Button
+              size="sm"
+              variant="flat"
+              startContent={<RotateCcw className="h-3.5 w-3.5" />}
+              className="min-h-10 rounded-xl bg-slate-100 px-4 font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+              onPress={m.handleCancelAll}
+              isDisabled={m.changedCount === 0}
+            >
+              Batal
+            </Button>
+            <Button
+              size="sm"
+              startContent={<Save className="h-3.5 w-3.5" />}
+              className="min-h-10 rounded-xl bg-emerald-600 px-4 font-bold text-white shadow-[0_8px_18px_-12px_rgba(5,150,105,.85)]"
+              onPress={m.handleSaveAll}
+              isDisabled={m.changedCount === 0}
+            >
+              Simpan
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+
+      <BulkToolbar
+        sesi={m.bulkSesi}
+        setSesi={m.setBulkSesi}
+        onBulkStatus={m.handleBulkStatus}
+        onBulkCopas={m.handleBulkCopas}
+      />
+
+      <CardBody className="p-0">
+        <MatrixTable
+          normalized={m.normalized}
+          pairsByCourse={m.pairsByCourse}
+          pairsVersion={m.pairsVersion}
+          conflicts={m.conflicts}
+          conflictIds={conflictIds}
+          absenHeaderMode={m.absenHeaderMode}
+          onToggleHeaderAbsen={m.handleHeaderAbsenToggle}
+          isCopas={m.isCopas}
+          toggleCopas={m.toggleCopas}
+          copyMatkul={m.copyMatkul}
+          copiedId={m.copiedId}
+          markDirty={m.markDirty}
+        />
+      </CardBody>
+    </Card>
   );
 }

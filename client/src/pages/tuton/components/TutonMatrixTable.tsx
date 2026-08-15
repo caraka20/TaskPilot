@@ -49,8 +49,7 @@ export default function TutonMatrixTable({ customerId, courses = [], onSaved }: 
   }
 
   return (
-    <Card className="mt-4 overflow-hidden rounded-2xl border border-default-200 shadow-md sm:mt-5">
-      <div className="h-1 w-full bg-gradient-to-r from-fuchsia-500 via-indigo-500 to-sky-400" />
+    <Card className="overflow-hidden rounded-none border-0 bg-transparent shadow-none">
 
       <BulkToolbar
         sesi={m.bulkSesi}
@@ -60,9 +59,9 @@ export default function TutonMatrixTable({ customerId, courses = [], onSaved }: 
       />
 
       {/** Header: kiri judul, kanan (Tambah Matkul + aksi) */}
-      <CardHeader className="flex flex-col gap-3 px-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+      <CardHeader className="flex flex-col gap-2 border-b border-slate-100 px-3 py-2.5 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
         {/* Kiri: Judul */}
-        <div className="text-[18px] font-semibold tracking-tight">Tuton Matrix (per Akun)</div>
+        <div><p className="text-[9px] font-black uppercase tracking-[.14em] text-sky-600 dark:text-sky-300">Workspace Tuton</p><div className="text-sm font-black tracking-tight">Matriks pengerjaan per akun</div></div>
 
         {/* Kanan: dikelompokkan agar di desktop berada di pojok kanan atas */}
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
@@ -76,13 +75,13 @@ export default function TutonMatrixTable({ customerId, courses = [], onSaved }: 
               onValueChange={setMatkul}
               onKeyDown={(e) => e.key === "Enter" && handleAdd()}
               variant="bordered"
-              className="w-full sm:w-[260px]"
+              className="w-full sm:w-[220px]"
             />
             <Tooltip content="Tambahkan matkul baru">
               <Button
                 size="sm"
                 startContent={<Plus className="h-4 w-4" />}
-                className="min-h-11 shrink-0 text-white bg-gradient-to-r from-sky-500 to-indigo-500 shadow-sm sm:min-h-8"
+                className="min-h-10 shrink-0 bg-[#1b5278] font-bold text-white shadow-sm sm:min-h-8"
                 isLoading={busyAdd}
                 onPress={handleAdd}
               >
@@ -98,13 +97,13 @@ export default function TutonMatrixTable({ customerId, courses = [], onSaved }: 
             </Chip>
             <Button
               variant="flat"
-              className="min-h-10 bg-default-100 sm:min-h-8"
+              className="min-h-9 bg-default-100 sm:min-h-8"
               onPress={m.handleCancelAll}
               isDisabled={m.changedCount === 0}
             >
               Batal
             </Button>
-            <Button className="min-h-10 sm:min-h-8" color="success" onPress={m.handleSaveAll} isDisabled={m.changedCount === 0}>
+            <Button className="min-h-9 sm:min-h-8" color="success" onPress={m.handleSaveAll} isDisabled={m.changedCount === 0}>
               Simpan
             </Button>
           </div>

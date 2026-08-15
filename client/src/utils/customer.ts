@@ -1,10 +1,17 @@
 // client/src/utils/customer.ts
 // Types & helpers khusus Customer (sinkron dgn BE tests)
 
-export type CustomerJenis = "TUTON" | "KARIL" | "TK";
+export type CustomerJenis = "TUTON" | "KARIL";
+export type CustomerLayanan = "TUTON" | "KARIL" | "METODE_PENELITIAN";
+export const CUSTOMER_LAYANAN_OPTIONS: readonly CustomerLayanan[] = ["TUTON", "KARIL", "METODE_PENELITIAN"] as const;
+export const CUSTOMER_LAYANAN_LABEL: Record<CustomerLayanan, string> = {
+  TUTON: "Tuton",
+  KARIL: "Karya Ilmiah",
+  METODE_PENELITIAN: "Metode Penelitian",
+};
 
 /** Opsi jenis (runtime constant) untuk dipakai di UI */
-export const CUSTOMER_JENIS_OPTIONS: readonly CustomerJenis[] = ["TUTON","KARIL","TK"] as const;
+export const CUSTOMER_JENIS_OPTIONS: readonly CustomerJenis[] = ["TUTON", "KARIL"] as const;
 
 export interface CustomerItem {
   id: number;
@@ -13,6 +20,8 @@ export interface CustomerItem {
   nim: string;
   jurusan: string;
   jenis: string;
+  layanan?: CustomerLayanan[];
+  billingVisible?: boolean;
   totalBayar: number;
   sudahBayar: number;
   sisaBayar: number;
@@ -21,6 +30,7 @@ export interface CustomerItem {
   updatedAt: string | Date;
   /** ← biarkan opsional agar tidak bentrok dgn list */
   hasKaril?: boolean;
+  hasMetodePenelitian?: boolean;
   /** ← NEW: kalau BE kirim password di detail */
   password?: string;
 }
@@ -66,6 +76,7 @@ export interface ListParams {
   sortDir?: "asc" | "desc";
   /** filter jenis (boleh single atau multi) */
   jenis?: CustomerJenis | CustomerJenis[];
+  layanan?: CustomerLayanan | CustomerLayanan[];
 }
 
 export interface CreateCustomerPayload {
@@ -74,7 +85,8 @@ export interface CreateCustomerPayload {
   nim: string;
   password: string;
   jurusan: string;
-  jenis: CustomerJenis;
+  jenis?: CustomerJenis;
+  layanan: CustomerLayanan[];
   totalBayar?: number;
   sudahBayar?: number;
 }
@@ -87,6 +99,7 @@ export interface UpdateCustomerPayload {
   password?: string;      // opsional; hanya terkirim jika diisi
   jurusan?: string;
   jenis?: CustomerJenis;
+  layanan?: CustomerLayanan[];
 }
 
 export interface AddPaymentPayload {

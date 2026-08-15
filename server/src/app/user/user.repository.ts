@@ -15,7 +15,12 @@ export class UserRepository {
   }
 
   static async create(data: RegisterRequest) {
-    return prismaClient.user.create({ data });
+    return prismaClient.user.create({
+      data: {
+        ...data,
+        name: data.namaLengkap,
+      },
+    });
   }
 
   static async findAllUsers() {
@@ -27,6 +32,34 @@ export class UserRepository {
       where: { username },
       data: { token },
     });
+  }
+
+  static async setCustomerBillingAccess(username: string, aktif: boolean) {
+    return prismaClient.user.update({
+      where: { username },
+      data: { canViewCustomerBilling: aktif },
+      select: { username: true, canViewCustomerBilling: true },
+    })
+  }
+
+  static async setTutonWorkExemption(username: string, aktif: boolean) {
+    return prismaClient.user.update({
+      where: { username },
+      data: { canEditTutonWithoutWork: aktif },
+      select: { username: true, canEditTutonWithoutWork: true },
+    });
+  }
+
+  static async setActive(username: string, aktif: boolean) {
+    return prismaClient.user.update({
+      where: { username },
+      data: {
+        isActive: aktif,
+        deletedAt: aktif ? null : new Date(),
+        ...(!aktif ? { token: null } : {}),
+      },
+      select: { username: true, isActive: true, deletedAt: true },
+    })
   }
 
   static async logout(user: User) {

@@ -1,4 +1,26 @@
-import { Customer, JenisUT, TutonCourse, KarilDetail, StatusTugas } from "../../generated/prisma"
+import { Customer, JenisUT, StatusTugas } from "../../generated/prisma"
+
+export const CUSTOMER_LAYANAN = ["TUTON", "KARIL", "METODE_PENELITIAN"] as const
+export type CustomerLayanan = (typeof CUSTOMER_LAYANAN)[number]
+
+export function layananFromCustomer(customer: Pick<Customer, "jenis" | "layananTuton" | "layananKaril" | "layananMetodePenelitian">): CustomerLayanan[] {
+  const result: CustomerLayanan[] = []
+  if (customer.layananTuton || customer.jenis === JenisUT.TUTON) result.push("TUTON")
+  if (customer.layananKaril || customer.jenis === JenisUT.KARIL) result.push("KARIL")
+  if (customer.layananMetodePenelitian) result.push("METODE_PENELITIAN")
+  return result
+}
+
+export function legacyJenisFromLayanan(layanan: CustomerLayanan[], fallback: JenisUT = JenisUT.TUTON): JenisUT {
+  const tuton = layanan.includes("TUTON")
+  const karil = layanan.includes("KARIL")
+  // `jenis` dipertahankan sebagai field kompatibilitas. Kombinasi layanan
+  // disimpan oleh tiga boolean layanan, bukan lagi oleh pseudo-jenis TK.
+  if (tuton && karil) return JenisUT.TUTON
+  if (karil) return JenisUT.KARIL
+  if (tuton) return JenisUT.TUTON
+  return fallback
+}
 /** Request body untuk create customer */
 export interface CreateCustomerRequest {
   namaCustomer: string
@@ -6,7 +28,8 @@ export interface CreateCustomerRequest {
   nim: string
   password: string           // hash di service, bukan di controller/repo
   jurusan: string
-  jenis: JenisUT
+  jenis?: JenisUT
+  layanan?: CustomerLayanan[]
   totalBayar?: number        // default 0
   sudahBayar?: number        // default 0
 }
@@ -25,6 +48,8 @@ export interface CustomerResponse {
   nim: string
   jurusan: string
   jenis: JenisUT
+  layanan: CustomerLayanan[]
+  billingVisible: boolean
   totalBayar: number
   sudahBayar: number
   sisaBayar: number
@@ -79,6 +104,8 @@ export function toCustomerResponse(c: Customer): CustomerResponse {
     nim: c.nim,
     jurusan: c.jurusan,
     jenis: c.jenis,
+    layanan: layananFromCustomer(c),
+    billingVisible: true,
     totalBayar: c.totalBayar,
     sudahBayar: c.sudahBayar,
     sisaBayar: c.sisaBayar,
@@ -98,6 +125,7 @@ export interface CustomerListQuery {
   sortBy: CustomerSortBy;
   sortDir: SortDir;
   jenis?: JenisUT | JenisUT[];
+  layanan?: CustomerLayanan | CustomerLayanan[];
 }
 
 // RESPONSE
@@ -108,6 +136,8 @@ export interface CustomerListItem {
   nim: string
   jurusan: string
   jenis: JenisUT
+  layanan: CustomerLayanan[]
+  billingVisible: boolean
   totalBayar: number
   sudahBayar: number
   sisaBayar: number
@@ -130,6 +160,9 @@ export type CustomerListRow = Pick<
   | "nim"
   | "jurusan"
   | "jenis"
+  | "layananTuton"
+  | "layananKaril"
+  | "layananMetodePenelitian"
   | "totalBayar"
   | "sudahBayar"
   | "sisaBayar"
@@ -147,6 +180,8 @@ export function toCustomerListItem(row: CustomerListRow): CustomerListItem {
     nim: row.nim,
     jurusan: row.jurusan,
     jenis: row.jenis,
+    layanan: layananFromCustomer(row),
+    billingVisible: true,
     totalBayar: row.totalBayar,
     sudahBayar: row.sudahBayar,
     sisaBayar: row.sisaBayar,
@@ -169,6 +204,9 @@ export interface CustomerDetailResponse {
   sisaBayar: number
   tutonCourseCount: number
   hasKaril: boolean
+  hasMetodePenelitian: boolean
+  layanan: CustomerLayanan[]
+  billingVisible: boolean
   createdAt: Date
   updatedAt: Date
 }
@@ -177,11 +215,13 @@ export interface CustomerDetailResponse {
 export type CustomerDetailRow = Pick<
   Customer,
   | "id" | "namaCustomer" | "noWa" | "nim" | "jurusan" | "jenis"
+  | "layananTuton" | "layananKaril" | "layananMetodePenelitian"
   | "password"                   // ⬅️ tambahkan
   | "totalBayar" | "sudahBayar" | "sisaBayar" | "createdAt" | "updatedAt"
 > & {
   _count: { tutonCourses: number },
   karil: { id: number } | null
+  metodePenelitian: { id: number } | null
 }
 
 export function toCustomerDetailResponse(row: CustomerDetailRow): CustomerDetailResponse {
@@ -192,12 +232,15 @@ export function toCustomerDetailResponse(row: CustomerDetailRow): CustomerDetail
     nim: row.nim,
     jurusan: row.jurusan,
     jenis: row.jenis,
+    layanan: layananFromCustomer(row),
+    billingVisible: true,
     password: row.password,          // ⬅️ kirimkan password apa adanya
     totalBayar: row.totalBayar,
     sudahBayar: row.sudahBayar,
     sisaBayar: row.sisaBayar,
     tutonCourseCount: row._count.tutonCourses,
     hasKaril: !!row.karil,
+    hasMetodePenelitian: !!row.metodePenelitian,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -284,6 +327,7 @@ export interface UpdateCustomerRequest {
   password?: string;     // tetap disimpan apa adanya (plain) sesuai kebutuhan UT
   jurusan?: string;
   jenis?: JenisUT;
+  layanan?: CustomerLayanan[];
 }
 
 export interface MoneyTotals {
@@ -303,7 +347,7 @@ export interface CustomerListExtras {
   countNoMKPage: number;
   /** Total customer setelah filter (untuk badge head, beda dengan pagination.total kalau nanti diubah) */
   totalCustomers: number;
-  /** Opsional: rekap per jenis (TUTON/KARIL/TK) */
+  /** Opsional: rekap per layanan */
   totalsByJenis?: Partial<Record<JenisUT, MoneyTotals>>;
 }
 

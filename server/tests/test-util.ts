@@ -8,7 +8,16 @@ export class UserTest {
         const hashPassword = await bcrypt.hash("raka20", 10)
         return await prismaClient.user.upsert({
             where: { username: 'raka20' },
-            update: {}, // tidak update apa-apa jika sudah ada
+            update: {
+                password: hashPassword,
+                namaLengkap: 'caraka',
+                role: Role.USER,
+                canViewCustomerBilling: false,
+                isActive: true,
+                deletedAt: null,
+                totalJamKerja: 0,
+                totalGaji: 0,
+            },
             create: {
                 username: 'raka20',
                 password: hashPassword,
@@ -42,7 +51,7 @@ export class UserTest {
         const hashPassword = await bcrypt.hash("owner-test", 10)
         await prismaClient.user.upsert({
             where : {username : "owner-test"},
-            update : {token, role: Role.OWNER},
+            update : {token, role: Role.OWNER, canViewCustomerBilling: false, isActive: true, deletedAt: null},
             create: {
                 username: "owner-test",
                 password: hashPassword,
@@ -54,6 +63,13 @@ export class UserTest {
             }
         })
         return token
+    }
+
+    static async setCustomerBillingAccess(aktif: boolean) {
+        return prismaClient.user.update({
+            where: { username: "raka20" },
+            data: { canViewCustomerBilling: aktif },
+        })
     }
 
 }
@@ -288,6 +304,9 @@ export class KonfigurasiTest {
   }
 
   static async delete() {
+    await prismaClient.auditLog.deleteMany({
+      where: { entityType: "Konfigurasi" },
+    })
     await prismaClient.konfigurasi.deleteMany({})
   }
 

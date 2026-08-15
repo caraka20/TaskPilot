@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Card, CardHeader, CardBody, Chip, Button, Input,
+  Card, CardBody, Chip, Button, Input,
   Table, TableHeader, TableColumn, TableBody, TableRow, TableCell,
   Pagination, Spinner, Tooltip, Progress, Select, SelectItem,
 } from "@heroui/react";
-import { ChevronDown, Search, ListChecks, ClipboardCheck } from "lucide-react";
+import { BookOpenCheck, ChevronDown, Search, ClipboardCheck, FileStack, ListChecks, Rows3 } from "lucide-react";
+import WorkspacePageHeader from "../../components/common/WorkspacePageHeader";
 import {
   scanTuton,
   getCourseSummary,
@@ -223,35 +224,37 @@ export default function TutonList() {
   }, [filtered, page, pageSize, totalPages]);
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card className="rounded-2xl border border-default-200 shadow-md overflow-hidden bg-content1">
-        <div className="h-1 w-full bg-gradient-to-r from-sky-400 via-indigo-500 to-fuchsia-500" />
-
-        {/* HEADER */}
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-gradient-to-r from-content2 to-content1">
-          <div className="flex items-center gap-3">
-            <span className="h-9 w-[3px] rounded-full bg-gradient-to-b from-sky-400 to-indigo-500 shadow-[0_0_0_1px_rgba(0,0,0,0.03)]" />
-            <div className="flex flex-col">
-              <div className="text-[17px] sm:text-lg font-semibold tracking-tight">Daftar Tuton</div>
-              <div className="text-[13px] sm:text-sm text-foreground-500">
-                Semua peserta tuton: absen, diskusi, tugas, nilai, dan detail sesi.
-              </div>
-            </div>
-          </div>
-          <Chip
-            size="sm"
-            variant="flat"
-            className="border border-default-200 bg-content1 shadow-[0_1px_0_rgba(0,0,0,0.03)]"
-            startContent={<ListChecks className="h-3.5 w-3.5" />}
-          >
-            Total: <span className="ml-1 font-medium">{filtered.length}</span>
-          </Chip>
-        </CardHeader>
-
+    <div className="app-page-shell">
+      <WorkspacePageHeader
+        eyebrow="ARTECH • Layanan akademik"
+        title="Daftar Tuton"
+        description="Pantau absen, diskusi, tugas, nilai, dan detail sesi seluruh peserta Tuton."
+        icon={BookOpenCheck}
+        metrics={[
+          {
+            label: "Peserta terfilter",
+            value: loading ? "Memuat…" : `${filtered.length} peserta`,
+            icon: ListChecks,
+            tone: "cyan",
+          },
+          {
+            label: "Baris per halaman",
+            value: `${pageSize} data`,
+            icon: Rows3,
+            tone: "indigo",
+          },
+          {
+            label: "Halaman aktif",
+            value: `${Math.min(page, totalPages)} dari ${totalPages}`,
+            icon: FileStack,
+            tone: "emerald",
+          },
+        ]}
+      />
+      <Card className="app-surface overflow-hidden shadow-none">
         <CardBody className="flex flex-col gap-4">
           {/* SEARCH + PER PAGE */}
-          <Card className="border rounded-xl bg-content1">
-            <div className="h-0.5 w-full bg-gradient-to-r from-sky-500 to-indigo-500" />
+          <Card className="rounded-2xl bg-content2/55 shadow-none ring-1 ring-default-200/70">
             <CardBody className="flex flex-col gap-4">
               <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
                 <Input
@@ -284,7 +287,8 @@ export default function TutonList() {
                     variant="flat"
                     onPress={() => load()}
                     isDisabled={loading}
-                    className="min-h-11 shrink-0 bg-gradient-to-r from-sky-500 to-indigo-500 text-white md:min-h-10"
+                    color="primary"
+                    className="min-h-11 shrink-0 md:min-h-10"
                   >
                     {loading ? <Spinner size="sm" /> : "Refresh"}
                   </Button>

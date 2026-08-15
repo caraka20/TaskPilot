@@ -10,10 +10,14 @@ type AuthState = {
   token: string;
   username: string;
   role: Role;
+  canViewCustomerBilling: boolean;
+  avatarUrl: string;
   setBaseUrl: (v: string) => void;
   setToken: (v: string) => void;
   setUsername: (v: string) => void;
   setRole: (v: Role) => void;
+  setCanViewCustomerBilling: (v: boolean) => void;
+  setAvatarUrl: (v: string) => void;
   reset: () => void;
 };
 
@@ -25,11 +29,15 @@ export const useAuthStore = create<AuthState>()(
       token: "",
       username: "",
       role: "",
+      canViewCustomerBilling: false,
+      avatarUrl: "",
       setBaseUrl: (v) => set({ baseUrl: v }),
       setToken: (v) => set({ token: v }),
       setUsername: (v) => set({ username: v }),
       setRole: (v) => set({ role: v }),
-      reset: () => set({ token: "", username: "", role: "", baseUrl: API_BASE_URL }),
+      setCanViewCustomerBilling: (v) => set({ canViewCustomerBilling: v }),
+      setAvatarUrl: (v) => set({ avatarUrl: v }),
+      reset: () => set({ token: "", username: "", role: "", canViewCustomerBilling: false, avatarUrl: "", baseUrl: API_BASE_URL }),
     }),
     {
       name: "client-auth",
@@ -37,6 +45,8 @@ export const useAuthStore = create<AuthState>()(
         token: s.token,
         username: s.username,
         role: s.role,
+        canViewCustomerBilling: s.canViewCustomerBilling,
+        avatarUrl: s.avatarUrl,
         // ❌ baseUrl tidak disimpan, selalu ikut env
       }),
     }

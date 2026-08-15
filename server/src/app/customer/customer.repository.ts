@@ -1,6 +1,20 @@
 import { prismaClient } from "../../config/database"
 import { Customer, Prisma } from "../../generated/prisma"
-import { CustomerDetailRow, CustomerListQuery, CustomerListRow, hitungSisaBayar } from "./customer.model"
+import { CustomerDetailRow, CustomerLayanan, CustomerListQuery, CustomerListRow, hitungSisaBayar, legacyJenisFromLayanan } from "./customer.model"
+
+function normalizeLayanan(jenis?: Customer["jenis"], layanan?: CustomerLayanan[]) {
+  const selected = layanan?.length
+    ? Array.from(new Set(layanan))
+    : jenis === "KARIL"
+        ? (["KARIL"] as CustomerLayanan[])
+        : (["TUTON"] as CustomerLayanan[])
+  return {
+    jenis: legacyJenisFromLayanan(selected, jenis),
+    layananTuton: selected.includes("TUTON"),
+    layananKaril: selected.includes("KARIL"),
+    layananMetodePenelitian: selected.includes("METODE_PENELITIAN"),
+  }
+}
 
 export class CustomerRepository {
   /** Cek eksistensi by NIM (untuk validasi unik di service) */
@@ -15,7 +29,8 @@ export class CustomerRepository {
     nim: string
     password: string
     jurusan: string
-    jenis: Customer["jenis"]
+    jenis?: Customer["jenis"]
+    layanan?: CustomerLayanan[]
     totalBayar?: number
     sudahBayar?: number
   }) {
@@ -23,6 +38,7 @@ export class CustomerRepository {
     const sudah = data.sudahBayar ?? 0
     const sisa = hitungSisaBayar(total, sudah)
 
+    const service = normalizeLayanan(data.jenis, data.layanan)
     return prismaClient.customer.create({
       data: {
         namaCustomer: data.namaCustomer,
@@ -30,7 +46,10 @@ export class CustomerRepository {
         nim: data.nim,
         password: data.password, // sudah di-hash di service
         jurusan: data.jurusan,
-        jenis: data.jenis,
+        jenis: service.jenis,
+        layananTuton: service.layananTuton,
+        layananKaril: service.layananKaril,
+        layananMetodePenelitian: service.layananMetodePenelitian,
         totalBayar: total,
         sudahBayar: sudah,
         sisaBayar: sisa,
@@ -49,6 +68,9 @@ static async findDetailById(id: number) {
       nim: true,
       jurusan: true,
       jenis: true,
+      layananTuton: true,
+      layananKaril: true,
+      layananMetodePenelitian: true,
       password: true,                // ⬅️ tambahkan
       totalBayar: true,
       sudahBayar: true,
@@ -57,6 +79,7 @@ static async findDetailById(id: number) {
       updatedAt: true,
       _count: { select: { tutonCourses: true } },
       karil: { select: { id: true } },
+      metodePenelitian: { select: { id: true } },
     },
   }) as Promise<CustomerDetailRow | null>
 }
@@ -128,6 +151,38 @@ static async findDetailById(id: number) {
       })
 
       return updated
+    })
+  }
+
+  /** Mencatat pelunasan atomik berdasarkan sisa terbaru di database. */
+  static async settlePayment(customerId: number, tanggalBayar = new Date()) {
+    return prismaClient.$transaction(async (tx) => {
+      const customer = await tx.customer.findUnique({ where: { id: customerId } })
+      if (!customer) return null
+      const remaining = Math.max(
+        Number(customer.totalBayar ?? 0) - Number(customer.sudahBayar ?? 0),
+        0,
+      )
+      if (remaining <= 0) {
+        return { ...customer, settledAmount: 0, alreadyPaid: true }
+      }
+
+      await tx.customerPayment.create({
+        data: {
+          customerId,
+          amount: remaining,
+          tanggalBayar,
+          catatan: "Pelunasan langsung",
+        },
+      })
+      const updated = await tx.customer.update({
+        where: { id: customerId },
+        data: {
+          sudahBayar: customer.totalBayar,
+          sisaBayar: 0,
+        },
+      })
+      return { ...updated, settledAmount: remaining, alreadyPaid: false }
     })
   }
 
@@ -220,6 +275,7 @@ static async findDetailById(id: number) {
 
       // Hapus KarilDetail jika ada
       await tx.karilDetail.deleteMany({ where: { customerId: id } })
+      await tx.metodePenelitianDetail.deleteMany({ where: { customerId: id } })
       // Hapus semua matkul (TutonCourse) -> akan cascade ke TutonItem
       await tx.tutonCourse.deleteMany({ where: { customerId: id } })
       // Terakhir hapus customer
@@ -267,7 +323,8 @@ static async findDetailById(id: number) {
 
   static buildWhereForList(
     q?: string,
-    jenis?: Customer["jenis"] | Customer["jenis"][]
+    jenis?: Customer["jenis"] | Customer["jenis"][],
+    layanan?: CustomerLayanan | CustomerLayanan[],
   ): Prisma.CustomerWhereInput {
     const where: Prisma.CustomerWhereInput = {};
 
@@ -282,13 +339,24 @@ static async findDetailById(id: number) {
       where.jenis = Array.isArray(jenis) ? { in: jenis } : jenis;
     }
 
+    if (layanan) {
+      const selected = Array.isArray(layanan) ? layanan : [layanan]
+      where.AND = selected.map((item) =>
+        item === "TUTON"
+          ? { layananTuton: true }
+          : item === "KARIL"
+            ? { layananKaril: true }
+            : { layananMetodePenelitian: true },
+      )
+    }
+
     return where;
   }
 
   /** ⬅️ UPDATE: teruskan jenis ke buildWhereForList */
 // Ubah list(query)
   static async list(query: CustomerListQuery) {
-    const where = this.buildWhereForList(query.q, query.jenis);
+    const where = this.buildWhereForList(query.q, query.jenis, query.layanan);
 
     // query page (items) + total count untuk pagination
     const [rows, total] = await Promise.all([
@@ -304,6 +372,9 @@ static async findDetailById(id: number) {
           nim: true,
           jurusan: true,
           jenis: true,
+          layananTuton: true,
+          layananKaril: true,
+          layananMetodePenelitian: true,
           totalBayar: true,
           sudahBayar: true,
           sisaBayar: true,
@@ -404,7 +475,9 @@ static async findDetailById(id: number) {
     password?: string;
     jurusan?: string;
     jenis?: Customer["jenis"];
+    layanan?: CustomerLayanan[];
   }) {
+    const service = data.layanan ? normalizeLayanan(data.jenis, data.layanan) : null
     const updated = await prismaClient.customer.update({
       where: { id },
       data: {
@@ -413,7 +486,16 @@ static async findDetailById(id: number) {
         ...(data.nim !== undefined ? { nim: data.nim } : {}),
         ...(data.password !== undefined ? { password: data.password } : {}),
         ...(data.jurusan !== undefined ? { jurusan: data.jurusan } : {}),
-        ...(data.jenis !== undefined ? { jenis: data.jenis } : {}),
+        ...(service
+          ? {
+              jenis: service.jenis,
+              layananTuton: service.layananTuton,
+              layananKaril: service.layananKaril,
+              layananMetodePenelitian: service.layananMetodePenelitian,
+            }
+          : data.jenis !== undefined
+            ? normalizeLayanan(data.jenis)
+            : {}),
       },
     });
     return updated;
@@ -426,7 +508,8 @@ static async createWithInitialPayment(data: {
   nim: string
   password: string
   jurusan: string
-  jenis: Customer["jenis"]
+  jenis?: Customer["jenis"]
+  layanan?: CustomerLayanan[]
   totalBayar?: number
   sudahBayar?: number
   initNote?: string
@@ -434,6 +517,7 @@ static async createWithInitialPayment(data: {
 }) {
   const total = data.totalBayar ?? 0
   const initialPaid = Math.trunc(Number(data.sudahBayar ?? 0))
+  const service = normalizeLayanan(data.jenis, data.layanan)
 
   return prismaClient.$transaction(async (tx) => {
     // 1) buat customer dengan baseline 0
@@ -444,7 +528,10 @@ static async createWithInitialPayment(data: {
         nim: data.nim,
         password: data.password,
         jurusan: data.jurusan,
-        jenis: data.jenis,
+        jenis: service.jenis,
+        layananTuton: service.layananTuton,
+        layananKaril: service.layananKaril,
+        layananMetodePenelitian: service.layananMetodePenelitian,
         totalBayar: total,
         sudahBayar: 0,
         sisaBayar: total,

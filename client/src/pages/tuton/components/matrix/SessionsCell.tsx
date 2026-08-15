@@ -25,20 +25,16 @@ export type SessionsCellProps = {
 function bgByScore(score: number | null, done: boolean) {
   if (score != null) {
     if (score >= 80) {
-      // hijau bagus
-      return "bg-emerald-300 text-black dark:bg-emerald-500 dark:text-white";
+      return "bg-emerald-100 text-emerald-800 ring-emerald-200 dark:bg-emerald-400/15 dark:text-emerald-200 dark:ring-emerald-400/25";
     }
     if (score >= 70) {
-      // kuning sedang
-      return "bg-amber-300 text-black dark:bg-amber-500 dark:text-white";
+      return "bg-amber-100 text-amber-800 ring-amber-200 dark:bg-amber-400/15 dark:text-amber-200 dark:ring-amber-400/25";
     }
-    // merah rendah
-    return "bg-rose-300 text-black dark:bg-rose-500 dark:text-white";
+    return "bg-rose-100 text-rose-800 ring-rose-200 dark:bg-rose-400/15 dark:text-rose-200 dark:ring-rose-400/25";
   }
-  // tanpa skor
   return done
-    ? "bg-emerald-600 text-white dark:bg-emerald-600 dark:text-white"
-    : "bg-default-200 text-foreground-700 dark:bg-content2 dark:text-foreground-500";
+    ? "bg-emerald-600 text-white ring-emerald-600 dark:bg-emerald-500 dark:ring-emerald-400"
+    : "bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700";
 }
 
 export default function SessionsCell({
@@ -52,9 +48,9 @@ export default function SessionsCell({
   markDirty,
   compact = true,
 }: SessionsCellProps) {
-  const SIZE_SCORED   = compact ? "h-10 md:h-9" : "h-10";
-  const SIZE_DEFAULT  = compact ? "h-10 md:h-8" : "h-9";
-  const WIDTH_DEFAULT = "w-11";
+  const SIZE_SCORED = compact ? "h-9 md:h-8" : "h-10";
+  const SIZE_DEFAULT = compact ? "h-9 md:h-8" : "h-9";
+  const WIDTH_DEFAULT = "w-10 md:w-11";
 
   const showDiskusi = isDiskusiSesi(sesi);
   const showTugas = isTugasSesi(sesi);
@@ -86,11 +82,11 @@ export default function SessionsCell({
   );
 
   const baseBtn =
-    "relative inline-flex items-center justify-center select-none text-[12px] " +
-    "rounded-[10px] md:rounded-lg ring-1 ring-inset ring-default-300 dark:ring-default-200/40 " +
-    "shadow-sm transition-colors focus:outline-none " +
+    "relative inline-flex select-none items-center justify-center text-[12px] " +
+    "rounded-[11px] ring-1 ring-inset " +
+    "shadow-[0_5px_12px_-10px_rgba(15,23,42,.9)] transition-all focus:outline-none " +
     "focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-sky-500 dark:focus-visible:ring-sky-400 " +
-    "hover:brightness-95";
+    "hover:-translate-y-px hover:brightness-95";
 
   return (
     <div className="flex items-center justify-center gap-2">

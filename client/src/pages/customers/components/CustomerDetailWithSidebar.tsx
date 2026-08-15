@@ -2,30 +2,31 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
-  Select, SelectItem, Spinner, Tooltip,
-  Card, Button, ScrollShadow, Divider, Chip, Input,
+  Select, SelectItem, Skeleton, Tooltip,
+  Card, Button, ScrollShadow, Chip, Input,
 } from "@heroui/react";
-import { ChevronRight, Filter, Search, UsersRound, X } from "lucide-react";
+import { ChevronRight, Filter, RotateCcw, Search, UsersRound, X } from "lucide-react";
 
 import CustomerDetail from "../CustomerDetail";
 import { getCustomers } from "../../../services/customer.service";
-import type { CustomerItem, CustomerListResponse, CustomerJenis } from "../../../utils/customer";
+import {
+  type CustomerItem,
+  type CustomerListResponse,
+  type CustomerLayanan,
+} from "../../../utils/customer";
 
-type JenisFilter = "ALL" | CustomerJenis;
+type LayananFilter = "ALL" | CustomerLayanan;
 
 const SIDEBAR_KEY = "customers:sidebarCollapsed";
 const CHUNK_DEFAULT = 20;
-const SIDEBAR_W = 208;        // lebar sidebar saat terbuka (diperkecil dari 248)
-const BTN_W_CLOSED = 48;      // h-12 w-12 (tombol open)
-const GAP = 6;                // jarak kecil dari tepi konten (diperkecil dari 8)
-const PRESS_IN = 24;          // offset press-in saat collapsed (biar ga mepet)
+const SIDEBAR_W = 256;
 
-function normalizeJenisFromSearch(jenisRaw?: string | null): JenisFilter {
-  if (!jenisRaw) return "ALL";
-  const upper = (jenisRaw || "").toUpperCase();
-  if (upper.includes("TUTON")) return "TUTON";
-  if (upper.includes("KARIL")) return "KARIL";
-  if (upper === "TK") return "TK";
+function normalizeLayananFromSearch(raw?: string | null): LayananFilter {
+  if (!raw) return "ALL";
+  const upper = raw.toUpperCase();
+  if (upper === "METODE_PENELITIAN") return "METODE_PENELITIAN";
+  if (upper === "TUTON") return "TUTON";
+  if (upper === "KARIL") return "KARIL";
   return "ALL";
 }
 
@@ -81,7 +82,9 @@ export default function CustomerDetailWithSidebar() {
   }, []);
 
   // filters dari URL
-  const [jenisFilter, setJenisFilter] = useState<JenisFilter>(normalizeJenisFromSearch(searchParams.get("jenis")));
+  const [layananFilter, setLayananFilter] = useState<LayananFilter>(
+    normalizeLayananFromSearch(searchParams.get("layanan") ?? searchParams.get("jenis"))
+  );
   const [chunk, setChunk] = useState<number>(() => intFrom(searchParams, "limit", CHUNK_DEFAULT));
   const [rangeKey, setRangeKey] = useState<string>("ALL");
 
@@ -184,14 +187,12 @@ export default function CustomerDetailWithSidebar() {
 
   // filter + search + sort
   const baseByJenis = useMemo(() => {
-    const U = (s?: string) => (s || "").toUpperCase();
     const base = all.filter((c) => {
-      const j = U(c.jenis);
-      if (jenisFilter === "ALL") return true;
-      if (jenisFilter === "TK") return j.includes("TK");
-      if (jenisFilter === "TUTON") return j.includes("TUTON") || j.includes("TK");
-      if (jenisFilter === "KARIL") return j.includes("KARIL") || j.includes("TK");
-      return true;
+      if (layananFilter === "ALL") return true;
+      const layanan = c.layanan?.length
+        ? c.layanan
+        : [c.jenis];
+      return layanan.includes(layananFilter);
     });
 
     const qq = q.toLowerCase();
@@ -207,7 +208,7 @@ export default function CustomerDetailWithSidebar() {
       .sort((a, b) =>
         (a.namaCustomer || "").localeCompare(b.namaCustomer || "", "id", { sensitivity: "base" })
       );
-  }, [all, jenisFilter, q]);
+  }, [all, layananFilter, q]);
 
   // numbering
   const numberMap = useMemo(() => {
@@ -227,23 +228,25 @@ export default function CustomerDetailWithSidebar() {
   }, [baseByJenis, numberMap, rangeKey]);
 
   // nav helpers
-  const linkTo = (cid: string | number, keepJenis?: JenisFilter) => {
-    const jenisParam = keepJenis ?? jenisFilter;
+  const linkTo = (cid: string | number, keepLayanan?: LayananFilter) => {
+    const layananParam = keepLayanan ?? layananFilter;
     const sp = new URLSearchParams(location.search);
-    if (jenisParam && jenisParam !== "ALL") sp.set("jenis", jenisParam);
-    else sp.delete("jenis");
+    sp.delete("jenis");
+    if (layananParam && layananParam !== "ALL") sp.set("layanan", layananParam);
+    else sp.delete("layanan");
     return { pathname: `/customers/${cid}`, search: `?${sp.toString()}` };
   };
   const onPick = (c: CustomerItem) => {
     setMobileListOpen(false);
-    navigate(linkTo(c.id, jenisFilter));
+    navigate(linkTo(c.id, layananFilter));
   };
 
-  const onChangeJenis = (val: JenisFilter) => {
-    setJenisFilter(val);
+  const onChangeLayanan = (val: LayananFilter) => {
+    setLayananFilter(val);
     setRangeKey("ALL");
     const sp = new URLSearchParams(location.search);
-    if (val !== "ALL") sp.set("jenis", val); else sp.delete("jenis");
+    sp.delete("jenis");
+    if (val !== "ALL") sp.set("layanan", val); else sp.delete("layanan");
     sp.delete("page"); sp.delete("limit");
     setSearchParams(sp, { replace: true });
     const firstVisible = baseByJenis[0];
@@ -267,278 +270,309 @@ export default function CustomerDetailWithSidebar() {
     setSearchParams(sp, { replace: true });
   };
 
+  const resetFilters = () => {
+    setQInput("");
+    setQ("");
+    setLayananFilter("ALL");
+    setRangeKey("ALL");
+
+    const sp = new URLSearchParams(location.search);
+    sp.delete("q");
+    sp.delete("jenis");
+    sp.delete("layanan");
+    sp.delete("page");
+    sp.delete("limit");
+    setSearchParams(sp, { replace: true });
+  };
+
+  const hasActiveFilters =
+    Boolean(qInput.trim()) || layananFilter !== "ALL" || rangeKey !== "ALL";
+
+  const layananOptions: Array<{ key: LayananFilter; label: string }> = [
+    { key: "ALL", label: "Semua" },
+    { key: "TUTON", label: "Tuton" },
+    { key: "KARIL", label: "Karil" },
+    { key: "METODE_PENELITIAN", label: "Metpen" },
+  ];
+
   // layout: sidebar di KANAN
-  const gridTemplate = collapsed ? "1fr" : `1fr ${SIDEBAR_W}px`;
-
-  const tkBadgeCls =
-    "h-5 px-1.5 text-[10px] rounded-md bg-rose-500/18 text-rose-300 ring-1 ring-rose-400/35 " +
-    "shadow-[0_0_0_1px_rgba(255,255,255,0.02)_inset]";
-
-  // === NEW: badge KARIL
-  const karilBadgeCls =
-    "h-5 px-1.5 text-[10px] rounded-md bg-amber-500/18 text-amber-300 ring-1 ring-amber-400/35 " +
-    "shadow-[0_0_0_1px_rgba(255,255,255,0.02)_inset]";
+  const gridTemplate = collapsed ? "1fr" : `minmax(0,1fr) ${SIDEBAR_W}px`;
 
   const baseItemCls =
-    "group w-full text-left px-3 py-2 text-[14px] transition relative rounded-xl " +
-    "ring-1 ring-default-200/60 bg-content2/70 " +
-    "hover:translate-x-[1px] hover:bg-default-100 " +
-    "dark:hover:bg-content2";
+    "group relative w-full overflow-hidden rounded-xl border px-2.5 py-2 text-left transition-all duration-200 " +
+    "border-transparent bg-transparent hover:border-sky-200/80 hover:bg-sky-50/70 " +
+    "dark:hover:border-sky-400/20 dark:hover:bg-sky-400/[.07]";
 
   const activeLightCls =
-    "bg-white ring-2 ring-sky-400/60 ring-offset-2 ring-offset-white " +
-    "shadow-[0_6px_18px_rgba(2,132,199,.10),inset_0_0_0_1px_rgba(0,0,0,0.04)]";
+    "border-sky-300/80 bg-[linear-gradient(110deg,rgba(239,248,255,.98),rgba(240,253,250,.92))] " +
+    "shadow-[0_7px_18px_rgba(14,116,144,.10)]";
 
   const activeDarkCls =
-    "bg-[linear-gradient(90deg,rgba(14,22,38,.85),rgba(14,22,38,.85))] " +
-    "ring-2 ring-sky-400/70 ring-offset-2 ring-offset-[#0B1220] " +
-    "shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05),0_0_0_1px_rgba(3,105,161,.35)]";
-
-  // === ukur gutter kanan dari KONTEN (kolom kiri), bukan dari grid ===
-  const gridRef = useRef<HTMLDivElement | null>(null);
-  const contentRef = useRef<HTMLElement | null>(null);
-  const [gutterRight, setGutterRight] = useState<number>(16);
-
-  useEffect(() => {
-    const calc = () => {
-      const el = contentRef.current ?? gridRef.current;
-      if (!el) { setGutterRight(16); return; }
-      const rect = el.getBoundingClientRect();
-      const gutter = Math.max(8, Math.round(window.innerWidth - rect.right));
-      setGutterRight(gutter);
-    };
-    calc();
-    const ro = new ResizeObserver(calc);
-    if (gridRef.current) ro.observe(gridRef.current);
-    if (contentRef.current) ro.observe(contentRef.current);
-    window.addEventListener("resize", calc);
-    window.addEventListener("scroll", calc, { passive: true });
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", calc);
-      window.removeEventListener("scroll", calc as any);
-    };
-  }, []);
-
-  // posisi tombol: nempel ke tepi KONTEN
-  const toggleRightPx = gutterRight + (collapsed ? Math.max(GAP, PRESS_IN - (BTN_W_CLOSED / 2)) : GAP);
+    "border-sky-400/35 bg-[linear-gradient(110deg,rgba(14,51,74,.9),rgba(13,70,68,.72))] " +
+    "shadow-[0_7px_18px_rgba(2,132,199,.09)]";
 
   const renderCustomerPanel = (mobile = false) => (
     <Card
-      shadow="sm"
+      shadow="none"
       className={[
-        "h-full border border-default-200/60 bg-background/95 backdrop-blur",
+        "h-full border border-default-200/80 bg-content1/95 backdrop-blur-xl",
         "flex flex-col overflow-hidden",
-        mobile ? "rounded-t-3xl rounded-b-none" : "rounded-[1rem] supports-[backdrop-filter]:bg-background/80",
+        mobile
+          ? "rounded-t-[28px] rounded-b-none"
+          : "rounded-[22px] shadow-[0_14px_38px_rgba(15,23,42,.08)]",
       ].join(" ")}
     >
-      {mobile && (
-        <div className="relative border-b border-default-200/70 px-4 pb-3 pt-5">
+      <div className="relative overflow-hidden bg-[linear-gradient(135deg,#102f4a_0%,#164e64_58%,#0f766e_135%)] px-4 pb-4 pt-4 text-white">
+        <div aria-hidden="true" className="absolute -right-8 -top-12 h-32 w-32 rounded-full bg-cyan-300/15 blur-2xl" />
+        <div aria-hidden="true" className="absolute -bottom-14 left-6 h-24 w-24 rounded-full bg-emerald-300/10 blur-2xl" />
+        {mobile && (
           <div
             aria-hidden="true"
-            className="absolute left-1/2 top-2 h-1 w-12 -translate-x-1/2 rounded-full bg-default-300"
+            className="absolute left-1/2 top-2 h-1 w-12 -translate-x-1/2 rounded-full bg-white/40"
           />
-          <div className="flex min-h-11 items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                <UsersRound className="h-5 w-5" />
-              </span>
-              <div className="min-w-0">
-                <h2 className="truncate text-base font-semibold text-foreground">Daftar customer</h2>
-                <p className="text-xs text-foreground-500">
-                  {loading ? "Memuat data…" : `${filtered.length} customer ditampilkan`}
-                </p>
-              </div>
+        )}
+        <div className={`relative flex min-h-11 items-center justify-between gap-3 ${mobile ? "pt-2" : ""}`}>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20 backdrop-blur">
+              <UsersRound className="h-5 w-5 text-cyan-100" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-cyan-200">Navigasi data</p>
+              <h2 className="mt-0.5 truncate text-base font-bold tracking-tight">Daftar customer</h2>
+              <p className="mt-0.5 text-[11px] text-slate-300">
+                {loading ? "Menyiapkan data…" : `${all.length} customer tersedia`}
+              </p>
             </div>
+          </div>
+          {mobile ? (
             <Button
               isIconOnly
               type="button"
               aria-label="Tutup daftar customer"
-              variant="flat"
+              variant="light"
               radius="full"
-              className="h-11 min-h-11 w-11 min-w-11 shrink-0"
+              className="h-10 min-h-10 w-10 min-w-10 shrink-0 text-white data-[hover=true]:bg-white/10"
               onPress={() => setMobileListOpen(false)}
             >
               <X className="h-5 w-5" />
             </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Filter */}
-      <div
-        className={[
-          "z-10 border-b border-default-200/60 bg-background/90 px-3 py-3 backdrop-blur",
-          mobile ? "" : "sticky top-0 rounded-t-[0.95rem]",
-        ].join(" ")}
-      >
-        <div className="mb-3 flex items-center gap-2">
-          <div
-            aria-label="Filter"
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 via-sky-500/15 to-emerald-500/15 ring-1 ring-default-200"
-          >
-            <Filter className="h-4 w-4 text-foreground-600" />
-          </div>
-          <span className="text-sm font-semibold text-foreground">Cari & filter</span>
-        </div>
-
-        <div className="mb-3">
-          <Input
-            size={mobile ? "md" : "sm"}
-            variant="bordered"
-            radius="md"
-            value={qInput}
-            onValueChange={setQInput}
-            placeholder="Cari nama / NIM…"
-            startContent={<Search className="h-4 w-4 text-foreground-400" />}
-            classNames={{ inputWrapper: "min-h-11" }}
-          />
-        </div>
-
-        <div className={mobile ? "grid grid-cols-2 gap-3" : "space-y-3"}>
-          <div>
-            <div className="mb-1 text-[11px] uppercase tracking-wide text-foreground-500">Jenis</div>
-            <Select
-              aria-label="Filter jenis"
-              size={mobile ? "md" : "sm"}
-              selectedKeys={[jenisFilter]}
-              onChange={(e) => onChangeJenis(((e.target.value as string) || "ALL") as JenisFilter)}
-              className="w-full"
-              classNames={{ trigger: "min-h-11" }}
-              radius="md"
-              variant="bordered"
-            >
-              <SelectItem key="ALL" textValue="Semua">Semua</SelectItem>
-              <SelectItem key="TUTON" textValue="TUTON">TUTON</SelectItem>
-              <SelectItem key="KARIL" textValue="KARIL">KARIL</SelectItem>
-              <SelectItem key="TK" textValue="TK">TK</SelectItem>
-            </Select>
-          </div>
-
-          <div>
-            <div className="mb-1 text-[11px] uppercase tracking-wide text-foreground-500">
-              Nomor (per {chunk || CHUNK_DEFAULT})
-            </div>
-            <Select
-              aria-label="Filter nomor"
-              size={mobile ? "md" : "sm"}
-              selectedKeys={[rangeKey]}
-              onChange={(e) => onChangeRange((e.target.value as string) || "ALL")}
-              className="w-full"
-              classNames={{ trigger: "min-h-11" }}
-              radius="md"
-              variant="bordered"
-            >
-              {rangeOptions.map((rk) =>
-                rk === "ALL" ? (
-                  <SelectItem key="ALL" textValue="Semua">Semua</SelectItem>
-                ) : (
-                  <SelectItem key={rk} textValue={rk}>{rk}</SelectItem>
-                )
-              )}
-            </Select>
-          </div>
+          ) : (
+            <Chip className="border border-white/15 bg-white/10 text-[10px] font-bold text-white" size="sm" variant="flat">
+              {filtered.length}
+            </Chip>
+          )}
         </div>
       </div>
 
-      {/* List */}
-      <div className="min-h-0 flex-1">
-        <ScrollShadow hideScrollBar className="h-full px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+      <div className="z-10 border-b border-default-200/70 bg-content1/95 p-3 backdrop-blur">
+        <div className="mb-2.5 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-400/10 dark:text-sky-300">
+              <Filter className="h-3.5 w-3.5" />
+            </span>
+            <div>
+              <p className="text-xs font-bold text-foreground">Pencarian &amp; filter</p>
+              <p className="text-[9px] text-foreground-400">Temukan akun lebih cepat</p>
+            </div>
+          </div>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex min-h-8 items-center gap-1 rounded-lg px-2 text-[10px] font-bold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Reset
+            </button>
+          )}
+        </div>
+
+        <Input
+          aria-label="Cari customer berdasarkan nama atau NIM"
+          isClearable
+          size={mobile ? "md" : "sm"}
+          variant="flat"
+          radius="lg"
+          value={qInput}
+          onValueChange={setQInput}
+          onClear={() => setQInput("")}
+          placeholder="Cari nama atau NIM"
+          startContent={<Search className="h-4 w-4 text-foreground-400" />}
+          classNames={{
+            inputWrapper:
+              "min-h-11 border border-default-200/80 bg-default-100/70 shadow-none transition-colors data-[hover=true]:bg-default-100 group-data-[focus=true]:border-primary/50 group-data-[focus=true]:bg-content1",
+            input: "text-sm placeholder:text-foreground-350",
+          }}
+        />
+
+        <div className="mt-3">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-foreground-400">Jenis layanan</span>
+            <span className="text-[9px] font-medium text-foreground-400">Pilih satu</span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5" aria-label="Filter layanan">
+            {layananOptions.map((option) => {
+              const selected = layananFilter === option.key;
+              return (
+                <button
+                  type="button"
+                  key={option.key}
+                  aria-pressed={selected}
+                  onClick={() => onChangeLayanan(option.key)}
+                  className={[
+                    "min-h-9 rounded-xl border px-2 text-[11px] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                    selected
+                      ? "border-transparent bg-[#123b5a] text-white shadow-[0_5px_14px_rgba(18,59,90,.16)] dark:bg-sky-500/20 dark:text-sky-100 dark:ring-1 dark:ring-sky-400/30"
+                      : "border-default-200/80 bg-default-50 text-foreground-600 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 dark:hover:border-sky-400/20 dark:hover:bg-sky-400/[.07] dark:hover:text-sky-200",
+                  ].join(" ")}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-foreground-400">Rentang daftar</span>
+            <span className="text-[9px] font-medium text-foreground-400">{chunk || CHUNK_DEFAULT} per kelompok</span>
+          </div>
+          <Select
+            aria-label="Filter rentang nomor customer"
+            size={mobile ? "md" : "sm"}
+            selectedKeys={[rangeKey]}
+            onChange={(event) => onChangeRange((event.target.value as string) || "ALL")}
+            className="w-full"
+            classNames={{
+              trigger: "min-h-10 rounded-xl border-default-200/80 bg-default-50 shadow-none",
+              value: "text-xs font-semibold text-foreground-700",
+            }}
+            radius="lg"
+            variant="bordered"
+          >
+            {rangeOptions.map((range) =>
+              range === "ALL" ? (
+                <SelectItem key="ALL" textValue="Tampilkan semua">Tampilkan semua</SelectItem>
+              ) : (
+                <SelectItem key={range} textValue={`Nomor ${range}`}>Nomor {range}</SelectItem>
+              )
+            )}
+          </Select>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between border-b border-default-200/60 bg-default-50/70 px-3 py-2">
+        <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-foreground-400">Customer</span>
+        <span className="rounded-full bg-content1 px-2 py-0.5 text-[10px] font-bold text-foreground-500 ring-1 ring-default-200/70">
+          {loading ? "…" : `${filtered.length} hasil`}
+        </span>
+      </div>
+
+      <div className="min-h-0 flex-1 bg-content1">
+        <ScrollShadow hideScrollBar className="h-full px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1.5">
           {loading && (
-            <div className="flex items-center justify-center py-10" role="status" aria-label="Memuat customer">
-              <Spinner size="sm" />
+            <div className="space-y-1.5 py-1" role="status" aria-label="Memuat customer">
+              <span className="sr-only">Memuat customer…</span>
+              {Array.from({ length: mobile ? 7 : 9 }, (_, index) => (
+                <div className="flex min-h-14 items-center gap-2.5 rounded-xl px-2" key={index}>
+                  <Skeleton className="h-8 w-8 shrink-0 rounded-lg" />
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <Skeleton className="h-3.5 w-3/4 rounded-md" />
+                    <Skeleton className="h-2.5 w-1/2 rounded-md" />
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
           {!loading && loadError && (
-            <div className="px-3 py-4 text-sm text-danger" role="alert">{loadError}</div>
+            <div className="mx-1 mt-2 rounded-xl border border-danger-200 bg-danger-50 px-3 py-4 text-center text-xs leading-5 text-danger-700 dark:border-danger-500/20 dark:bg-danger-500/10 dark:text-danger-300" role="alert">
+              {loadError}
+            </div>
           )}
 
           {!loading && !loadError && filtered.length === 0 && (
-            <div className="px-3 py-6 text-center text-sm text-foreground-500">Tidak ada data.</div>
+            <div className="px-3 py-8 text-center">
+              <span className="mx-auto grid h-10 w-10 place-items-center rounded-xl bg-default-100 text-foreground-400">
+                <Search className="h-4 w-4" />
+              </span>
+              <p className="mt-3 text-xs font-bold text-foreground-700">Customer tidak ditemukan</p>
+              <p className="mt-1 text-[10px] leading-4 text-foreground-400">Ubah kata pencarian atau reset filter.</p>
+            </div>
           )}
 
-          <ul className="space-y-1 py-2">
-            {filtered.map((c) => {
-              const isActive = String(c.id) === String(activeId);
-              const nomor = numberMap.get(c.id) || 0;
-              const jenisU = (c.jenis || "").toUpperCase();
-              const isTK = jenisU.includes("TK");
-              const isKARIL = jenisU.includes("KARIL");
+          {!loading && !loadError && (
+            <ul className="space-y-1">
+              {filtered.map((customer) => {
+                const isActive = String(customer.id) === String(activeId);
+                const nomor = numberMap.get(customer.id) || 0;
 
-              return (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    aria-current={isActive ? "page" : undefined}
-                    onClick={() => onPick(c)}
-                    className={[
-                      baseItemCls,
-                      "min-h-12 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                      isActive ? (isDark ? activeDarkCls : activeLightCls) : "",
-                    ].join(" ")}
-                  >
-                    <span
+                return (
+                  <li key={customer.id}>
+                    <button
+                      type="button"
+                      aria-current={isActive ? "page" : undefined}
+                      onClick={() => onPick(customer)}
                       className={[
-                        "absolute bottom-2 left-0 top-2 w-1 rounded-full transition-colors",
-                        isActive
-                          ? "bg-gradient-to-b from-indigo-500 via-sky-500 to-emerald-500"
-                          : "bg-default-200",
+                        baseItemCls,
+                        "min-h-14 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+                        isActive ? (isDark ? activeDarkCls : activeLightCls) : "",
                       ].join(" ")}
-                    />
-                    <div className="ml-3 flex items-center gap-3">
+                    >
                       <span
                         className={[
-                          "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold transition-colors",
-                          isActive
-                            ? "bg-gradient-to-br from-indigo-500/20 to-emerald-500/20 text-foreground ring-2 ring-sky-400/60"
-                            : "bg-default-100 text-foreground-700",
+                          "absolute bottom-2 left-0 top-2 w-[3px] rounded-r-full transition-colors",
+                          isActive ? "bg-gradient-to-b from-sky-500 to-teal-500" : "bg-transparent",
                         ].join(" ")}
-                      >
-                        {nomor}
-                      </span>
-
-                      <div className="flex min-w-0 flex-1 items-center gap-2">
+                      />
+                      <div className="flex items-center gap-2.5">
                         <span
-                          className={`block max-w-full truncate text-[15px] ${
+                          className={[
+                            "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[11px] font-bold transition-colors",
                             isActive
-                              ? "font-semibold text-foreground"
-                              : "text-foreground-700 group-hover:text-foreground"
-                          }`}
+                              ? "bg-[#123b5a] text-white shadow-sm dark:bg-sky-400/20 dark:text-sky-100"
+                              : "bg-default-100 text-foreground-600 group-hover:bg-white dark:group-hover:bg-default-100",
+                          ].join(" ")}
                         >
-                          {c.namaCustomer || "-"}
+                          {nomor}
                         </span>
-                        {isTK && (
-                          <Chip size="sm" variant="flat" className={tkBadgeCls}>
-                            TK
-                          </Chip>
-                        )}
-                        {isKARIL && (
-                          <Chip size="sm" variant="flat" className={karilBadgeCls}>
-                            KARIL
-                          </Chip>
-                        )}
+
+                        <div className="min-w-0 flex-1">
+                          <span className={`block truncate text-[13px] ${isActive ? "font-bold text-foreground" : "font-semibold text-foreground-700 group-hover:text-foreground"}`}>
+                            {customer.namaCustomer || "-"}
+                          </span>
+                          <span className="mt-0.5 block truncate text-[10px] text-foreground-400">
+                            {customer.nim ? `NIM ${customer.nim}` : "NIM belum tersedia"}
+                          </span>
+                        </div>
+
+                        <ChevronRight className={`h-3.5 w-3.5 shrink-0 transition ${isActive ? "text-sky-600 dark:text-sky-300" : "text-foreground-300 group-hover:translate-x-0.5 group-hover:text-foreground-500"}`} />
                       </div>
-                    </div>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </ScrollShadow>
       </div>
     </Card>
   );
 
   return (
-    <div className="w-full py-2 sm:py-3 md:px-2 md:py-5" data-customers-shell>
+    <div
+      data-workspace-page
+      className="w-full bg-gradient-to-br from-sky-50/30 via-transparent to-teal-50/30 py-0 dark:from-sky-950/10 dark:to-teal-950/10"
+      data-customers-shell
+    >
       <div
-        ref={gridRef}
-        className="md:grid md:h-[calc(100dvh-5.5rem)] md:gap-3 md:overflow-hidden md:transition-[grid-template-columns] md:duration-300"
+        className="relative md:grid md:h-[calc(100dvh-2.25rem)] md:gap-3 md:overflow-visible md:transition-[grid-template-columns] md:duration-300"
         style={{ gridTemplateColumns: gridTemplate }}
       >
         {/* === Konten Detail (kolom kiri) === */}
-        <section ref={contentRef} className="relative min-w-0 md:h-full md:overflow-y-auto">
+        <section className="relative min-w-0 md:h-full md:overflow-y-auto">
           <div className="sticky top-0 z-30 mb-3 md:hidden">
             <Button
               type="button"
@@ -559,56 +593,43 @@ export default function CustomerDetailWithSidebar() {
             </Button>
           </div>
 
-          {/* Tombol toggle (fixed, tidak ikut scroll & nempel tepi konten) */}
-          {collapsed ? (
-            <Tooltip content="Buka daftar customer" placement="left">
-              <Button
-                isIconOnly
-                aria-label="Buka sidebar"
-                radius="full"
-                variant="bordered"
-                className="fixed top-1/2 hidden -translate-y-1/2 h-12 w-12 shadow-md backdrop-blur md:inline-flex
-                           supports-[backdrop-filter]:bg-white/70 dark:supports-[backdrop-filter]:bg-[#0B1220]/70 z-50"
-                style={{ right: toggleRightPx }}
-                onPress={() => setCollapsed(false)}
-              >
-                <ChevronRight className="h-5 w-5 text-foreground-600" />
-              </Button>
-            </Tooltip>
-          ) : (
+          <div className="pb-1 md:pr-0.5">
+            <CustomerDetail />
+          </div>
+        </section>
+
+        {/* === Sidebar (kolom kanan) — hanya render saat terbuka === */}
+        {!collapsed && (
+          <aside className="relative hidden h-full self-start overflow-visible md:block">
             <Tooltip content="Tutup daftar customer" placement="left">
               <Button
                 isIconOnly
                 aria-label="Tutup sidebar"
                 radius="full"
                 variant="bordered"
-                className="fixed top-1/2 hidden -translate-y-1/2 h-11 w-11 min-w-11 shadow-xl ring-1 ring-default-200 md:inline-flex
-                           bg-background/90 backdrop-blur hover:bg-background transition z-50"
-                style={{ right: toggleRightPx }}
+                className="absolute left-0 top-1/2 z-50 hidden h-11 w-11 min-w-11 -translate-x-1/2 -translate-y-1/2 bg-background/95 shadow-lg ring-1 ring-default-200 backdrop-blur transition md:inline-flex"
                 onPress={() => setCollapsed(true)}
               >
-                <ChevronRight className="h-4 w-4 text-foreground-600 rotate-180" />
+                <ChevronRight className="h-4 w-4 text-foreground-600" />
               </Button>
             </Tooltip>
-          )}
-
-          <Card className="rounded-2xl border border-default-200 shadow-sm">
-            <div className="px-3 py-3 sm:px-4">
-              <CustomerDetail />
-            </div>
-            <Divider />
-          </Card>
-        </section>
-
-        {/* === Sidebar (kolom kanan) — hanya render saat terbuka === */}
-        {!collapsed && (
-          <aside className="hidden h-full self-start overflow-hidden md:block">
-            <div className="relative h-full">
-              <div className="rounded-2xl p-[1px] h-full bg-gradient-to-b from-indigo-200/70 via-sky-200/60 to-emerald-200/70 dark:from-indigo-900/40 dark:via-sky-900/40 dark:to-emerald-900/40">
-                {renderCustomerPanel()}
-              </div>
-            </div>
+            <div className="relative h-full overflow-hidden rounded-[22px]">{renderCustomerPanel()}</div>
           </aside>
+        )}
+
+        {collapsed && (
+          <Tooltip content="Buka daftar customer" placement="left">
+            <Button
+              isIconOnly
+              aria-label="Buka sidebar"
+              radius="full"
+              variant="bordered"
+              className="absolute right-1 top-1/2 z-50 hidden h-11 w-11 min-w-11 -translate-y-1/2 bg-background/95 shadow-lg ring-1 ring-default-200 backdrop-blur transition hover:-translate-x-0.5 md:inline-flex"
+              onPress={() => setCollapsed(false)}
+            >
+              <ChevronRight className="h-4 w-4 rotate-180 text-foreground-600" />
+            </Button>
+          </Tooltip>
         )}
       </div>
 
